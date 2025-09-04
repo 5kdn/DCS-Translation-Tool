@@ -1,0 +1,161 @@
+# ------------------------------------------------------------
+# Workflow Name : Publish to GitHub Release
+# Trigger       : release type publish
+# Purpose       :
+#   - releaseに対してAssetを追加
+# ------------------------------------------------------------
+name: Publish to GitHub Release
+
+on:
+  release:
+    types: [published]
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: 1
+  APP_NAME: ${{ github.event.repository.name }}
+  TARGET_PROJECT: src/DcsTranslationTool.Presentation.Wpf/DcsTranslationTool.Presentation.Wpf.csproj
+
+jobs:
+  Release:
+    name: Release
+    runs-on: windows-latest
+    permissions:
+      actions: write
+      contents: write
+    strategy:
+      matrix:
+        dotnet-version: ["8.0.x"]
+        rid: ["win-x64", "win-x86"]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      # tag_name の安全抽出と検証 → $env:VERSION に渡す
+      - name: Derive VERSION from tag_name securely
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = '${{ github.event.release.tag_name }}'
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw 'release.tag_name is empty'
+          }
+          # 先頭の v/V を許可。SemVer + 追加のプリリリース/ビルドを限定文字で許可
+          if ($tag -notmatch '^[vV](?<ver>[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9._-]+)?)$') {
+            throw "tag '${tag}' does not match expected pattern 'v1.2.3[-prerelease]'"
+          }
+          $version = $Matches['ver']  # 1.2.3[…]
+          # 追加のガード: 改行や空白、シェル特殊文字を拒否
+          if ($version -match '[\s`"''$&|<>]') { throw 'invalid chars in version' }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "VERSION=$version"
+
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+          cache: true
+          cache-dependency-path: |
+            **/packages.lock.json
+            **/Directory.Packages.props
+            global.json
+            NuGet.config
+
+      - name: Restore
+        shell: pwsh
+        run:  dotnet restore -r ${{ matrix.rid }}
+
+      - name: Publish
+        shell: pwsh
+        run: >
+          dotnet publish ${{ env.TARGET_PROJECT }}
+          -c Release
+          -r ${{ matrix.rid }}
+          -o publish/${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:PublishTrimmed=false
+          -p:PublishReadyToRun=false
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:IncludeAllContentForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:ContinuousIntegrationBuild=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
+          --no-restore
+
+      - name: Generate third-party notices
+        shell: pwsh
+        run: |
+          dotnet tool install -g nuget-license
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+          # 出力先を当該 RID の publish フォルダへ
+          $outDir = "publish/${{ matrix.rid }}"
+          if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
+          nuget-license `
+            -i "${{ env.TARGET_PROJECT }}" `
+            -t `
+            -o table `
+            -exclude-projects tests/* `
+            -fo "$outDir/THIRD-PARTY-NOTICES.txt"
+
+      - name: Archive artifacts
+        shell: pwsh
+        run: |
+          $pubDir  = "publish/${{ matrix.rid }}"
+          $stage   = "package/${{ matrix.rid }}"   # ZIP 直前のステージング
+          $dest    = "${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip"
+
+          if (-not (Test-Path $pubDir)) {
+            throw "publish directory not found: $pubDir"
+          }
+
+          # ステージングを作り直し
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          # 発行物を集約
+          Copy-Item -Path "$pubDir/*" -Destination $stage -Recurse -Force
+
+          # ルートの LICENSE → LICENSE.txt として同梱
+          if (Test-Path "LICENSE") {
+            Copy-Item -Path "LICENSE" -Destination (Join-Path $stage "LICENSE.txt") -Force
+          } else {
+            throw "LICENSE not found at repo root"
+          }
+
+          # ルートの README.md を同梱
+          if (Test-Path "README.md") {
+            Copy-Item -Path "README.md" -Destination (Join-Path $stage "README.md") -Force
+          } else {
+            throw "README.md not found at repo root"
+          }
+
+          # ルートの CHANGELOG.md を同梱
+          if (Test-Path "CHANGELOG.md") {
+            Copy-Item -Path "CHANGELOG.md" -Destination (Join-Path $stage "CHANGELOG.md") -Force
+          } else {
+            throw "CHANGELOG.md not found at repo root"
+          }
+
+          # ZIP 作成
+          if (Test-Path $dest) {
+            Remove-Item $dest -Force
+          }
+          Compress-Archive -Path "$stage/*" -DestinationPath $dest -CompressionLevel Optimal
+
+          # SHA256 生成
+          $hash = Get-FileHash -Path $dest -Algorithm SHA256
+          $shaFile = "$dest.sha256"
+          Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
+
+      - name: Attach assets to the current Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip
+            ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

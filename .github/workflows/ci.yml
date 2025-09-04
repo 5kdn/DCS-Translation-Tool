@@ -1,0 +1,119 @@
+# ------------------------------------------------------------
+# Workflow Name : CI
+# Trigger       : pull_request to master
+# Purpose       :
+#   - 変更に対して Lint / UnitTest を実行
+# ------------------------------------------------------------
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - '**/*.cs'
+      - '**/*.csproj'
+      - '**/*.props'
+      - '**/*.sln'
+      - '**/*.targets'
+      - '.editorconfig'
+      - '.github/workflows/**'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'NuGet.config'
+
+concurrency:
+  group: ci-${{ github.event.pull_request.head.repo.full_name }}-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+
+  Lint:
+    name: Lint
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        dotnet-version: ["8.0.x"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+          cache: true
+          cache-dependency-path: |
+            **/packages.lock.json
+            **/Directory.Packages.props
+            global.json
+            NuGet.config
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore --locked-mode
+
+      - name: Formatting
+        shell: pwsh
+        run: >
+          dotnet format
+          --no-restore
+          --verify-no-changes
+          --verbosity normal
+
+  Unit:
+    name: Unit Tests
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        dotnet-version: ["8.0.x"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+          cache: true
+          cache-dependency-path: |
+            **/packages.lock.json
+            **/Directory.Packages.props
+            global.json
+            NuGet.config
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore --locked-mode
+
+      - name: Build
+        shell: pwsh
+        run: >
+          dotnet build
+          -c Release
+          --no-restore
+          --nologo
+
+      - name: Unit Tests
+        shell: pwsh
+        run: >
+          dotnet test
+          -c Release
+          --no-build
+          --no-restore
+
+  # TODO: Integration tests job
+  # Integration:
+  #   needs: [call-restore]
+  #   runs-on: windows-latest
+  #   steps:
+  #     - name: x
+  # TODO: e2e tests job
+  # E2E:
+  #   needs: [call-restore]
+  #   runs-on: windows-latest
+  #   steps:
+  #     - name: x

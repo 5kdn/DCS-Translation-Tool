@@ -1,0 +1,84 @@
+name: 📝 ドキュメント改善
+description: README や各種ガイド、ユーザー向け翻訳ドキュメントの改善提案・不備報告
+title: "[Docs]: "
+labels: [documentation]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: どのような改善が必要かを一文で記載してください
+      placeholder: "例: README のセットアップ手順に最新の .NET 8 コマンドを記載してほしい"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc_scope
+    attributes:
+      label: 対象ドキュメント
+      description: 主に修正したい文書を選択してください（複数可）
+      multiple: true
+      options:
+        - README.md
+        - CONTRIBUTING.md
+        - SECURITY.md / PRIVACY.md
+        - 翻訳ガイド（docs/ 配下）
+        - UI テキスト / リリースノート
+        - その他（下記で説明）
+
+  - type: input
+    id: doc_path
+    attributes:
+      label: 対象ファイル/URL
+      description: 該当するファイルパスまたは permalink を記載してください
+      placeholder: "例: docs/getting-started.md#セットアップ手順"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 現在の記述
+      description: 問題となっている記述・不足している情報を引用または要約してください
+      placeholder: |
+        例:
+        - README で `dotnet restore` の後に `dotnet run` が案内されていない
+        - 翻訳ファイルの配置先が旧ディレクトリのまま
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する修正内容
+      description: 具体的な修正案や追記案、リンク先候補などを記載してください
+      placeholder: |
+        例:
+        - セットアップ手順に `dotnet publish -c Release` を追記
+        - docs/translations.md に新しい `Resources/` ディレクトリ構成を掲載
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影響範囲・期待効果
+      description: 想定読者、解決される課題、関連チームなどがあれば記載してください
+      placeholder: "例: 新規参加者が 15 分以内に開発環境を構築できるようになる"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 確認事項
+      description: 該当する項目にチェックしてください
+      options:
+        - label: 最新の main ブランチ内容を確認済み
+        - label: 参照リンク（外部/内部）が有効であることを確認済み
+        - label: 用語・表記が既存ドキュメントと整合している
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: 補足資料
+      description: スクリーンショット、下書き文案、関連 Issue/PR 番号があれば記載してください
+      placeholder: "例: 参考スライドへのリンク、関連 #123"

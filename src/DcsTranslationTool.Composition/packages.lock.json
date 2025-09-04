@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0-windows7.0": {
+      "dcstranslationtool.application": {
+        "type": "Project",
+        "dependencies": {
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )"
+        }
+      },
+      "dcstranslationtool.domain": {
+        "type": "Project"
+      },
+      "dcstranslationtool.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "DcsTranslationTool.Application": "[1.0.0, )",
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )"
+        }
+      },
+      "dcstranslationtool.shared": {
+        "type": "Project"
+      }
+    }
+  }
+}

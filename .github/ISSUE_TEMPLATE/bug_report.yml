@@ -1,0 +1,89 @@
+name: 🐛 バグ報告
+description: 不具合や予期しない挙動を報告するテンプレート
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: 発生した問題を一言で表してください
+      placeholder: "例: 翻訳対象フォルダーの保存ボタンが反応しない"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 手順を番号付きで記載してください
+      placeholder: |
+        例:
+        1. DCS Translation Tool を起動
+        2. ダウンロードを開く
+        3. 任意のリポジトリを選択し「ダウンロード」を押す
+        4. 表示されたエラー内容を確認する
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待される動作
+      description: 本来想定している挙動を記載してください
+      placeholder: "例: ダウンロード完了通知が表示され、UI 上の件数が更新される"
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作
+      description: 実際に確認された挙動・メッセージを記載してください
+      placeholder: "例: プログレスバーが止まり、ログに HttpRequestException が出力される"
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 発生頻度 / 影響度
+      description: 再現頻度に最も近いものを選択してください
+      options:
+        - 毎回発生（100%）
+        - 高頻度（50%以上）
+        - 稀に発生（50%未満）
+        - 一度のみ発生
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 再現確認
+      description: 該当するものにチェックしてください
+      options:
+        - label: 最新リリースビルドで確認済み
+        - label: 最新 master ブランチをビルドしても再現
+        - label: 影響範囲のテスト（`dotnet test` 等）を実行済み
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境情報
+      description: 発生環境をできるだけ詳しく書いてください
+      placeholder: |
+        例:
+        - アプリバージョン: vX.Y.Z (commit abc1234)
+        - 配布チャネル: GitHub Release / 自ビルド
+        - OS: Windows 11 23H2 (ビルド 22631.3527)
+        - .NET Runtime: 8.0.4
+        - ロケール: ja-JP
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ・スクリーンショット
+      description: エラーログ、スクリーンショット、動画などがあれば添付してください（機微情報は伏せてください）
+      placeholder: "例: `Logs\\app.log` の抜粋、UI のスクリーンショット等"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 備考
+      description: 回避策、影響範囲、関連Issue/PRなどがあれば記載してください
+      placeholder: "例: 設定で自動同期を無効化すると回避可能 / 関連 #123"

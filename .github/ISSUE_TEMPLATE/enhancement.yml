@@ -1,0 +1,69 @@
+name: 🔧 改善提案
+description: 既存機能・UI/UX・開発フローの改善を提案するテンプレート（新機能追加は含まない）
+title: "[Enhancement]: "
+labels: [enhancement]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: 改善したい内容を一文で記載してください
+      placeholder: "例: 翻訳ファイル更新タブの検索性能を向上させたい"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 現状の問題点
+      description: 課題や不満点、再現手順などを具体的に記載してください
+      placeholder: |
+        例:
+        - 翻訳ファイル一覧を開くとフィルターがリセットされる
+        - 大量のファイルを扱うと UI が 2 秒以上固まる
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 改善案
+      description: 希望する改善後の状態や、考えている解決アプローチを記載してください
+      placeholder: "例: ViewModel 側で差分読み込みを行い、UI 更新を非同期化する"
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: 完了の基準や確認方法があれば記載してください
+      placeholder: |
+        例:
+        - 1,000 件の翻訳ファイルを読み込んでも UI が 500ms 未満で応答
+        - 自動テスト `TranslationListPerformanceTests` が pass
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: 影響範囲
+      description: 該当するものにチェックしてください
+      options:
+        - label: 既存の翻訳データに影響する
+        - label: API / バックエンドとの通信仕様に影響する
+        - label: UI デザイン（XAML）変更を伴う
+        - label: CI / 自動化ワークフローに影響する
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: テスト観点
+      description: 動作確認や自動テストの追加アイデアがあれば記載してください
+      placeholder: "例: `dotnet test` に長時間かかるため、UI テストの追加が必要"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足情報
+      description: 参考資料、関連 Issue/PR、スクリーンショットなど
+      placeholder: "例: 類似 Issue #456、関連 PR #789"

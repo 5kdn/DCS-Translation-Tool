@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0-windows7.0": {
+      "Caliburn.Micro": {
+        "type": "Direct",
+        "requested": "[5.0.258, )",
+        "resolved": "5.0.258",
+        "contentHash": "lByAbLJltScVSMpgDoWNYytRJq0OSbD6gyZGMsEN2r8q+TYuh2+jI/1zaLUUfnG6RmrppT5u1iNURqKc8nR6og==",
+        "dependencies": {
+          "Caliburn.Micro.Core": "5.0.258",
+          "Microsoft.Xaml.Behaviors.Wpf": "1.1.135"
+        }
+      },
+      "MaterialDesignThemes": {
+        "type": "Direct",
+        "requested": "[5.2.1, )",
+        "resolved": "5.2.1",
+        "contentHash": "x8JDqNHJcTLLxIoVts3w7AbSq5Zo0FXTw89XqPN7+n0EKqLXFwWsywiUn08HDyTGAmZVJqbQsWKxKWCI8qfWsQ==",
+        "dependencies": {
+          "MaterialDesignColors": "5.2.1",
+          "Microsoft.Xaml.Behaviors.Wpf": "1.1.39"
+        }
+      },
+      "Caliburn.Micro.Core": {
+        "type": "Transitive",
+        "resolved": "5.0.258",
+        "contentHash": "6QizhXetuR6TD0jXlf/ebqC7LI6bjK1uN/tl14z49lhtNYKhSEvJ5zT7evvDKLWux6idC9YqePq2CdtDSKiQaw=="
+      },
+      "MaterialDesignColors": {
+        "type": "Transitive",
+        "resolved": "5.2.1",
+        "contentHash": "D0HW6E2/kzsnEWCh1KDG/K09Fpkvs9mR3n91Y8YSOsEAoQmGZbVAj58ssyAxGTiIPj2zB4ZVnwxkizwO35/v8A=="
+      },
+      "Microsoft.Xaml.Behaviors.Wpf": {
+        "type": "Transitive",
+        "resolved": "1.1.135",
+        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
+      },
+      "dcstranslationtool.application": {
+        "type": "Project",
+        "dependencies": {
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )"
+        }
+      },
+      "dcstranslationtool.composition": {
+        "type": "Project",
+        "dependencies": {
+          "DcsTranslationTool.Application": "[1.0.0, )",
+          "DcsTranslationTool.Infrastructure": "[1.0.0, )"
+        }
+      },
+      "dcstranslationtool.domain": {
+        "type": "Project"
+      },
+      "dcstranslationtool.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "DcsTranslationTool.Application": "[1.0.0, )",
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )"
+        }
+      },
+      "dcstranslationtool.resources": {
+        "type": "Project"
+      },
+      "dcstranslationtool.shared": {
+        "type": "Project"
+      }
+    },
+    "net8.0-windows7.0/win-x64": {},
+    "net8.0-windows7.0/win-x86": {}
+  }
+}

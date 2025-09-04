@@ -1,0 +1,89 @@
+name: ❓ 質問
+description: 使い方・挙動・運用に関する質問を記録するテンプレート
+title: "[Question]: "
+labels: [question]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 質問の概要
+      description: 疑問点を一文で記載してください
+      placeholder: "例: GitHubアカウントがなくても使用できますか？"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 質問カテゴリ
+      description: 当てはまるものを選択してください（複数可）
+      multiple: true
+      options:
+        - 使い方・操作方法
+        - 設定・構成
+        - 翻訳ワークフロー
+        - ビルド / CI
+        - バグか不明な挙動
+        - その他（下記で詳細）
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 背景・前提
+      description: 状況や再現手順など、疑問が生じた経緯を記載してください
+      placeholder: |
+        例:
+        - README と CONTRIBUTING を参照したが該当手順が見つからない
+        - バージョン vX.Y.Z のリリース版で再現
+        - 翻訳ファイルを `Resources/ja` に配置して実行
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 試したこと / 参照した資料
+      description: 既に調査・試行した内容があれば記載してください
+      placeholder: |
+        例:
+        - `dotnet restore` 実行後にエラー再発
+        - GitHub Discussions / FAQ を確認済み
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 知りたいこと / 期待する答え
+      description: どのような情報や結論が得られれば解決するかを記載してください
+      placeholder: "例: 環境変数 `DCS_TRANSLATION_CACHE` でキャッシュ先を変更できるか知りたい"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: urgency
+    attributes:
+      label: 緊急度
+      description: 当てはまるものにチェックしてください
+      options:
+        - label: DCSゲームプレイに影響が出る（高）
+        - label: 作業が完全に停止している（高）
+        - label: 代替手段はあるが効率が悪い（中）
+        - label: 情報収集中・将来の検討（低）
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境情報
+      description: アプリバージョン、OS、.NET ランタイム、使用中の言語/ロケールなどがあれば記載してください
+      placeholder: |
+        例:
+        - アプリバージョン: v1.2.3 (commit 1a2b3c4)
+        - OS: Windows 11 23H2
+        - .NET Runtime: 8.0.5
+        - ロケール: ja-JP
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: スクリーンショット、ログ、関連 Issue/PR などがあれば記載してください
+      placeholder: "例: `%LOCALAPPDATA%\\DcsTranslationTool\\Logs\\app.log` の抜粋、関連 #987"

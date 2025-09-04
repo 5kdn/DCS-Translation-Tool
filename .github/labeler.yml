@@ -1,0 +1,100 @@
+# ------------------------------------------------------------
+# .github/labeler.yml
+# Purpose:
+#   - PR の変更ファイルパスに応じて自動ラベル付与
+#   - ラベルは事前にリポジトリ側で作成しておくこと（Settings > Labels）
+# Notes:
+#   - actions/labeler@v5 形式（changed-files / any-glob-to-any-file）
+#   - ここにないラベル（prio/*, status/* など）は人手または他Automationで付与
+#   - パターンは必要に応じて編集してください
+# ------------------------------------------------------------
+
+
+"WPF / XAML":
+  - changed-files:
+    - any-glob-to-any-file: "**/*.xaml"
+    - any-glob-to-any-file: "**/*.xaml.cs"
+    - any-glob-to-any-file: "**/App.xaml"
+    - any-glob-to-any-file: "**/App.xaml.cs"
+    - any-glob-to-any-file: "**/*Window.xaml"
+    - any-glob-to-any-file: "**/*Page.xaml"
+    - any-glob-to-any-file: "**/*UserControl.xaml"
+
+"View / UI":
+  - changed-files:
+    - any-glob-to-any-file: "src/**/Features/**/*.xaml"
+    - any-glob-to-any-file: "src/**/Features/**/*.xaml.cs"
+    - any-glob-to-any-file: "src/**/Shell/**/*.xaml"
+    - any-glob-to-any-file: "src/**/Shell/**/*.xaml.cs"
+    - any-glob-to-any-file: "src/**/Views/**/*.xaml"
+    - any-glob-to-any-file: "src/**/Views/**/*.xaml.cs"
+
+"ViewModel":
+  - changed-files:
+    - any-glob-to-any-file: "**/ViewModels/**/*.cs"
+    - any-glob-to-any-file: "**/*ViewModel.cs"
+
+"Model / Business Logic":
+  - changed-files:
+    - any-glob-to-any-file: "**/Models/**/*.cs"
+    - any-glob-to-any-file: "**/*Service.cs"
+    - any-glob-to-any-file: "**/*Repository.cs"
+
+"Build / MSBuild":
+  - changed-files:
+    - any-glob-to-any-file: "**/*.csproj"
+    - any-glob-to-any-file: "**/*.props"
+    - any-glob-to-any-file: "**/*.targets"
+    - any-glob-to-any-file: "Directory.Build.*"
+
+"Dependencies / NuGet":
+  - changed-files:
+    - any-glob-to-any-file: "**/Directory.Packages.props"
+    - any-glob-to-any-file: "**/packages.lock.json"
+    - any-glob-to-any-file: "nuget.config"
+
+"Tests":
+  - changed-files:
+    - any-glob-to-any-file: "tests/**"
+
+"CI / GitHub Actions":
+  - changed-files:
+    - any-glob-to-any-file: ".github/workflows/**"
+
+"Docs":
+  - changed-files:
+    - any-glob-to-any-file: "CODE_OF_CONDUCT.md"
+    - any-glob-to-any-file: "CONTRIBUTING.md"
+    - any-glob-to-any-file: "LICENSE"
+    - any-glob-to-any-file: "PRIVACY.md"
+    - any-glob-to-any-file: "README.md"
+    - any-glob-to-any-file: "SECURITY.md"
+    - any-glob-to-any-file: "**/*.md"
+
+"Localization":
+  - changed-files:
+    - any-glob-to-any-file: "**/*.resx"
+
+"Assets / Images":
+  - changed-files:
+    - any-glob-to-any-file: "**/*.png"
+    - any-glob-to-any-file: "**/*.jpg"
+    - any-glob-to-any-file: "**/*.jpeg"
+    - any-glob-to-any-file: "**/*.ico"
+    - any-glob-to-any-file: "**/*.svg"
+    - any-glob-to-any-file: "**/*.ttf"
+
+"Packaging / Installer":
+  - changed-files:
+    - any-glob-to-any-file: "**/*.msix*"
+    - any-glob-to-any-file: "**/*.appinstaller"
+    - any-glob-to-any-file: "**/*.wxs"
+    - any-glob-to-any-file: "**/*.wixproj"
+    - any-glob-to-any-file: "installer/**"
+
+"Code Style / Analyzer":
+  - changed-files:
+    - any-glob-to-any-file: ".editorconfig"
+    - any-glob-to-any-file: ".globalconfig"
+    - any-glob-to-any-file: "stylecop.json"
+    - any-glob-to-any-file: "**/*.ruleset"

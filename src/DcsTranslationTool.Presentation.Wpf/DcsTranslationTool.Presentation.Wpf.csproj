@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <NeutralLanguage>ja-JP</NeutralLanguage>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UseWPF>true</UseWPF>
+        <PlatformTarget>AnyCPU</PlatformTarget>
+        <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
+        <Title>DCS Translation Tool</Title>
+        <Product>DcsTranslationTool</Product>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Version>0.0.1</Version> <!-- x-release-please-version -->
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>$(Version).0</FileVersion>
+        <InformationalVersion>$(Version)</InformationalVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Caliburn.Micro" Version="5.0.258" />
+        <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DcsTranslationTool.Application\DcsTranslationTool.Application.csproj" />
+        <ProjectReference Include="..\DcsTranslationTool.Composition\DcsTranslationTool.Composition.csproj" />
+        <ProjectReference Include="..\DcsTranslationTool.Resources\DcsTranslationTool.Resources.csproj" />
+        <ProjectReference Include="..\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Resource Include="Assets\Fonts\ZenKakuGothicNew-Regular.ttf" />
+        <Resource Include="Assets\Fonts\ZenKakuGothicNew-Medium.ttf" />
+        <Resource Include="Assets\Fonts\ZenKakuGothicNew-Bold.ttf" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="App.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </None>
+    </ItemGroup>
+
+    <Target Name="RenamePublishOutput" AfterTargets="Publish">
+        <PropertyGroup>
+            <_PublishSourceExe>$(PublishDir)$(AssemblyName).exe</_PublishSourceExe>
+            <_PublishTargetExe>$(PublishDir)DCS-Translation-Tool.exe</_PublishTargetExe>
+        </PropertyGroup>
+        <Delete Files="$(_PublishTargetExe)" Condition="Exists('$(_PublishTargetExe)')" />
+        <Move SourceFiles="$(_PublishSourceExe)" DestinationFiles="$(_PublishTargetExe)" Condition="Exists('$(_PublishSourceExe)')" />
+    </Target>
+
+</Project>

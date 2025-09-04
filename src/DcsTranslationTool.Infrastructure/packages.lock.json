@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "dcstranslationtool.application": {
+        "type": "Project",
+        "dependencies": {
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )"
+        }
+      },
+      "dcstranslationtool.domain": {
+        "type": "Project"
+      },
+      "dcstranslationtool.shared": {
+        "type": "Project"
+      }
+    }
+  }
+}

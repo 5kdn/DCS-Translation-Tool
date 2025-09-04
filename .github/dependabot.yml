@@ -1,0 +1,39 @@
+# ------------------------------------------------------------
+# Purpose:
+#   - 依存の自動更新（セキュリティ & 定期）
+# ------------------------------------------------------------
+version: 2
+
+updates:
+
+# ─────────────────────────────────────────────────────────
+# 1) GitHub Actions のアクション更新を監視
+#    - actions/setup-dotnet や checkout 等のバージョン上げで CI 安定化
+# ─────────────────────────────────────────────────────────
+- package-ecosystem: "github-actions"
+  directory: "/"
+  schedule:
+    interval: "weekly"
+    time: "03:20"
+    timezone: "Asia/Tokyo"
+  labels:
+    - "dependencies"
+    - "CI / GitHub Actions"
+
+# ─────────────────────────────────────────────────────────
+# 2) NuGet パッケージを監視
+#    - Dependabot は .csproj / .props / .targets / packages.config を解析
+#    - net8.0 指定のプロジェクトでも、互換範囲内の最新を提案
+# ─────────────────────────────────────────────────────────
+- package-ecosystem: "nuget"
+  directory: "/"
+  schedule:
+    interval: "daily"     # daily / weekly / monthly
+    time: "03:00"
+    timezone: "Asia/Tokyo"
+  open-pull-requests-limit: 10
+  pull-request-branch-name:
+    separator: "-"
+  labels:
+    - "dependencies"
+    - "Dependencies / NuGet"

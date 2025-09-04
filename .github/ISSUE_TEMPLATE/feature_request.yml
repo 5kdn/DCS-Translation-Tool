@@ -1,0 +1,81 @@
+name: ✨ 新機能リクエスト
+description: 新しい機能やワークフロー拡張を提案するテンプレート
+title: "[Feature]: "
+labels: [feature_request]
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: 概要
+      description: 提案する機能を一文で記載してください
+      placeholder: "例: 翻訳対象フォルダの自動スキャン機能を追加したい"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 課題・背景
+      description: 現状の課題や困りごと、機能追加により解決したい点を具体的に記載してください
+      placeholder: |
+        例:
+        - 手動でフォルダを指定する手順が多く、翻訳差分の取りこぼしが発生する
+        - 作業時間帯に UI 操作が集中し、チーム内の作業効率が低下している
+    validations:
+      required: true
+
+  - type: textarea
+    id: persona
+    attributes:
+      label: 想定ユーザー
+      description: 機能を利用するロール・ユースケースを記載してください
+      placeholder: "例: 翻訳チームのレビュアー、ローカライズ担当者、CI 用スクリプト"
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 必要な機能スコープ
+      description: 機能の範囲や主要なサブタスク、UI/バックエンドの変更点を記載してください
+      placeholder: |
+        例:
+        - UI: 設定タブに「自動スキャン」トグルを追加
+        - バックエンド: `TranslationScannerService` に定期実行ジョブを追加
+        - 永続化: 設定値を `UserSettings.json` に保存
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: 完了を判断するための条件やテスト観点を記載してください
+      placeholder: |
+        例:
+        - 5 分ごとの自動スキャンで新規ファイルが UI に表示される
+        - 手動スキャンと自動スキャンを併用しても競合しない
+        - `dotnet test` + UI テストが pass
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案 / 未検討事項
+      description: 他に検討したアプローチや課題となりそうな点があれば記載してください
+      placeholder: "例: CLI 版ツールを追加する案もあるが、保守コストが増える懸念がある"
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: 影響範囲
+      description: 該当するものにチェックしてください
+      options:
+        - label: UI / XAML の追加・変更が必要
+        - label: API / ドメインロジックの追加・変更が必要
+        - label: データモデル / スキーマに影響する
+        - label: CI / 自動化フローに影響する
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: 参考資料、モック、関連 Issue/PR、外部リンクなど
+      placeholder: "例: 試作モックの Figma URL、関連 #321"
