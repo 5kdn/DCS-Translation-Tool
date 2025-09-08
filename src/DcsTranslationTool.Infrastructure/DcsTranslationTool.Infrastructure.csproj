@@ -11,4 +11,9 @@
         <ProjectReference Include="..\DcsTranslationTool.Domain\DcsTranslationTool.Domain.csproj" />
         <ProjectReference Include="..\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="NLog" Version="6.0.5" />
+    </ItemGroup>
+
 </Project>

@@ -7,6 +7,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Caliburn.Micro" Version="5.0.258" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\DcsTranslationTool.Application\DcsTranslationTool.Application.csproj" />
         <ProjectReference Include="..\DcsTranslationTool.Infrastructure\DcsTranslationTool.Infrastructure.csproj" />
     </ItemGroup>

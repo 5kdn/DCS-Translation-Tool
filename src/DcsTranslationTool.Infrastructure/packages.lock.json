@@ -2,6 +2,12 @@
   "version": 1,
   "dependencies": {
     "net8.0": {
+      "NLog": {
+        "type": "Direct",
+        "requested": "[6.0.5, )",
+        "resolved": "6.0.5",
+        "contentHash": "Gq/L18qnZhIfrfqXtUBKdDMtT8cZB+974C99H+w6DxdlIcT4wYCCGjRgnUij3spUH1HWScF6JRaCyv11CHZJ6g=="
+      },
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {

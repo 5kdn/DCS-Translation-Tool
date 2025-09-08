@@ -3,6 +3,7 @@ using System.Windows.Navigation;
 
 using Caliburn.Micro;
 
+using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Shell;
 
@@ -43,10 +44,12 @@ public sealed class ShellViewModelTests {
             .SetupRemove( service => service.Navigating -= It.IsAny<NavigatingCancelEventHandler>() )
             .Callback<NavigatingCancelEventHandler>( handler => navigatingHandler -= handler );
 
+        var loggerMock = new Mock<ILoggingService>();
         var eventAggregatorMock = new Mock<IEventAggregator>();
 
         var viewModel = new ShellViewModel(
             eventAggregatorMock.Object,
+            loggerMock.Object,
             navigationServiceMock.Object );
 
         await viewModel.ActivateAsync( CancellationToken.None );

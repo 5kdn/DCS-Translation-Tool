@@ -2,6 +2,31 @@
   "version": 1,
   "dependencies": {
     "net8.0-windows7.0": {
+      "Caliburn.Micro": {
+        "type": "Direct",
+        "requested": "[5.0.258, )",
+        "resolved": "5.0.258",
+        "contentHash": "lByAbLJltScVSMpgDoWNYytRJq0OSbD6gyZGMsEN2r8q+TYuh2+jI/1zaLUUfnG6RmrppT5u1iNURqKc8nR6og==",
+        "dependencies": {
+          "Caliburn.Micro.Core": "5.0.258",
+          "Microsoft.Xaml.Behaviors.Wpf": "1.1.135"
+        }
+      },
+      "Caliburn.Micro.Core": {
+        "type": "Transitive",
+        "resolved": "5.0.258",
+        "contentHash": "6QizhXetuR6TD0jXlf/ebqC7LI6bjK1uN/tl14z49lhtNYKhSEvJ5zT7evvDKLWux6idC9YqePq2CdtDSKiQaw=="
+      },
+      "Microsoft.Xaml.Behaviors.Wpf": {
+        "type": "Transitive",
+        "resolved": "1.1.135",
+        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
+      },
+      "NLog": {
+        "type": "Transitive",
+        "resolved": "6.0.5",
+        "contentHash": "Gq/L18qnZhIfrfqXtUBKdDMtT8cZB+974C99H+w6DxdlIcT4wYCCGjRgnUij3spUH1HWScF6JRaCyv11CHZJ6g=="
+      },
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {
@@ -17,7 +42,8 @@
         "dependencies": {
           "DcsTranslationTool.Application": "[1.0.0, )",
           "DcsTranslationTool.Domain": "[1.0.0, )",
-          "DcsTranslationTool.Shared": "[1.0.0, )"
+          "DcsTranslationTool.Shared": "[1.0.0, )",
+          "NLog": "[6.0.5, )"
         }
       },
       "dcstranslationtool.shared": {
