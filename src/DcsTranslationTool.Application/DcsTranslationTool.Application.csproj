@@ -10,4 +10,9 @@
         <ProjectReference Include="..\DcsTranslationTool.Domain\DcsTranslationTool.Domain.csproj" />
         <ProjectReference Include="..\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentResults" Version="4.0.0" />
+    </ItemGroup>
+
 </Project>

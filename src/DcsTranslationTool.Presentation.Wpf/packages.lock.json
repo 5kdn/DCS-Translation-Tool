@@ -27,10 +27,64 @@
         "resolved": "5.0.258",
         "contentHash": "6QizhXetuR6TD0jXlf/ebqC7LI6bjK1uN/tl14z49lhtNYKhSEvJ5zT7evvDKLWux6idC9YqePq2CdtDSKiQaw=="
       },
+      "FluentResults": {
+        "type": "Transitive",
+        "resolved": "4.0.0",
+        "contentHash": "wKfdLvDnDVhXlSreU7u/NFNHH6EfoOhAloEID4ePAyk+ZliowKZJvX+aCL4hxhFc9Jj74t62amS4LyOYTjXGCg==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "2.1.1",
+          "System.Threading.Tasks.Extensions": "4.5.4"
+        }
+      },
       "MaterialDesignColors": {
         "type": "Transitive",
         "resolved": "5.2.1",
         "contentHash": "D0HW6E2/kzsnEWCh1KDG/K09Fpkvs9mR3n91Y8YSOsEAoQmGZbVAj58ssyAxGTiIPj2zB4ZVnwxkizwO35/v8A=="
+      },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "Transitive",
+        "resolved": "2.1.1",
+        "contentHash": "XRzK7ZF+O6FzdfWrlFTi1Rgj2080ZDsd46vzOjadHUB0Cz5kOvDG8vI7caa5YFrsHQpcfn0DxtjS4E46N4FZsA=="
+      },
+      "Microsoft.Kiota.Abstractions": {
+        "type": "Transitive",
+        "resolved": "1.20.0",
+        "contentHash": "mtDIi3C1Z8rmoyMrQt0ku/b56PJiIf3YI9tUP7tw7bVak/grnnoeCzeIslPeuPhnMuiwVfWmTT4m88odIzEoPw==",
+        "dependencies": {
+          "Std.UriTemplate": "2.0.5"
+        }
+      },
+      "Microsoft.Kiota.Serialization.Form": {
+        "type": "Transitive",
+        "resolved": "1.20.0",
+        "contentHash": "jxgyrA+NzjP3kAafn6jg95Wu4RWvAUh7388vsLxmCOmppDyqE4um4g/pNTpKG+64di5X37pbrC97d5eKyws3Jw==",
+        "dependencies": {
+          "Microsoft.Kiota.Abstractions": "1.20.0"
+        }
+      },
+      "Microsoft.Kiota.Serialization.Json": {
+        "type": "Transitive",
+        "resolved": "1.20.0",
+        "contentHash": "yLaX/pXHvPVYVeNVNJeIl84joeweANPWKZw1HPqBquGrdZIpiK75616bUZ69Lv6kDZ4MJHCmTHFVqGCPTZ+q8A==",
+        "dependencies": {
+          "Microsoft.Kiota.Abstractions": "1.20.0"
+        }
+      },
+      "Microsoft.Kiota.Serialization.Multipart": {
+        "type": "Transitive",
+        "resolved": "1.20.0",
+        "contentHash": "Jnq4c5JYHNPmv1mly0pTrva56MX1D6ncJFDBTj+WCJBdPBVkNUnVzATKxP0+zZKoaXwSbNgg7j2w/yFmLx35dg==",
+        "dependencies": {
+          "Microsoft.Kiota.Abstractions": "1.20.0"
+        }
+      },
+      "Microsoft.Kiota.Serialization.Text": {
+        "type": "Transitive",
+        "resolved": "1.20.0",
+        "contentHash": "V5Ah57RMxsjqMUD56J9ul6AOEgoxTqx6r7YGk80g8G84FagwPyJIzA4KQDAF897HP8iES9bzeh7MhAyZrmEOEw==",
+        "dependencies": {
+          "Microsoft.Kiota.Abstractions": "1.20.0"
+        }
       },
       "Microsoft.Xaml.Behaviors.Wpf": {
         "type": "Transitive",
@@ -42,11 +96,22 @@
         "resolved": "6.0.5",
         "contentHash": "Gq/L18qnZhIfrfqXtUBKdDMtT8cZB+974C99H+w6DxdlIcT4wYCCGjRgnUij3spUH1HWScF6JRaCyv11CHZJ6g=="
       },
+      "Std.UriTemplate": {
+        "type": "Transitive",
+        "resolved": "2.0.5",
+        "contentHash": "PtqPdWNBObRcDHjyjbgOz2XoCJQaiA+HNDPQve/O7yGCkospfHDCuH9ULVx1msImwHHG+uhpDjiZX7bpLN/cnw=="
+      },
+      "System.Threading.Tasks.Extensions": {
+        "type": "Transitive",
+        "resolved": "4.5.4",
+        "contentHash": "zteT+G8xuGu6mS+mzDzYXbzS7rd3K6Fjb9RiZlYlJPam2/hU7JCBZBVEcywNuR+oZ1ncTvc/cq0faRr3P01OVg=="
+      },
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {
           "DcsTranslationTool.Domain": "[1.0.0, )",
-          "DcsTranslationTool.Shared": "[1.0.0, )"
+          "DcsTranslationTool.Shared": "[1.0.0, )",
+          "FluentResults": "[4.0.0, )"
         }
       },
       "dcstranslationtool.composition": {
@@ -66,6 +131,12 @@
           "DcsTranslationTool.Application": "[1.0.0, )",
           "DcsTranslationTool.Domain": "[1.0.0, )",
           "DcsTranslationTool.Shared": "[1.0.0, )",
+          "FluentResults": "[4.0.0, )",
+          "Microsoft.Kiota.Abstractions": "[1.20.0, )",
+          "Microsoft.Kiota.Serialization.Form": "[1.20.0, )",
+          "Microsoft.Kiota.Serialization.Json": "[1.20.0, )",
+          "Microsoft.Kiota.Serialization.Multipart": "[1.20.0, )",
+          "Microsoft.Kiota.Serialization.Text": "[1.20.0, )",
           "NLog": "[6.0.5, )"
         }
       },
