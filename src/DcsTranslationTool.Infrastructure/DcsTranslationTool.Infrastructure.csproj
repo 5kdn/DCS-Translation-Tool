@@ -13,10 +13,14 @@
         <PackageReference Include="Microsoft.Kiota.Serialization.Json" Version="1.20.0" />
         <PackageReference Include="Microsoft.Kiota.Serialization.Multipart" Version="1.20.0" />
         <PackageReference Include="Microsoft.Kiota.Serialization.Text" Version="1.20.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="NLog" Version="6.0.5" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\DcsTranslationTool.Application\DcsTranslationTool.Application.csproj" />
         <ProjectReference Include="..\DcsTranslationTool.Domain\DcsTranslationTool.Domain.csproj" />
         <ProjectReference Include="..\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj" />
-        <PackageReference Include="NLog" Version="6.0.5" />
     </ItemGroup>
 
 </Project>
