@@ -1,6 +1,8 @@
 using Caliburn.Micro;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Infrastructure.Providers;
 using DcsTranslationTool.Infrastructure.Services;
 
 using NLog;
@@ -20,6 +22,12 @@ public static class CompositionRegistration {
         NLog.LogManager.Configuration = LoggingService.BuildConfiguration( loggingOptions );
         var loggingService = new LoggingService();
         c.Instance<ILoggingService>( loggingService );
+
+        c.Singleton<IApiService, ApiService>();
+        c.Singleton<IFileEntryService, FileEntryService>();
+        c.Singleton<IFileService, FileService>();
+        c.Singleton<IZipService, ZipService>();
+        c.Singleton<IEnvironmentProvider, EnvironmentProvider>();
     }
 
     /// <summary>

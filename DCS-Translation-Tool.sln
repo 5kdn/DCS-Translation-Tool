@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Presenta
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Infrastructure.Tests", "tests\DcsTranslationTool.Infrastructure.Tests\DcsTranslationTool.Infrastructure.Tests.csproj", "{1F7B7A6F-6798-70A1-6D91-9288794855E7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Shared.Tests", "tests\DcsTranslationTool.Shared.Tests\DcsTranslationTool.Shared.Tests.csproj", "{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -63,6 +65,10 @@ Global
 		{1F7B7A6F-6798-70A1-6D91-9288794855E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1F7B7A6F-6798-70A1-6D91-9288794855E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1F7B7A6F-6798-70A1-6D91-9288794855E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
