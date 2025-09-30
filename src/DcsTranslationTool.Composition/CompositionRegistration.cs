@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
@@ -18,10 +20,19 @@ public static class CompositionRegistration {
     /// Infrastructure のサービス登録を一括実行。
     /// </summary>
     public static void Register( SimpleContainer c ) {
+        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly() ?? typeof( CompositionRegistration ).Assembly;
+        var title = ResolveAssemblyTitle( assembly ) ?? "DcsTranslationTool";
+        var saveDir = Path.Combine(
+                Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData ),
+                title
+            );
+        const string fileName = "appsettings.json";
         var loggingOptions = CreateLoggingOptions();
         NLog.LogManager.Configuration = LoggingService.BuildConfiguration( loggingOptions );
         var loggingService = new LoggingService();
         c.Instance<ILoggingService>( loggingService );
+        var appSettingsService = new AppSettingsService( loggingService, saveDir, fileName );
+        c.Instance<IAppSettingsService>( appSettingsService );
 
         c.Singleton<IApiService, ApiService>();
         c.Singleton<IFileEntryService, FileEntryService>();
@@ -65,6 +76,21 @@ public static class CompositionRegistration {
             ArchiveSuffixFormat = "${shortdate}.{#}"
         };
 #endif
+    }
+
+    /// <summary>
+    /// アセンブリのタイトル属性を安全に解決する。
+    /// </summary>
+    /// <param name="assembly">対象アセンブリ。</param>
+    /// <returns>タイトル文字列。</returns>
+    private static string? ResolveAssemblyTitle( Assembly? assembly ) {
+        if(assembly is null) return null;
+        try {
+            return assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
+        }
+        catch {
+            return null;
+        }
     }
 
     /// <summary>
