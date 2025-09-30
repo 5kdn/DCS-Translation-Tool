@@ -28,6 +28,8 @@ public static class CompositionRegistration {
         c.Singleton<IFileService, FileService>();
         c.Singleton<IZipService, ZipService>();
         c.Singleton<IEnvironmentProvider, EnvironmentProvider>();
+        c.Singleton<IProcessLauncher, ProcessLauncher>();
+        c.Singleton<ISystemService, SystemService>();
     }
 
     /// <summary>

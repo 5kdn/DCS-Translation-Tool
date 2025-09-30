@@ -5,6 +5,7 @@ using DcsTranslationTool.Shared.Models;
 using Moq;
 
 namespace DcsTranslationTool.Infrastructure.Tests.Services;
+
 public class FileEntryServiceTests : IDisposable {
     private readonly Mock<ILoggingService> logger = new();
     private readonly string _tempDir;
