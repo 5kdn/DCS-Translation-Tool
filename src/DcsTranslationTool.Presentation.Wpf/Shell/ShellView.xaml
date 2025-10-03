@@ -8,7 +8,18 @@
         xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:cal="http://www.caliburnproject.org"
         mc:Ignorable="d"
+        Width="{Binding ShellWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+        Height="{Binding ShellHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
         d:Height="450" d:Width="800">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome
+            CaptionHeight="30"
+            ResizeBorderThickness="8"
+            GlassFrameThickness="0"
+            CornerRadius="0"
+            UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
 
     <md:DialogHost Identifier="RootDialogHost">
         <Grid>
@@ -50,6 +61,14 @@
 
                 <!-- Right -->
                 <StackPanel Grid.Column="2" Grid.Row="2" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True" >
+                    <Button Content="{md:PackIcon Kind=Git}"
+                                ToolTip="ブラウザで翻訳リポジトリーを開く"
+                                cal:Message.Attach="BrowseTranslationRepository()" />
+
+                    <Button Content="{md:PackIcon Kind=Cog}"
+                                ToolTip="{x:Static resx:Strings_Settings.Title}"
+                                cal:Message.Attach="NavToSettings()" />
+                
                     <Button Content="{md:PackIcon Kind=Close}"
                             Style="{StaticResource CloseButtonStyle}"
                             Click="CloseWindowButton_Click" />
@@ -63,6 +82,10 @@
                    NavigationUIVisibility="Hidden"
                    Focusable="False" />
 
+            <!-- Snackbar -->
+            <md:Snackbar Grid.RowSpan="2"
+                         MessageQueue="{Binding MessageQueue}"
+                         Style="{DynamicResource SnackbarStyle}" />
         </Grid>
     </md:DialogHost>
 </Window>

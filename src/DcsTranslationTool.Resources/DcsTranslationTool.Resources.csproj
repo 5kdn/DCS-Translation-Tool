@@ -7,6 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Update="Strings.Settings.Designer.cs">
+          <DesignTime>True</DesignTime>
+          <AutoGen>True</AutoGen>
+          <DependentUpon>Strings.Settings.resx</DependentUpon>
+        </Compile>
         <Compile Update="Strings.Shared.Designer.cs">
             <DesignTime>True</DesignTime>
             <AutoGen>True</AutoGen>
@@ -15,6 +20,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <EmbeddedResource Update="Strings.Settings.resx">
+          <Generator>PublicResXFileCodeGenerator</Generator>
+          <LastGenOutput>Strings.Settings.Designer.cs</LastGenOutput>
+        </EmbeddedResource>
         <EmbeddedResource Update="Strings.Shared.resx">
             <Generator>PublicResXFileCodeGenerator</Generator>
             <LastGenOutput>Strings.Shared.Designer.cs</LastGenOutput>

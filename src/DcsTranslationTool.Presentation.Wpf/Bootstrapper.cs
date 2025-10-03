@@ -2,9 +2,12 @@ using System.Windows;
 
 using Caliburn.Micro;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
+using DcsTranslationTool.Presentation.Wpf.Features.Settings;
 using DcsTranslationTool.Presentation.Wpf.Services;
+using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.Shell;
 
 using InfraLoggingService = DcsTranslationTool.Infrastructure.Interfaces.ILoggingService;
@@ -14,6 +17,7 @@ namespace DcsTranslationTool.Presentation.Wpf;
 public class Bootstrapper : BootstrapperBase {
     private SimpleContainer? container;
     private ILoggingService? loggingService;
+    private IAppSettingsService? appSettingsService;
 
     public Bootstrapper() {
         Initialize();
@@ -32,10 +36,14 @@ public class Bootstrapper : BootstrapperBase {
         var infraLoggingService = container.GetInstance<InfraLoggingService>();
         loggingService = new LoggingServiceAdapter( infraLoggingService );
         container.Instance<ILoggingService>( loggingService );
+        appSettingsService = container.GetInstance<IAppSettingsService>();
+
+        container.Singleton<ISnackbarService, SnackbarService>();
 
         // ViewModels
         container.Singleton<ShellViewModel>();
         container.PerRequest<MainViewModel>();
+        container.PerRequest<SettingsViewModel>();
     }
 
     protected override async void OnStartup( object sender, StartupEventArgs e ) {

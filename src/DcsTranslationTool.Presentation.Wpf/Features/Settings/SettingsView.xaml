@@ -1,0 +1,29 @@
+<Page x:Class="DcsTranslationTool.Presentation.Wpf.Features.Settings.SettingsView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+      xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
+      xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Settings"
+      xmlns:cal="http://www.caliburnproject.org"
+      mc:Ignorable="d"
+      d:DesignHeight="1950" d:DesignWidth="400">
+
+
+    <ScrollViewer>
+        <Grid Margin="{StaticResource SmallXMargin}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Style="{StaticResource MaterialDesignDisplayLargeTextBlock}"
+                       Text="{x:Static resx:Strings_Settings.Title}"
+                       Margin="{StaticResource MediumBottomMargin}" />
+
+            <StackPanel x:Name="ContentArea" Grid.Row="1">
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+
+</Page>

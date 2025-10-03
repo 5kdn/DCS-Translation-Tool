@@ -2,27 +2,66 @@ using System.Windows.Navigation;
 
 using Caliburn.Micro;
 
-using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
+using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Services;
+using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Shared.Constants;
+
+using MaterialDesignThemes.Wpf;
 
 namespace DcsTranslationTool.Presentation.Wpf.Shell;
 
 public class ShellViewModel(
+    IAppSettingsService appSettingsService,
     IEventAggregator eventAggregator,
     ILoggingService logger,
-    INavigationService navigationService
+    INavigationService navigationService,
+    ISnackbarService snackbarService,
+    ISystemService systemService
 ) : Conductor<IScreen>.Collection.OneActive, IHandle<string>, IActivate {
 
     #region Fields
 
     private bool _initialized = false;
+    private double _shellWidth = appSettingsService.Settings.ShellWidth;
+    private double _shellHeight = appSettingsService.Settings.ShellHeight;
 
     #endregion
 
     #region Properties
 
+    /// <summary>
+    /// シェルウィンドウの幅
+    /// </summary>
+    public double ShellWidth {
+        get => _shellWidth;
+        set {
+            _shellWidth = value;
+            appSettingsService.Settings.ShellWidth = value;
+            NotifyOfPropertyChange( nameof( ShellWidth ) );
+        }
+    }
+
+    /// <summary>
+    /// シェルウィンドウの高さ
+    /// </summary>
+    public double ShellHeight {
+        get => _shellHeight;
+        set {
+            _shellHeight = value;
+            appSettingsService.Settings.ShellHeight = value;
+            NotifyOfPropertyChange( nameof( ShellHeight ) );
+        }
+    }
+
     public bool CanGoBack => navigationService.CanGoBack;
+
     public bool CanGoForward => navigationService.CanGoForward;
+
+    /// <summary>Snackbar のメッセージキュー</summary>
+    public ISnackbarMessageQueue MessageQueue => snackbarService.MessageQueue;
 
     #endregion
 
@@ -79,6 +118,18 @@ public class ShellViewModel(
         NotifyOfPropertyChange( nameof( CanGoForward ) );
     }
 
+    public void NavToSettings() {
+        logger.Info( "SettingsViewModel へ遷移する。" );
+        navigationService.For<SettingsViewModel>().Navigate();
+        NotifyOfPropertyChange( nameof( CanGoBack ) );
+        NotifyOfPropertyChange( nameof( CanGoForward ) );
+    }
+
+    public void BrowseTranslationRepository() {
+        logger.Info( $"翻訳リポジトリをブラウザで開く。Url={TargetRepository.Url}" );
+        systemService.OpenInWebBrowser( TargetRepository.Url );
+    }
+
     #endregion
 
     #region Navigation event handlers
@@ -95,7 +146,26 @@ public class ShellViewModel(
         // スタック確定後に更新
         NotifyOfPropertyChange( nameof( CanGoBack ) );
         NotifyOfPropertyChange( nameof( CanGoForward ) );
+
+        ValidateAppSettingsAndNotify();
     }
 
     #endregion
+
+    /// <summary>最低限のアプリ設定を検証し、不足時に通知する</summary>
+    private void ValidateAppSettingsAndNotify() {
+        if(string.IsNullOrEmpty( appSettingsService.Settings.SourceAircraftDir ) ||
+            string.IsNullOrEmpty( appSettingsService.Settings.SourceDlcCampaignDir ) ||
+            string.IsNullOrEmpty( appSettingsService.Settings.TranslateFileDir )) {
+            logger.Warn( "アプリ設定に不足がある" );
+            snackbarService.Show(
+                "設定が不足しています。",
+                "設定",
+                NavToSettings,
+                TimeSpan.FromSeconds( 3 ) );
+        }
+        else {
+            logger.Info( "アプリ設定が検証済み。全ての必須ディレクトリが設定済み。" );
+        }
+    }
 }
