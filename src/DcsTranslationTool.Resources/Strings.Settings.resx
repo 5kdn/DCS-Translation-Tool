@@ -117,7 +117,60 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="AboutText" xml:space="preserve">
+    <value>DCS:World の日本語化をサポートする非公式ツールです。</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>このアプリケーションについて</value>
+  </data>
+  <data name="DirectorySettingsTitle" xml:space="preserve">
+    <value>フォルダー設定</value>
+  </data>
+  <data name="PrivacyPolicyText" xml:space="preserve">
+    <value>プライバシーポリシー</value>
+  </data>
+  <data name="PrivacyPolicyTitle" xml:space="preserve">
+    <value>プライバシーポリシー</value>
+  </data>
+  <data name="ReleaseLatestText" xml:space="preserve">
+    <value>最新版を探す</value>
+  </data>
+  <data name="SelectButton" xml:space="preserve">
+    <value>参照</value>
+  </data>
+  <data name="SourceAircraftDirExplanationText" xml:space="preserve">
+    <value>翻訳ファイルをmizファイルに適用する機体フォルダーのパス。
+&lt;DCSWorldインストールディレクトリ&gt;/Mods/aircraft と同じフォルダー構成にしてください。</value>
+  </data>
+  <data name="SourceAircraftDirText" xml:space="preserve">
+    <value>Aircraft フォルダー</value>
+  </data>
+  <data name="SourceDlcCampaignDirExplanationText" xml:space="preserve">
+    <value>翻訳ファイルをmizファイルに適用するDLCキャンペーンフォルダーのパス。
+&lt;DCSWorldインストールディレクトリ&gt;/Mods/campaigns と同じフォルダー構成にしてください。</value>
+  </data>
+  <data name="SourceDlcCampaignDirText" xml:space="preserve">
+    <value>Campaigns フォルダー</value>
+  </data>
+  <data name="SourceTranslateFileDirExplanationText" xml:space="preserve">
+    <value>ダウンロードした翻訳ファイルが保存されるフォルダーのパス。
+このフォルダー内のファイルの変更を検出してアップロードを行います。</value>
+  </data>
+  <data name="SourceUserMissionDirExplanationText" xml:space="preserve">
+    <value>翻訳ファイルをmizファイルに適用するユーザーミッションフォルダーのパス。
+%userprofile%/Saved Games/DCS/Missions と同じフォルダー構成にしてください。
+DCS.openbeta の可能性もあるため注意してください。</value>
+  </data>
+  <data name="SourceUserMissionDirText" xml:space="preserve">
+    <value>ユーザーフォルダー</value>
+  </data>
   <data name="Title" xml:space="preserve">
     <value>設定</value>
+  </data>
+  <data name="TranslateFileDirText" xml:space="preserve">
+    <value>翻訳ファイルダウンロードフォルダー</value>
+  </data>
+  <data name="VersionDescriptionTitle" xml:space="preserve">
+    <value>バージョン</value>
   </data>
 </root>

@@ -36,8 +36,10 @@ public class Bootstrapper : BootstrapperBase {
         var infraLoggingService = container.GetInstance<InfraLoggingService>();
         loggingService = new LoggingServiceAdapter( infraLoggingService );
         container.Instance<ILoggingService>( loggingService );
+        container.Singleton<IApplicationInfoService, ApplicationInfoService>();
         appSettingsService = container.GetInstance<IAppSettingsService>();
 
+        container.Singleton<IDialogProvider, DialogProvider>();
         container.Singleton<ISnackbarService, SnackbarService>();
 
         // ViewModels
@@ -70,6 +72,26 @@ public class Bootstrapper : BootstrapperBase {
     protected override void OnExit( object sender, EventArgs e ) {
         loggingService?.Info( "終了" );
         base.OnExit( sender, e );
+        if(appSettingsService is IAsyncDisposable asyncDisposable) {
+            try {
+                loggingService?.Debug( "AppSettingsService を非同期破棄する。" );
+                asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                loggingService?.Debug( "AppSettingsService の非同期破棄が完了した。" );
+            }
+            catch(Exception ex) {
+                loggingService?.Error( "AppSettingsService の破棄に失敗した。", ex );
+            }
+        }
+        else if(appSettingsService is IDisposable disposable) {
+            try {
+                loggingService?.Debug( "AppSettingsService を同期破棄する。" );
+                disposable.Dispose();
+                loggingService?.Debug( "AppSettingsService の同期破棄が完了した。" );
+            }
+            catch(Exception ex) {
+                loggingService?.Error( "AppSettingsService の同期破棄に失敗した。", ex );
+            }
+        }
         NLog.LogManager.Shutdown();
     }
 }

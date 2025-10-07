@@ -13,4 +13,32 @@
         <Setter Property="Foreground" Value="{StaticResource MaterialDesign.Brush.Background}" />
     </Style>
 
+    <!-- MainPageSelectButtonStyle -->
+    <Style x:Key="MainPageSelectButtonStyle" TargetType="{x:Type Button}"  BasedOn="{StaticResource MaterialDesignFlatMidBgButton}">
+        <Setter Property="MinHeight" Value="100" />
+        <Setter Property="MaxHeight" Value="600" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+
+    <!-- HyperLink like button -->
+    <Style x:Key="HyperLinkButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HotTrackBrushKey}}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <ContentPresenter RecognizesAccessKey="True"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

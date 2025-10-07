@@ -61,11 +61,160 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   DCS:World の日本語化をサポートする非公式ツールです。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string AboutText {
+            get {
+                return ResourceManager.GetString("AboutText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   このアプリケーションについて に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string AboutTitle {
+            get {
+                return ResourceManager.GetString("AboutTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   フォルダー設定 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string DirectorySettingsTitle {
+            get {
+                return ResourceManager.GetString("DirectorySettingsTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   プライバシーポリシー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string PrivacyPolicyText {
+            get {
+                return ResourceManager.GetString("PrivacyPolicyText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   プライバシーポリシー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string PrivacyPolicyTitle {
+            get {
+                return ResourceManager.GetString("PrivacyPolicyTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   最新版を探す に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ReleaseLatestText {
+            get {
+                return ResourceManager.GetString("ReleaseLatestText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   参照 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SelectButton {
+            get {
+                return ResourceManager.GetString("SelectButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   翻訳ファイルをmizファイルに適用する機体フォルダーのパス。
+        ///&lt;DCSWorldインストールディレクトリ&gt;/Mods/aircraft と同じフォルダー構成にしてください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceAircraftDirExplanationText {
+            get {
+                return ResourceManager.GetString("SourceAircraftDirExplanationText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Aircraft フォルダー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceAircraftDirText {
+            get {
+                return ResourceManager.GetString("SourceAircraftDirText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   翻訳ファイルをmizファイルに適用するDLCキャンペーンフォルダーのパス。
+        ///&lt;DCSWorldインストールディレクトリ&gt;/Mods/campaigns と同じフォルダー構成にしてください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceDlcCampaignDirExplanationText {
+            get {
+                return ResourceManager.GetString("SourceDlcCampaignDirExplanationText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Campaigns フォルダー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceDlcCampaignDirText {
+            get {
+                return ResourceManager.GetString("SourceDlcCampaignDirText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   ダウンロードした翻訳ファイルが保存されるフォルダーのパス。
+        ///このフォルダー内のファイルの変更を検出してアップロードを行います。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceTranslateFileDirExplanationText {
+            get {
+                return ResourceManager.GetString("SourceTranslateFileDirExplanationText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   翻訳ファイルをmizファイルに適用するユーザーミッションフォルダーのパス。
+        ///%userprofile%/Saved Games/DCS/Missions と同じフォルダー構成にしてください。
+        ///DCS.openbeta の可能性もあるため注意してください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceUserMissionDirExplanationText {
+            get {
+                return ResourceManager.GetString("SourceUserMissionDirExplanationText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   ユーザーフォルダー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string SourceUserMissionDirText {
+            get {
+                return ResourceManager.GetString("SourceUserMissionDirText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   設定 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string Title {
             get {
                 return ResourceManager.GetString("Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   翻訳ファイルダウンロードフォルダー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string TranslateFileDirText {
+            get {
+                return ResourceManager.GetString("TranslateFileDirText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   バージョン に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string VersionDescriptionTitle {
+            get {
+                return ResourceManager.GetString("VersionDescriptionTitle", resourceCulture);
             }
         }
     }

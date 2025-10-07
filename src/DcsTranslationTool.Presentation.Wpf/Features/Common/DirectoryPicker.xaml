@@ -1,0 +1,52 @@
+<UserControl x:Class="DcsTranslationTool.Presentation.Wpf.Features.Common.DirectoryPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Common"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:cal="http://www.caliburnproject.org"
+             mc:Ignorable="d" 
+             x:Name="Root"
+             d:Height="120" d:Width="500" >
+
+    <StackPanel>
+        <!-- Label -->
+        <TextBlock Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" TextWrapping="Wrap"
+                   Text="{Binding LabelText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}" />
+
+        <!-- Explanation -->
+        <TextBlock Text="{Binding ExplanationText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}"
+                   TextWrapping="Wrap" >
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource MaterialDesignBodySmallTextBlock}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ExplanationText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ExplanationText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}" Value="">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <!-- Picker -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}"
+                     Style="{StaticResource MaterialDesignFilledTextBox}"
+                     Text="{Binding Path, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+            <Button Grid.Column="1" d:Width="48" MinWidth="32" Height="48"
+                    Margin="{StaticResource XSmallLeftMargin}"
+                    Content="{Binding ButtonText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}"
+                    cal:Message.Attach="[Event Click] = [Action Browse(Root.Path, Root.Key)]" />
+        </Grid>
+    </StackPanel>
+</UserControl>

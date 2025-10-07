@@ -6,6 +6,7 @@
       xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
       xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
       xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Settings"
+      xmlns:common="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Common"
       xmlns:cal="http://www.caliburnproject.org"
       mc:Ignorable="d"
       d:DesignHeight="1950" d:DesignWidth="400">
@@ -22,6 +23,70 @@
                        Margin="{StaticResource MediumBottomMargin}" />
 
             <StackPanel x:Name="ContentArea" Grid.Row="1">
+
+                <!-- フォルダー設定 -->
+                <StackPanel>
+                    <TextBlock Text="{x:Static resx:Strings_Settings.DirectorySettingsTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.SourceAircraftDirText}"
+                                            ExplanationText="{x:Static resx:Strings_Settings.SourceAircraftDirExplanationText}"
+                                            Path="{Binding SourceAircraftDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="Aircraft"
+                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
+                                            Margin="{StaticResource MediumBottomMargin}"/>
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.SourceDlcCampaignDirText}"
+                                            ExplanationText="{x:Static resx:Strings_Settings.SourceDlcCampaignDirExplanationText}"
+                                            Path="{Binding SourceDlcCampaignDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="DlcCampaign"
+                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
+                                            Margin="{StaticResource MediumBottomMargin}" />
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.SourceUserMissionDirText}"
+                                            ExplanationText="{x:Static resx:Strings_Settings.SourceUserMissionDirExplanationText}"
+                                            Path="{Binding SourceUserMissionDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="UserMission"
+                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
+                                            Margin="{StaticResource MediumBottomMargin}" />
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.TranslateFileDirText}"
+                                            ExplanationText="{x:Static resx:Strings_Settings.SourceTranslateFileDirExplanationText}"
+                                            Path="{Binding TranslateFileDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="TranslateFile"
+                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}" />
+                </StackPanel>
+                <!-- About -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Margin="{StaticResource MediumTopMargin}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}"
+                               Text="{x:Static resx:Strings_Settings.AboutTitle}" />
+
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                            Style="{StaticResource MaterialDesignBodyLargeTextBlock}"
+                            Text="{x:Static resx:Strings_Settings.AboutText}" />
+                </StackPanel>
+                <!-- バージョン情報 -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Text="{x:Static resx:Strings_Settings.VersionDescriptionTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+                    <TextBlock Text="{Binding VersionDescription, Mode=OneWay}" Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+                    <Button cal:Message.Attach="BrowseToReleaseLatestPage()"
+                            Style="{StaticResource HyperLinkButtonStyle}">
+                        <TextBlock Text="{x:Static resx:Strings_Settings.ReleaseLatestText}" TextDecorations="Underline" />
+                    </Button>
+                </StackPanel>
+                <!-- プライバシーポリシー -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Text="{x:Static resx:Strings_Settings.PrivacyPolicyTitle}"
+                           Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+
+                    <Button cal:Message.Attach="BrowseToPrivacyStatement()"
+                            Style="{StaticResource HyperLinkButtonStyle}"
+                            AutomationProperties.Name="{Binding Text, ElementName=settingsPrivacyStatement}">
+                        <TextBlock Text="{x:Static resx:Strings_Settings.PrivacyPolicyText}" TextDecorations="Underline" />
+                    </Button>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </ScrollViewer>
