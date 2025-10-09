@@ -4,8 +4,10 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
+using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.Shell;
@@ -46,6 +48,8 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<ShellViewModel>();
         container.PerRequest<MainViewModel>();
         container.PerRequest<SettingsViewModel>();
+        container.PerRequest<DownloadViewModel>();
+        container.PerRequest<UploadViewModel>();
     }
 
     protected override async void OnStartup( object sender, StartupEventArgs e ) {

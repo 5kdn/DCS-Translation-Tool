@@ -1,14 +1,58 @@
-﻿<Page x:Class="DcsTranslationTool.Presentation.Wpf.Features.Main.MainView"
+<Page x:Class="DcsTranslationTool.Presentation.Wpf.Features.Main.MainView"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-      xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Main"
-      mc:Ignorable="d" 
-      d:DesignHeight="450" d:DesignWidth="800"
-      Title="MainView">
+      xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
+      xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+      xmlns:cal="http://www.caliburnproject.org"
+      mc:Ignorable="d"
+      d:DesignHeight="450" d:DesignWidth="800">
 
-    <Grid>
-        
+    <Grid x:Name="ButtonsGrid">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Button Height="Auto"
+                MaxHeight="600" MaxWidth="600"
+                MinHeight="300" MinWidth="100"
+                Margin="{StaticResource SmallMargin}"
+                cal:Message.Attach="NavToDownload()">
+            <Grid Margin="{StaticResource MediumMargin}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Viewbox>
+                    <md:PackIcon Kind="Download"/>
+                </Viewbox>
+                <Viewbox Grid.Row="1">
+                    <TextBlock Text="{x:Static resx:Strings_Download.Title}"/>
+                </Viewbox>
+            </Grid>
+        </Button>
+
+        <Button Grid.Column="1"
+                Height="Auto"
+                MaxHeight="600" MaxWidth="600"
+                MinHeight="300" MinWidth="100"
+                Margin="{StaticResource SmallMargin}"
+                cal:Message.Attach="NavToUpload()">
+            <Grid Margin="{StaticResource MediumMargin}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Viewbox>
+                    <md:PackIcon Kind="Upload"/>
+                </Viewbox>
+                <Viewbox Grid.Row="1">
+                    <TextBlock Text="{x:Static resx:Strings_Upload.Title}"/>
+                </Viewbox>
+            </Grid>
+        </Button>
     </Grid>
+
 </Page>
