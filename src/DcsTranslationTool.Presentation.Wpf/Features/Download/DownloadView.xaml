@@ -4,7 +4,175 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Download"
+      xmlns:common="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Common"
+      xmlns:vm="clr-namespace:DcsTranslationTool.Presentation.Wpf.ViewModels"
+      xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
+      xmlns:conv="clr-namespace:DcsTranslationTool.Presentation.Wpf.Converters"
+      xmlns:enums="clr-namespace:DcsTranslationTool.Presentation.Wpf.UI.Enums"
+      xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+      xmlns:cal="http://www.caliburnproject.org"
+      d:DataContext="{d:DesignInstance Type=local:DownloadViewModel}"
       mc:Ignorable="d"
       d:DesignHeight="450" d:DesignWidth="800">
 
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <conv:FileEntryToIconKindConverter x:Key="FileEntryToIconKindConverter"/>
+        <conv:FileChangeTypeToBrushConverter x:Key="FileChangeTypeToBrushConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Style="{StaticResource MaterialDesignDisplayLargeTextBlock}"
+                   Text="{x:Static resx:Strings_Download.Title}" />
+
+        <!-- Contents -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- フィルター -->
+            <StackPanel Orientation="Horizontal">
+                <CheckBox Content="{x:Static resx:Strings_Download.FilterAllContentText}"
+                          Margin="{StaticResource SmallRightMargin}"
+                          IsChecked="{Binding Filter.All, Mode=TwoWay}"/>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Download.Modified}"
+                          IsChecked="{Binding Filter.Modified, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileAlertOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Download.FilterModifiedText}" />
+                    </StackPanel>
+                </CheckBox>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Download.RepoOnly}"
+                          IsChecked="{Binding Filter.RepoOnly, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileDownloadOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Download.FilterRepoOnlyText}" />
+                    </StackPanel>
+                </CheckBox>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Download.Unchanged}"
+                          IsChecked="{Binding Filter.Unchanged, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileCheckOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Download.FilterUnchangedText}" />
+                    </StackPanel>
+                </CheckBox>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Download.LocalOnly}"
+                          IsChecked="{Binding Filter.LocalOnly, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileRemoveOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Download.FilterLocalOnlyText}" />
+                    </StackPanel>
+                </CheckBox>
+            </StackPanel>
+
+            <!-- タブ＋ツリー -->
+            <TabControl Grid.Row="1"
+                        Style="{StaticResource MaterialDesignFilledTabControl}"
+                        Margin="{StaticResource SmallTopMargin}"
+                        IsEnabled="{Binding IsTreeInteractionEnabled}"
+                        SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                        ItemsSource="{Binding Tabs}">
+                <TabControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
+                        <TextBlock Text="{Binding Title}"/>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+
+                <TabControl.ContentTemplate>
+                    <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
+                        <TreeView x:Name="TreeViewControl" ItemsSource="{Binding Root.Children}" Margin="{StaticResource XSmallTopMargin}">
+                            <TreeView.ItemContainerStyle>
+                                <Style TargetType="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                    <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Style>
+                            </TreeView.ItemContainerStyle>
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox IsChecked="{Binding CheckState, Mode=TwoWay}" IsEnabled="{Binding CanCheck}" />
+                                        <md:PackIcon VerticalAlignment="Center">
+                                            <md:PackIcon.Foreground>
+                                                <MultiBinding Converter="{StaticResource FileChangeTypeToBrushConverter}">
+                                                    <Binding Path="ChangeType"/>
+                                                    <Binding Source="{x:Static enums:ChangeTypeMode.Download}"/>
+                                                </MultiBinding>
+                                            </md:PackIcon.Foreground>
+                                            <md:PackIcon.Kind>
+                                                <MultiBinding Converter="{StaticResource FileEntryToIconKindConverter}">
+                                                    <Binding Path="IsDirectory"/>
+                                                    <Binding Path="ChangeType"/>
+                                                    <Binding Source="{x:Static enums:ChangeTypeMode.Download}"/>
+                                                </MultiBinding>
+                                            </md:PackIcon.Kind>
+                                        </md:PackIcon>
+                                        <TextBlock Text="{Binding Name}" Margin="{StaticResource XSmallLeftMargin}" VerticalAlignment="Center">
+                                            <TextBlock.Foreground>
+                                                <MultiBinding Converter="{StaticResource FileChangeTypeToBrushConverter}">
+                                                    <Binding Path="ChangeType"/>
+                                                    <Binding Source="{x:Static enums:ChangeTypeMode.Download}"/>
+                                                </MultiBinding>
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
+
+            <!-- ボタン -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="{StaticResource MediumTopMargin}">
+                <!-- リロードボタン -->
+                <common:ActionButton IconKind="Reload"
+                                     Text="{x:Static resx:Strings_Download.FetchButtonContent}"
+                                     IsIndicatorVisible="{Binding IsFetching}"
+                                     IsIndeterminate="True"
+                                     cal:Message.Attach="[Event Click] = [Action Fetch]" />
+
+                <!-- DLボタン -->
+                <common:ActionButton IconKind="Download"
+                                     Margin="{StaticResource SmallLeftMargin}"
+                                     Text="{x:Static resx:Strings_Download.DownloadButtonContent}"
+                                     IsIndicatorVisible="{Binding IsDownloading}"
+                                     IsIndeterminate="False"
+                                     ProgressValue="{Binding DownloadedProgress}"
+                                     IsEnabled="{Binding CanDownload}"
+                                     cal:Message.Attach="[Event Click] = [Action Download]" />
+
+                <!-- Applyボタン -->
+                <common:ActionButton IconKind="ArchiveArrowDownOutline"
+                                     Margin="{StaticResource SmallLeftMargin}"
+                                     Text="{x:Static resx:Strings_Download.ApplyButtonContent}"
+                                     IsIndicatorVisible="{Binding IsApplying}"
+                                     IsIndeterminate="False"
+                                     ProgressValue="{Binding AppliedProgress}"
+                                     IsEnabled="{Binding CanApply}"
+                                     cal:Message.Attach="[Event Click] = [Action Apply]" />
+
+                <!-- オープンフォルダボタン -->
+                <common:ActionButton IconKind="FolderOpenOutline"
+                                     Margin="{StaticResource SmallLeftMargin}"
+                                     Text="{x:Static resx:Strings_Download.OpenDirectoryButtonContent}"
+                                     cal:Message.Attach="[Event Click] = [Action OpenDirectory]" />
+            </StackPanel>
+        </Grid>
+    </Grid>
 </Page>

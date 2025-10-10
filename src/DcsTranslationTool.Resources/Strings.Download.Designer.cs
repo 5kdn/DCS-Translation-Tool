@@ -61,6 +61,87 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   適用 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplyButtonContent {
+            get {
+                return ResourceManager.GetString("ApplyButtonContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   DL に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string DownloadButtonContent {
+            get {
+                return ResourceManager.GetString("DownloadButtonContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string FetchButtonContent {
+            get {
+                return ResourceManager.GetString("FetchButtonContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   All に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string FilterAllContentText {
+            get {
+                return ResourceManager.GetString("FilterAllContentText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   追加 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string FilterLocalOnlyText {
+            get {
+                return ResourceManager.GetString("FilterLocalOnlyText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   変更/更新 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string FilterModifiedText {
+            get {
+                return ResourceManager.GetString("FilterModifiedText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   未DL に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string FilterRepoOnlyText {
+            get {
+                return ResourceManager.GetString("FilterRepoOnlyText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   DL済 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string FilterUnchangedText {
+            get {
+                return ResourceManager.GetString("FilterUnchangedText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   フォルダ に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string OpenDirectoryButtonContent {
+            get {
+                return ResourceManager.GetString("OpenDirectoryButtonContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Download に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string Title {

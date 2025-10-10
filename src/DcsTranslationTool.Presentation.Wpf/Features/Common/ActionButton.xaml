@@ -1,0 +1,29 @@
+<UserControl x:Class="DcsTranslationTool.Presentation.Wpf.Features.Common.ActionButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:cal="http://caliburnmicro.com"
+             mc:Ignorable="d" 
+             x:Name="Root"
+             MinHeight="32" MinWidth="96" >
+
+    <Button x:Name="ButtonElement"
+            md:ButtonProgressAssist.IsIndicatorVisible="{Binding IsIndicatorVisible, ElementName=Root}"
+            md:ButtonProgressAssist.IsIndeterminate="{Binding IsIndeterminate, ElementName=Root}"
+            md:ButtonProgressAssist.Value="{Binding ProgressValue, ElementName=Root}">
+
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <md:PackIcon Kind="{Binding IconKind, ElementName=Root}"
+                         Margin="{StaticResource XSmallRightMargin}"
+                         VerticalAlignment="Center">
+                <md:PackIcon.RenderTransform>
+                    <TranslateTransform Y="1.4" />
+                </md:PackIcon.RenderTransform>
+            </md:PackIcon>
+            <TextBlock Text="{Binding Text, ElementName=Root}" VerticalAlignment="Center" />
+        </StackPanel>
+    </Button>
+
+</UserControl>
