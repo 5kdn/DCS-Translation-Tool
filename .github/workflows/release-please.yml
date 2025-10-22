@@ -1,0 +1,33 @@
+# ------------------------------------------------------------
+# Workflow Name : release-please
+# Trigger       : push to master / workflow_dispatch
+# Purpose       :
+#   - 変更に対してリリースを管理する
+# ------------------------------------------------------------
+name: release-please
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: release-please
+  cancel-in-progress: true
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Run Release Please
+        uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          # see also https://github.com/googleapis/release-please-action#release-types-supported
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.PAT }}

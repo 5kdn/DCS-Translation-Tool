@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NeutralLanguage>ja-JP</NeutralLanguage>
+    <UseWPF>True</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Caliburn.Micro" Version="5.0.258" />
+    <PackageReference Include="Caliburn.Micro.Core" Version="5.0.258" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
+    <PackageReference Include="NLog" Version="6.0.5" />
+  </ItemGroup>
+
+
+    <ItemGroup>
+    <ProjectReference Include="..\DcsTranslationTool.Application\DcsTranslationTool.Application.csproj" />
+    <ProjectReference Include="..\DcsTranslationTool.Composition\DcsTranslationTool.Composition.csproj" />
+    <ProjectReference Include="..\DcsTranslationTool.Resources\DcsTranslationTool.Resources.csproj" />
+    <ProjectReference Include="..\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj" />
+  </ItemGroup>
+
+
+    <ItemGroup>
+        <Resource Include="Assets\Fonts\ZenKakuGothicNew-Regular.ttf" />
+        <Resource Include="Assets\Fonts\ZenKakuGothicNew-Medium.ttf" />
+        <Resource Include="Assets\Fonts\ZenKakuGothicNew-Bold.ttf" />
+    </ItemGroup>
+
+
+    <ItemGroup>
+      <None Update="App.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </None>
+    </ItemGroup>
+
+
+    <ItemGroup>
+      <Folder Include="Views\" />
+    </ItemGroup>
+
+</Project>

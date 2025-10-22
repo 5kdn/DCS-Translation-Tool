@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- カスタムブラシ -->
+    <SolidColorBrush x:Key="Brush.Download.Unchanged" Color="DimGray" />
+    <SolidColorBrush x:Key="Brush.Download.RepoOnly"  Color="MediumSeaGreen" />
+    <SolidColorBrush x:Key="Brush.Download.LocalOnly" Color="Silver" />
+    <SolidColorBrush x:Key="Brush.Download.Modified"  Color="Tomato" />
+    <SolidColorBrush x:Key="Brush.Download.Default"  Color="DimGray" />
+
+    <SolidColorBrush x:Key="Brush.Upload.Unchanged" Color="DimGray" />
+    <SolidColorBrush x:Key="Brush.Upload.RepoOnly"  Color="Silver" />
+    <SolidColorBrush x:Key="Brush.Upload.LocalOnly" Color="MediumSeaGreen" />
+    <SolidColorBrush x:Key="Brush.Upload.Modified"  Color="Tomato" />
+    <SolidColorBrush x:Key="Brush.Upload.Default"  Color="DimGray" />
+</ResourceDictionary>

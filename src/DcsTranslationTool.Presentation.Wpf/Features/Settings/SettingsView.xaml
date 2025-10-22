@@ -1,0 +1,101 @@
+<Page x:Class="DcsTranslationTool.Presentation.Wpf.Features.Settings.SettingsView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+      xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
+      xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Settings"
+      xmlns:common="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Common"
+      xmlns:cal="http://www.caliburnproject.org"
+      mc:Ignorable="d"
+      d:DesignHeight="1950" d:DesignWidth="400">
+
+
+    <ScrollViewer>
+        <Grid Margin="{StaticResource SmallXMargin}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Style="{StaticResource MaterialDesignDisplayLargeTextBlock}"
+                       Text="{x:Static resx:Resource.SettingsPageTitle}"
+                       Margin="{StaticResource MediumBottomMargin}" />
+
+            <StackPanel x:Name="ContentArea" Grid.Row="1">
+                <!-- フォルダー設定 -->
+                <StackPanel>
+                    <TextBlock Text="{x:Static resx:Resource.SettingsPageDirectorySettingsTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Resource.SettingsPageSourceAircraftDirText}"
+                                            ExplanationText="{x:Static resx:Resource.SettingsPageSourceAircraftDirExplanationText}"
+                                            Path="{Binding SourceAircraftDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="Aircraft"
+                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}"
+                                            Margin="{StaticResource MediumBottomMargin}"/>
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Resource.SettingsPageSourceDlcCampaignDirText}"
+                                            ExplanationText="{x:Static resx:Resource.SettingsPageSourceDlcCampaignDirExplanationText}"
+                                            Path="{Binding SourceDlcCampaignDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="DlcCampaign"
+                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}" />
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Resource.SettingsPageSourceUserMissionDirText}"
+                                            ExplanationText="{x:Static resx:Resource.SettingsPageSourceUserMissionDirExplanationText}"
+                                            Path="{Binding SourceUserMissionDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="UserMission"
+                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}" />
+
+                    <common:DirectoryPicker LabelText="{x:Static resx:Resource.SettingsPageTranslateFileDirText}"
+                                            ExplanationText="{x:Static resx:Resource.SettingsPageSourceTranslateFileDirExplanationText}"
+                                            Path="{Binding TranslateFileDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="TranslateFile"
+                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}" />
+                </StackPanel>
+                <!-- About -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Margin="{StaticResource MediumTopMargin}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}"
+                               Text="{x:Static resx:Resource.SettingsPageAboutTitle}" />
+
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                            Style="{StaticResource MaterialDesignBodyLargeTextBlock}"
+                            Text="{x:Static resx:Resource.SettingsPageAboutText}" />
+                </StackPanel>
+                <!-- バージョン情報 -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Text="{x:Static resx:Resource.SettingsPageVersionDescriptionTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+                    <TextBlock Text="{Binding VersionDescription, Mode=OneWay}" Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+                    <Button cal:Message.Attach="BrowseToReleaseLatestPage()"
+                            Style="{StaticResource HyperLinkButtonStyle}">
+                        <TextBlock Text="{x:Static resx:Resource.SettingsPageReleaseLatestText}" TextDecorations="Underline" />
+                    </Button>
+                </StackPanel>
+                <!-- ライセンス情報 -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Text="{x:Static resx:Resource.SettingsPageLicensesTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+                    <Button cal:Message.Attach="BrowseToLicensePage()"
+                            Style="{StaticResource HyperLinkButtonStyle}">
+                        <TextBlock Text="{Binding LisenseType}" TextDecorations="Underline" />
+                    </Button>
+
+                </StackPanel>
+                <!-- プライバシーポリシー -->
+                <StackPanel Margin="{StaticResource MediumTopMargin}">
+                    <TextBlock Text="{x:Static resx:Resource.SettingsPrivacyPolicyTitle}"
+                           Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
+
+                    <Button cal:Message.Attach="BrowseToPrivacyStatement()"
+                            Style="{StaticResource HyperLinkButtonStyle}"
+                            AutomationProperties.Name="{Binding Text, ElementName=settingsPrivacyStatement}">
+                        <TextBlock Text="{x:Static resx:Resource.SettingsPagePrivacyPolicyText}" TextDecorations="Underline" />
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+
+</Page>

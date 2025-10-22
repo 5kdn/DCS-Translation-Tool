@@ -1,0 +1,83 @@
+# .github/CODEOWNERS
+# 目的:
+# - GitHub Flow での PR レビュー責任を明確化
+# - master を常にデプロイ可能に保つ (最終承認は Maintainer)
+# - tag駆動 + release-please 運用を前提にガバナンス/CI/リリース関連の所有者を厳密化
+#
+# 使い方:
+# TODO: @your-org/maintainers @your-org/reviewers 等は実在チームに置換してください
+# - 最も下に一致したルールが優先されます
+#
+# 役割対応 (例):
+# - @your-org/owners       -> Role: Owner (Admin)
+# - @your-org/maintainers  -> Role: Maintainer (Maintain)
+# - @your-org/reviewers    -> Role: Reviewer (Write)
+# - @your-org/automation   -> Role: Automation（Bot）※所有者指定は任意
+
+# ------------------------------------------------------------
+# デフォルト
+# ------------------------------------------------------------
+# 基本は Maintainer が最終責任者。レビューは Reviewer が担当。
+# （ブランチ保護で「コードオーナーによる承認必須」「最小承認数=2」等を併用）
+*                                   @your-org/maintainers @your-org/reviewers
+
+# ------------------------------------------------------------
+# クリティカル・ガバナンス (Owner 管理)
+# ------------------------------------------------------------
+/.github/CODEOWNERS                  @your-org/owners
+/SECURITY.md                         @your-org/owners
+/CODE_OF_CONDUCT.md                  @your-org/owners
+/CONTRIBUTING.md                     @your-org/owners
+/LICEN[SC]E                          @your-org/owners
+
+# ------------------------------------------------------------
+# CI/CD・GitHub 設定（Maintainer 管理、Reviewer 協力）
+# ------------------------------------------------------------
+/.github/**                          @your-org/maintainers @your-org/reviewers
+/.githooks/**                        @your-org/maintainers @your-org/reviewers
+
+# リリース運用（release-please）
+/release-please-config.json          @your-org/maintainers @your-org/reviewers
+/release-please-manifest.json        @your-org/maintainers @your-org/reviewers
+
+# ------------------------------------------------------------
+# ドキュメント（Reviewer 主担当、Maintainer 最終）
+# ------------------------------------------------------------
+/docs/**                             @your-org/reviewers @your-org/maintainers
+*.md                                 @your-org/reviewers @your-org/maintainers
+
+# ------------------------------------------------------------
+# インフラ / デプロイ（Maintainer 主担当）
+# ------------------------------------------------------------
+# TODO: プロジェクトに合わせてディレクトリを設定する
+/deploy/**                           @your-org/maintainers @your-org/reviewers
+/infrastructure/**                   @your-org/maintainers @your-org/reviewers
+/Dockerfile                          @your-org/maintainers @your-org/reviewers
+/docker/**                           @your-org/maintainers @your-org/reviewers
+
+# ------------------------------------------------------------
+# モノレポ配下（必要に応じて下位に個別 Reviewer チームを追加）
+# ------------------------------------------------------------
+# TODO: プロジェクトに合わせてディレクトリを設定する
+/apps/**                             @your-org/maintainers @your-org/reviewers
+/services/**                         @your-org/maintainers @your-org/reviewers
+/packages/**                         @your-org/maintainers @your-org/reviewers
+/libs/**                             @your-org/maintainers @your-org/reviewers
+/tools/**                            @your-org/maintainers @your-org/reviewers
+/scripts/**                          @your-org/maintainers @your-org/reviewers
+
+# ------------------------------------------------------------
+# 言語/ビルド構成（.NET / Node / Python など運用分だけ残す）
+# ------------------------------------------------------------
+# TODO: プロジェクトに合わせてディレクトリを設定する
+# Node / pnpm
+/package.json                        @your-org/reviewers @your-org/maintainers
+/pnpm-workspace.yaml                 @your-org/reviewers @your-org/maintainers
+/**/package.json                     @your-org/reviewers @your-org/maintainers
+
+# .NET / C#
+/**/*.sln                            @your-org/reviewers @your-org/maintainers
+/**/*.csproj                         @your-org/reviewers @your-org/maintainers
+
+# Python
+/**/pyproject.toml                   @your-org/reviewers @your-org/maintainers
