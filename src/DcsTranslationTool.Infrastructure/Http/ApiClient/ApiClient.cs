@@ -2,7 +2,6 @@
 #pragma warning disable CS0618
 using DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr;
 using DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadFiles;
-using DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadZip;
 using DcsTranslationTool.Infrastructure.Http.ApiClient.Health;
 using DcsTranslationTool.Infrastructure.Http.ApiClient.Tree;
 using Microsoft.Kiota.Abstractions.Extensions;
@@ -32,11 +31,6 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient
         public global::DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadFiles.DownloadFilesRequestBuilder DownloadFiles
         {
             get => new global::DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadFiles.DownloadFilesRequestBuilder(PathParameters, RequestAdapter);
-        }
-        /// <summary>The downloadZip property</summary>
-        public global::DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadZip.DownloadZipRequestBuilder DownloadZip
-        {
-            get => new global::DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadZip.DownloadZipRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The health property</summary>
         public global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthRequestBuilder Health

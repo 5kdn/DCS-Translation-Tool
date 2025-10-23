@@ -302,34 +302,10 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         [property: JsonPropertyName( "type" )] string? Type
     );
 
-    /// <summary>単一パスのZIPダウンロード要求ペイロード。</summary>
-    /// <param name="Path">ダウンロード対象パス。</param>
-    private sealed record DownloadZipRequest(
-        [property: JsonPropertyName( "path" )] string Path
-    );
-
     /// <summary>複数パスのZIPダウンロード要求ペイロード。</summary>
     /// <param name="Paths">ダウンロード対象パス一覧。</param>
     private sealed record DownloadFilesRequest(
         [property: JsonPropertyName( "paths" )] IReadOnlyList<string> Paths
-    );
-
-    /// <summary>ZIPダウンロード応答ペイロード。</summary>
-    /// <param name="Success">処理成否。</param>
-    /// <param name="Message">メッセージ。</param>
-    /// <param name="Data">本体データ。</param>
-    private sealed record DownloadZipResponse(
-        [property: JsonPropertyName( "success" )] bool? Success,
-        [property: JsonPropertyName( "message" )] string? Message,
-        [property: JsonPropertyName( "data" )] DownloadZipData? Data
-    );
-
-    /// <summary>ZIP本体のデータ。</summary>
-    /// <param name="Base64">ZIPのBase64表現。</param>
-    /// <param name="Size">ZIPサイズ。</param>
-    private sealed record DownloadZipData(
-        [property: JsonPropertyName( "base64" )] string? Base64,
-        [property: JsonPropertyName( "size" )] long? Size
     );
 
     /// <summary>PR作成要求ペイロード。</summary>
