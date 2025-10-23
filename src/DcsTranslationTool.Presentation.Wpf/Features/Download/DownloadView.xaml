@@ -85,6 +85,7 @@
             <TabControl Grid.Row="1"
                         Style="{StaticResource MaterialDesignFilledTabControl}"
                         Margin="{StaticResource SmallTopMargin}"
+                        IsEnabled="{Binding IsTreeInteractionEnabled}"
                         SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
                         ItemsSource="{Binding Tabs}">
                 <TabControl.ItemTemplate>

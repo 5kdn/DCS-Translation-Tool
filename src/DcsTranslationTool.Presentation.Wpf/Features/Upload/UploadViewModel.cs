@@ -123,7 +123,12 @@ public sealed class UploadViewModel(
 
     public bool IsFetching {
         get => _isFetching;
-        set => Set( ref _isFetching, value );
+        set {
+            if(Set( ref _isFetching, value )) {
+                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
+                NotifyOfPropertyChange( () => CanShowCreatePullRequestDialog );
+            }
+        }
     }
 
     #endregion
@@ -134,6 +139,11 @@ public sealed class UploadViewModel(
     /// CreatePullRequestDialog を表示可能か
     /// </summary>
     public bool CanShowCreatePullRequestDialog => !_isFetching && HasChecked();
+
+    /// <summary>
+    /// ツリー操作が許可されているか。
+    /// </summary>
+    public bool IsTreeInteractionEnabled => !IsFetching;
 
     #endregion
 

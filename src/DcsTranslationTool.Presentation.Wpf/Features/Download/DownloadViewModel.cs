@@ -119,12 +119,20 @@ public class DownloadViewModel(
 
     public bool IsFetching {
         get => _isFetching;
-        set => Set( ref _isFetching, value );
+        set {
+            if(Set( ref _isFetching, value )) {
+                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
+            }
+        }
     }
 
     public bool IsDownloading {
         get => _isDownloading;
-        set => Set( ref _isDownloading, value );
+        set {
+            if(Set( ref _isDownloading, value )) {
+                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
+            }
+        }
     }
 
     public double DownloadedProgress {
@@ -134,7 +142,11 @@ public class DownloadViewModel(
 
     public bool IsApplying {
         get => _isApplying;
-        set => Set( ref _isApplying, value );
+        set {
+            if(Set( ref _isApplying, value )) {
+                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
+            }
+        }
     }
 
     public double AppliedProgress {
@@ -155,6 +167,11 @@ public class DownloadViewModel(
     /// 適用可能か
     /// </summary>
     public bool CanApply => !IsApplying && HasChecked();
+
+    /// <summary>
+    /// ツリー操作が許可されているか。
+    /// </summary>
+    public bool IsTreeInteractionEnabled => !IsFetching && !IsDownloading && !IsApplying;
 
     #endregion
 
@@ -440,7 +457,7 @@ public class DownloadViewModel(
 
     #endregion
 
-#region Private Helpers
+    #region Private Helpers
 
     /// <summary>
     /// ダウンロードした ZIP アーカイブを検証して保存する。
