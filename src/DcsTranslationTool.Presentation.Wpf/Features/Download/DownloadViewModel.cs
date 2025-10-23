@@ -277,25 +277,19 @@ public class DownloadViewModel(
         var saveRootPath = appSettingsService.Settings.TranslateFileDir;
         if(string.IsNullOrWhiteSpace( saveRootPath )) {
             logger.Warn( "保存先ディレクトリが設定されていないため保存を中断する。" );
-            await dispatcherService.InvokeAsync( () => {
-                snackbarService.Show( "保存先フォルダーが設定されていません" );
-                return Task.CompletedTask;
-            } );
+            await ShowSnackbarAsync( "保存先フォルダーが設定されていません" );
             return;
         }
 
         IsDownloading = true;
-        DownloadedProgress = 0.0;
+        await UpdateDownloadProgressAsync( 0.0 );
         NotifyOfPropertyChange( () => CanDownload );
         NotifyOfPropertyChange( () => CanApply );
 
         try {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
                 logger.Warn( "タブが選択されていないためダウンロードを中断する。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "タブが選択されていません" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "タブが選択されていません" );
                 return;
             }
 
@@ -303,33 +297,24 @@ public class DownloadViewModel(
             var checkedEntries = tab.GetCheckedEntries();
             if(checkedEntries is null) {
                 logger.Warn( "チェックされたエントリが存在しない。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "ダウンロード対象が有りません" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "ダウンロード対象が有りません" );
                 return;
             }
 
-            var targetEntries = checkedEntries.Where(e => !e.IsDirectory).ToList();
+            var targetEntries = checkedEntries.Where( e => !e.IsDirectory ).ToList();
             if(targetEntries.Count == 0) {
                 logger.Warn( "ダウンロード対象のファイルが存在しない。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "ダウンロード対象が有りません" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "ダウンロード対象が有りません" );
                 return;
             }
             logger.Info( $"ダウンロード対象を特定した。件数={targetEntries.Count}" );
 
-            IReadOnlyList<string> paths = targetEntries.ConvertAll(e => e.Path);
-            var result = await apiService.DownloadFilesAsync(new ApiDownloadFilesRequest(paths, null));
+            IReadOnlyList<string> paths = targetEntries.ConvertAll( e => e.Path );
+            var result = await apiService.DownloadFilesAsync( new ApiDownloadFilesRequest( paths, null ) );
             if(result.IsFailed) {
                 var reason = result.Errors.Count > 0 ? result.Errors[0].Message : null;
                 logger.Error( $"リポジトリからファイルの一括取得に失敗した。Reason={reason}" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "リポジトリからの一括取得に失敗しました" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "リポジトリからの一括取得に失敗しました" );
                 return;
             }
 
@@ -337,272 +322,18 @@ public class DownloadViewModel(
 
             if(newFiles.IsNotModified) {
                 logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "対象ファイルは最新です" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "対象ファイルは最新です" );
                 return;
             }
 
             if(newFiles.Content.Length == 0) {
                 logger.Warn( "APIから空のZIPが返却されたため保存を中断する。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "保存対象が見つかりませんでした" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "保存対象が見つかりませんでした" );
                 return;
             }
 
-            var rootFullPath = Path.GetFullPath( saveRootPath );
-            Directory.CreateDirectory( rootFullPath );
-            var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
-                ? rootFullPath
-                : rootFullPath + Path.DirectorySeparatorChar;
-
-            await using MemoryStream zipStream = new( newFiles.Content, writable: false );
-            using ZipArchive archive = new( zipStream, ZipArchiveMode.Read, leaveOpen: false );
-
-            async Task ShowManifestErrorAsync() {
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "マニフェストの検証に失敗しました" );
-                    return Task.CompletedTask;
-                } );
-            }
-
-            var manifestEntry = archive.Entries.FirstOrDefault( entry => string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) );
-            if(manifestEntry is null) {
-                logger.Error( "ZIPアーカイブに manifest.json が含まれていない。" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            DownloadManifest? manifest;
-            try {
-                using StreamReader reader = new( manifestEntry.Open(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true );
-                string manifestJson = await reader.ReadToEndAsync();
-                manifest = JsonSerializer.Deserialize<DownloadManifest>( manifestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
-            }
-            catch(Exception ex) {
-                logger.Error( "manifest.json の解析に失敗した。", ex );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            if(manifest is null) {
-                logger.Error( "manifest.json の解析結果が null だった。" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            if(manifest.Version != 1) {
-                logger.Warn( $"マニフェストのバージョンが想定外だった。Version={manifest.Version}" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            if(string.IsNullOrWhiteSpace( manifest.GeneratedAt ) || !DateTimeOffset.TryParse( manifest.GeneratedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out _ )) {
-                logger.Warn( $"マニフェストの生成日時が不正だった。GeneratedAt={manifest.GeneratedAt}" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            if(manifest.Files is null || manifest.Files.Count == 0) {
-                logger.Warn( "マニフェストにファイル情報が含まれていなかった。" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            var manifestFiles = new Dictionary<string, DownloadManifestFile>( StringComparer.OrdinalIgnoreCase );
-            foreach(var file in manifest.Files) {
-                if(file is null) {
-                    logger.Warn( "マニフェストに null のファイル情報が含まれていた。" );
-                    await ShowManifestErrorAsync();
-                    return;
-                }
-
-                if(string.IsNullOrWhiteSpace( file.Path )) {
-                    logger.Warn( "マニフェストのファイルパスが空だった。" );
-                    await ShowManifestErrorAsync();
-                    return;
-                }
-
-                if(file.Size < 0) {
-                    logger.Warn( $"マニフェストのファイルサイズが不正だった。Path={file.Path}, Size={file.Size}" );
-                    await ShowManifestErrorAsync();
-                    return;
-                }
-
-                var normalizedManifestPath = NormalizeArchivePath( file.Path );
-                if(string.IsNullOrWhiteSpace( normalizedManifestPath )) {
-                    logger.Warn( $"マニフェストのファイルパスが不正だった。Path={file.Path}" );
-                    await ShowManifestErrorAsync();
-                    return;
-                }
-
-                if(!IsValidSha256( file.Sha256 )) {
-                    logger.Warn( $"マニフェストのハッシュ値が不正だった。Path={file.Path}, Sha256={file.Sha256}" );
-                    await ShowManifestErrorAsync();
-                    return;
-                }
-
-                if(manifestFiles.ContainsKey( normalizedManifestPath )) {
-                    logger.Warn( $"マニフェストに重複するファイルパスが含まれていた。Path={normalizedManifestPath}" );
-                    await ShowManifestErrorAsync();
-                    return;
-                }
-
-                manifestFiles.Add( normalizedManifestPath, file );
-            }
-
-            var fileEntries = archive.Entries
-                .Where( entry => !string.IsNullOrEmpty( entry?.Name ) && !string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) )
-                .ToList();
-            if(fileEntries.Count == 0) {
-                logger.Warn( "ZIPアーカイブに保存対象のファイルエントリが含まれていなかった。" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            var entryPathSet = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
-            var duplicatePaths = new List<string>();
-            foreach(var entry in fileEntries) {
-                var normalizedPath = NormalizeArchivePath( entry.FullName );
-                if(!entryPathSet.Add( normalizedPath )) {
-                    duplicatePaths.Add( normalizedPath );
-                }
-            }
-
-            if(duplicatePaths.Count > 0) {
-                var duplicates = string.Join( ",", duplicatePaths );
-                logger.Error( $"ZIPアーカイブに重複するファイルエントリが含まれている。Duplicates={duplicates}" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            var missingManifestFiles = manifestFiles.Keys.Where( path => !entryPathSet.Contains( path ) ).ToList();
-            if(missingManifestFiles.Count > 0) {
-                var missing = string.Join( ",", missingManifestFiles );
-                logger.Error( $"マニフェストに記載されたファイルが ZIP に存在しない。Missing={missing}" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            var unexpectedEntries = entryPathSet.Where( path => !manifestFiles.ContainsKey( path ) ).ToList();
-            if(unexpectedEntries.Count > 0) {
-                var unexpected = string.Join( ",", unexpectedEntries );
-                logger.Error( $"マニフェストに記載されていないファイルが ZIP に含まれている。Unexpected={unexpected}" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            var totalFiles = manifestFiles.Count;
-            if(totalFiles == 0) {
-                logger.Warn( "マニフェストに保存対象のファイルが存在しなかった。" );
-                await ShowManifestErrorAsync();
-                return;
-            }
-
-            var processed = 0;
-            var success = 0;
-            var failed = 0;
-            DownloadedProgress = 0;
-
-            foreach(var entry in archive.Entries) {
-                var normalizedEntry = NormalizeArchivePath( entry.FullName );
-                if(string.IsNullOrWhiteSpace( normalizedEntry )) continue;
-
-                if(string.IsNullOrEmpty( entry.Name )) {
-                    var directoryPath = Path.GetFullPath(
-                        Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
-                    );
-                    if(directoryPath.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
-                        Directory.CreateDirectory( directoryPath );
-                    }
-                    else {
-                        logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
-                    }
-                    continue;
-                }
-
-                if(string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase )) {
-                    logger.Info( $"manifest.json を保存対象から除外する。Entry={entry.FullName}" );
-                    continue;
-                }
-
-                if(!manifestFiles.TryGetValue( normalizedEntry, out var manifestFile )) {
-                    logger.Error( $"マニフェストに存在しないファイルを検出した。Entry={entry.FullName}" );
-                    failed++;
-                    processed++;
-                    DownloadedProgress = Math.Min( 100, (double)processed / totalFiles * 100 );
-                    continue;
-                }
-
-                var destinationPath = Path.GetFullPath(
-                    Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
-                );
-                if(!destinationPath.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
-                    logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
-                    failed++;
-                    processed++;
-                    DownloadedProgress = Math.Min( 100, (double)processed / totalFiles * 100 );
-                    continue;
-                }
-
-                try {
-                    var directoryName = Path.GetDirectoryName( destinationPath );
-                    if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
-
-                    await using Stream entryStream = entry.Open();
-                    await using MemoryStream buffer = new();
-                    await entryStream.CopyToAsync( buffer );
-                    byte[] fileContent = buffer.ToArray();
-
-                    if(fileContent.LongLength != manifestFile.Size) {
-                        failed++;
-                        logger.Warn( $"マニフェストで定義されたサイズと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredSize={manifestFile.Size}, ActualSize={fileContent.LongLength}" );
-                        continue;
-                    }
-
-                    var computedHash = Convert.ToHexString( SHA256.HashData( fileContent ) );
-                    if(!string.Equals( computedHash, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase )) {
-                        failed++;
-                        logger.Warn( $"マニフェストで定義されたハッシュと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredHash={manifestFile.Sha256}, ActualHash={computedHash}" );
-                        continue;
-                    }
-
-                    await fileService.SaveAsync( destinationPath, fileContent );
-                    success++;
-                    logger.Info( $"ファイルを保存した。Path={destinationPath}" );
-                }
-                catch(Exception ex) {
-                    failed++;
-                    logger.Error( $"ZIPエントリの展開に失敗した。Entry={entry.FullName}, Path={destinationPath}", ex );
-                }
-                finally {
-                    if(!string.IsNullOrEmpty( entry.Name )) {
-                        processed++;
-                        DownloadedProgress = Math.Min( 100, (double)processed / totalFiles * 100 );
-                    }
-                }
-            }
-
-            DownloadedProgress = 100;
-            if(failed > 0) {
-                logger.Warn( $"ZIP展開で一部のファイル保存に失敗した。Success={success}, Failed={failed}, Total={totalFiles}" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( $"一部のファイルの保存に失敗しました ({failed}/{totalFiles})" );
-                    return Task.CompletedTask;
-                } );
-            }
-            else {
-                logger.Info( $"ZIP展開が完了した。Success={success}, Total={totalFiles}" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "ダウンロード完了" );
-                    return Task.CompletedTask;
-                } );
-            }
-
-            logger.Info( "ダウンロード処理が完了した。" );
+            var processed = await Task.Run( () => ProcessDownloadArchiveAsync( newFiles, saveRootPath ) );
+            if(!processed) return;
         }
         finally {
             IsDownloading = false;
@@ -624,29 +355,23 @@ public class DownloadViewModel(
         }
 
         IsApplying = true;
-        AppliedProgress = 0.0;
+        await UpdateApplyProgressAsync( 0.0 );
         NotifyOfPropertyChange( () => CanApply );
         NotifyOfPropertyChange( () => CanDownload );
 
         try {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
                 logger.Warn( "タブが選択されていないため適用処理を中断する。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "タブが選択されていません" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "タブが選択されていません" );
                 return;
             }
 
             var tab = Tabs[SelectedTabIndex];
-            var targetEntries = GetTargetFileNodes().Where(e => !e.IsDirectory).ToList();
+            var targetEntries = GetTargetFileNodes().Where( e => !e.IsDirectory ).ToList();
 
             if(targetEntries.Count == 0) {
                 logger.Warn( "適用対象のファイルが存在しない。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "対象が有りません" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "対象が有りません" );
                 return;
             }
             logger.Info( $"適用対象を特定した。件数={targetEntries.Count}" );
@@ -655,25 +380,19 @@ public class DownloadViewModel(
             {
                 CategoryType.Aircraft => appSettingsService.Settings.SourceAircraftDir,
                 CategoryType.DlcCampaigns => appSettingsService.Settings.SourceDlcCampaignDir,
-                _ => throw new InvalidOperationException($"未対応のタブ種別: {tab.TabType}"),
+                _ => throw new InvalidOperationException( $"未対応のタブ種別: {tab.TabType}" ),
             };
 
             if(string.IsNullOrWhiteSpace( rootPath )) {
                 logger.Warn( "適用先ディレクトリが設定されていないため処理を中断する。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "適用先ディレクトリを設定してください" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "適用先ディレクトリを設定してください" );
                 return;
             }
 
             var rootFullPath = Path.GetFullPath( rootPath );
             if(!Directory.Exists( rootFullPath )) {
                 logger.Warn( $"適用先ディレクトリが存在しない。Directory={rootFullPath}" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "適用先ディレクトリが存在しません" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "適用先ディレクトリが存在しません" );
                 return;
             }
             var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
@@ -683,10 +402,7 @@ public class DownloadViewModel(
             var translateRoot = appSettingsService.Settings.TranslateFileDir;
             if(string.IsNullOrWhiteSpace( translateRoot )) {
                 logger.Warn( "翻訳ディレクトリが未設定のため処理を中断する。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "翻訳ディレクトリを設定してください" );
-                    return Task.CompletedTask;
-                } );
+                await ShowSnackbarAsync( "翻訳ディレクトリを設定してください" );
                 return;
             }
 
@@ -696,173 +412,14 @@ public class DownloadViewModel(
                 ? translateFullPath
                 : translateFullPath + Path.DirectorySeparatorChar;
 
-            var repoOnlyEntries = targetEntries
-                .Where( entry => entry.ChangeType == FileChangeType.RepoOnly )
-                .ToList();
-
-            if(repoOnlyEntries.Count > 0) {
-                logger.Info( $"リポジトリのみのファイルを取得する。Count={repoOnlyEntries.Count}" );
-                var downloadResult = await apiService.DownloadFilesAsync(
-                    new ApiDownloadFilesRequest( repoOnlyEntries.ConvertAll( e => e.Path ), null ) );
-                if(downloadResult.IsFailed) {
-                    var reason = downloadResult.Errors.Count > 0 ? downloadResult.Errors[0].Message : null;
-                    logger.Error( $"リポジトリからの取得に失敗した。Reason={reason}" );
-                    await dispatcherService.InvokeAsync( () => {
-                        snackbarService.Show( "リポジトリからの取得に失敗しました" );
-                        return Task.CompletedTask;
-                    } );
-                    return;
-                }
-
-                var archive = downloadResult.Value;
-                if(!archive.IsNotModified) {
-                    if(archive.Content.Length == 0) {
-                        logger.Warn( "取得した ZIP が空のため適用を中断する。" );
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( "取得ファイルが見つかりませんでした" );
-                            return Task.CompletedTask;
-                        } );
-                        return;
-                    }
-
-                    var extracted = await ExtractDownloadArchiveAsync( archive, translateFullPath );
-                    if(!extracted) {
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( "リポジトリファイルの保存に失敗しました" );
-                            return Task.CompletedTask;
-                        } );
-                        return;
-                    }
-                }
-
-                foreach(var repoEntry in repoOnlyEntries) {
-                    if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, repoEntry.Path, out var repoPath ) || !File.Exists( repoPath )) {
-                        logger.Warn( $"取得後もファイルが存在しない。Path={repoEntry.Path}, Resolved={repoPath}" );
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"取得失敗: {repoEntry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        return;
-                    }
-                }
-            }
-
-            var progressed = 0;
-            var totalApplied = targetEntries.Count;
-            var success = 0;
-            var failed = 0;
-
-            foreach(var entry in targetEntries) {
-                try {
-                    if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, entry.Path, out var sourceFilePath )) {
-                        logger.Warn( $"翻訳ディレクトリ外のファイルが指定されたためスキップする。Path={entry.Path}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"不正な翻訳ファイル: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    if(!File.Exists( sourceFilePath )) {
-                        logger.Warn( $"翻訳ファイルが存在しないため適用できない。Path={sourceFilePath}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"翻訳ファイルが見つかりません: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    var parts = entry.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                    var mizIndex = Array.FindIndex(parts, p => p.EndsWith(".miz", StringComparison.OrdinalIgnoreCase));
-                    if(mizIndex == -1) {
-                        logger.Warn( $".miz の位置を特定できず適用に失敗した。Path={entry.Path}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"不正なパス: .miz が見つかりません -> {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    var mizSegments = parts.Take(mizIndex + 1).Skip(3).ToArray();
-                    if(mizSegments.Length == 0) {
-                        logger.Warn( $"パス構造が不正のため適用に失敗した。Path={entry.Path}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"不正なパス構造: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    var mizRelativePath = string.Join('/', mizSegments);
-                    if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, mizRelativePath, out var mizPath )) {
-                        logger.Warn( $"適用先がルート外を指しているため拒否した。Entry={entry.Path}, MizRelative={mizRelativePath}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"不正な適用先: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    if(!File.Exists( mizPath )) {
-                        logger.Warn( $"適用先の miz ファイルが存在しない。MizPath={mizPath}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"miz ファイルが存在しません: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    var entryPathSegments = parts.Skip(mizIndex + 1).ToArray();
-                    if(entryPathSegments.Length == 0) {
-                        logger.Warn( $"miz 内のパスが空のため適用できない。Path={entry.Path}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"miz 内パスが不正です: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    var entryPath = string.Join('/', entryPathSegments);
-                    var addResult = zipService.AddEntry( mizPath, entryPath, sourceFilePath );
-                    if(addResult.IsFailed) {
-                        var reason = string.Join( ", ", addResult.Errors.Select( e => e.Message ) );
-                        logger.Warn( $"miz への適用に失敗した。MizPath={mizPath}, EntryPath={entryPath}, Reason={reason}" );
-                        failed++;
-                        await dispatcherService.InvokeAsync( () => {
-                            snackbarService.Show( $"適用失敗: {entry.Path}" );
-                            return Task.CompletedTask;
-                        } );
-                        continue;
-                    }
-
-                    logger.Info( $"miz ファイルへ適用した。MizPath={mizPath}, EntryPath={entryPath}" );
-                    success++;
-                }
-                catch(Exception ex) {
-                    failed++;
-                    logger.Error( $"適用処理で例外が発生した。Path={entry.Path}", ex );
-                    await dispatcherService.InvokeAsync( () => {
-                        snackbarService.Show( $"適用失敗: {entry.Path}" );
-                        return Task.CompletedTask;
-                    } );
-                }
-                finally {
-                    AppliedProgress = (double)++progressed / totalApplied * 100;
-                }
-            }
-
-            await dispatcherService.InvokeAsync( () => {
-                snackbarService.Show( $"適用完了 成功:{success} 件 失敗:{failed} 件" );
-                return Task.CompletedTask;
-            } );
-            logger.Info( $"適用処理が完了した。成功={success}, 失敗={failed}" );
+            var applyCompleted = await Task.Run( () => ProcessApplyAsync(
+                targetEntries,
+                rootFullPath,
+                rootWithSeparator,
+                translateFullPath,
+                translateRootWithSeparator
+            ) );
+            if(!applyCompleted) return;
         }
         finally {
             IsApplying = false;
@@ -882,7 +439,422 @@ public class DownloadViewModel(
 
     #endregion
 
-    #region Private Helpers
+#region Private Helpers
+
+    /// <summary>
+    /// ダウンロードした ZIP アーカイブを検証して保存する。
+    /// </summary>
+    /// <param name="newFiles">API から取得したアーカイブ。</param>
+    /// <param name="saveRootPath">保存先ルートディレクトリ。</param>
+    /// <returns>処理が成功した場合は true。</returns>
+    private async Task<bool> ProcessDownloadArchiveAsync( ApiDownloadFilesResult newFiles, string saveRootPath ) {
+        var rootFullPath = Path.GetFullPath( saveRootPath );
+        Directory.CreateDirectory( rootFullPath );
+        var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
+            ? rootFullPath
+            : rootFullPath + Path.DirectorySeparatorChar;
+
+        await using MemoryStream zipStream = new( newFiles.Content, writable: false );
+        using ZipArchive archive = new( zipStream, ZipArchiveMode.Read, leaveOpen: false );
+
+        async Task<bool> FailManifestAsync() {
+            await ShowSnackbarAsync( "マニフェストの検証に失敗しました" );
+            return false;
+        }
+
+        var manifestEntry = archive.Entries.FirstOrDefault( entry => string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) );
+        if(manifestEntry is null) {
+            logger.Error( "ZIPアーカイブに manifest.json が含まれていない。" );
+            return await FailManifestAsync();
+        }
+
+        DownloadManifest? manifest;
+        try {
+            using StreamReader reader = new( manifestEntry.Open(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true );
+            string manifestJson = await reader.ReadToEndAsync().ConfigureAwait( false );
+            manifest = JsonSerializer.Deserialize<DownloadManifest>( manifestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+        }
+        catch(Exception ex) {
+            logger.Error( "manifest.json の解析に失敗した。", ex );
+            return await FailManifestAsync();
+        }
+
+        if(manifest is null) {
+            logger.Error( "manifest.json の解析結果が null だった。" );
+            return await FailManifestAsync();
+        }
+
+        if(manifest.Version != 1) {
+            logger.Warn( $"マニフェストのバージョンが想定外だった。Version={manifest.Version}" );
+            return await FailManifestAsync();
+        }
+
+        if(string.IsNullOrWhiteSpace( manifest.GeneratedAt ) || !DateTimeOffset.TryParse( manifest.GeneratedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out _ )) {
+            logger.Warn( $"マニフェストの生成日時が不正だった。GeneratedAt={manifest.GeneratedAt}" );
+            return await FailManifestAsync();
+        }
+
+        if(manifest.Files is null || manifest.Files.Count == 0) {
+            logger.Warn( "マニフェストにファイル情報が含まれていなかった。" );
+            return await FailManifestAsync();
+        }
+
+        var manifestFiles = new Dictionary<string, DownloadManifestFile>( StringComparer.OrdinalIgnoreCase );
+        foreach(var file in manifest.Files) {
+            if(file is null) {
+                logger.Warn( "マニフェストに null のファイル情報が含まれていた。" );
+                return await FailManifestAsync();
+            }
+
+            if(string.IsNullOrWhiteSpace( file.Path )) {
+                logger.Warn( "マニフェストのファイルパスが空だった。" );
+                return await FailManifestAsync();
+            }
+
+            if(file.Size < 0) {
+                logger.Warn( $"マニフェストのファイルサイズが不正だった。Path={file.Path}, Size={file.Size}" );
+                return await FailManifestAsync();
+            }
+
+            var normalizedManifestPath = NormalizeArchivePath( file.Path );
+            if(string.IsNullOrWhiteSpace( normalizedManifestPath )) {
+                logger.Warn( $"マニフェストのファイルパスが不正だった。Path={file.Path}" );
+                return await FailManifestAsync();
+            }
+
+            if(!IsValidSha256( file.Sha256 )) {
+                logger.Warn( $"マニフェストのハッシュ値が不正だった。Path={file.Path}, Sha256={file.Sha256}" );
+                return await FailManifestAsync();
+            }
+
+            if(manifestFiles.ContainsKey( normalizedManifestPath )) {
+                logger.Warn( $"マニフェストに重複するファイルパスが含まれていた。Path={normalizedManifestPath}" );
+                return await FailManifestAsync();
+            }
+
+            manifestFiles.Add( normalizedManifestPath, file );
+        }
+
+        var fileEntries = archive.Entries
+            .Where( entry => !string.IsNullOrEmpty( entry?.Name ) && !string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) )
+            .ToList();
+        if(fileEntries.Count == 0) {
+            logger.Warn( "ZIPアーカイブに保存対象のファイルエントリが含まれていなかった。" );
+            return await FailManifestAsync();
+        }
+
+        var entryPathSet = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+        var duplicatePaths = new List<string>();
+        foreach(var entry in fileEntries) {
+            var normalizedPath = NormalizeArchivePath( entry.FullName );
+            if(!entryPathSet.Add( normalizedPath )) duplicatePaths.Add( normalizedPath );
+        }
+
+        if(duplicatePaths.Count > 0) {
+            var duplicates = string.Join( ",", duplicatePaths );
+            logger.Error( $"ZIPアーカイブに重複するファイルエントリが含まれている。Duplicates={duplicates}" );
+            return await FailManifestAsync();
+        }
+
+        var missingManifestFiles = manifestFiles.Keys.Where( path => !entryPathSet.Contains( path ) ).ToList();
+        if(missingManifestFiles.Count > 0) {
+            var missing = string.Join( ",", missingManifestFiles );
+            logger.Error( $"マニフェストに記載されたファイルが ZIP に存在しない。Missing={missing}" );
+            return await FailManifestAsync();
+        }
+
+        var unexpectedEntries = entryPathSet.Where( path => !manifestFiles.ContainsKey( path ) ).ToList();
+        if(unexpectedEntries.Count > 0) {
+            var unexpected = string.Join( ",", unexpectedEntries );
+            logger.Error( $"マニフェストに記載されていないファイルが ZIP に含まれている。Unexpected={unexpected}" );
+            return await FailManifestAsync();
+        }
+
+        var totalFiles = manifestFiles.Count;
+        if(totalFiles == 0) {
+            logger.Warn( "マニフェストに保存対象のファイルが存在しなかった。" );
+            return await FailManifestAsync();
+        }
+
+        var processed = 0;
+        var success = 0;
+        var failed = 0;
+        await UpdateDownloadProgressAsync( 0 );
+
+        foreach(var entry in archive.Entries) {
+            var normalizedEntry = NormalizeArchivePath( entry.FullName );
+            if(string.IsNullOrWhiteSpace( normalizedEntry )) continue;
+
+            if(string.IsNullOrEmpty( entry.Name )) {
+                var directoryPath = Path.GetFullPath(
+                    Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
+                );
+                if(directoryPath.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
+                    Directory.CreateDirectory( directoryPath );
+                }
+                else {
+                    logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
+                }
+                continue;
+            }
+
+            if(string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase )) {
+                logger.Info( $"manifest.json を保存対象から除外する。Entry={entry.FullName}" );
+                continue;
+            }
+
+            if(!manifestFiles.TryGetValue( normalizedEntry, out var manifestFile )) {
+                logger.Error( $"マニフェストに存在しないファイルを検出した。Entry={entry.FullName}" );
+                failed++;
+                processed++;
+                await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
+                continue;
+            }
+
+            var destinationPath = Path.GetFullPath(
+                Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
+            );
+            if(!destinationPath.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
+                logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
+                failed++;
+                processed++;
+                await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
+                continue;
+            }
+
+            try {
+                var directoryName = Path.GetDirectoryName( destinationPath );
+                if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
+
+                await using Stream entryStream = entry.Open();
+                await using MemoryStream buffer = new();
+                await entryStream.CopyToAsync( buffer ).ConfigureAwait( false );
+                byte[] fileContent = buffer.ToArray();
+
+                if(fileContent.LongLength != manifestFile.Size) {
+                    failed++;
+                    logger.Warn( $"マニフェストで定義されたサイズと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredSize={manifestFile.Size}, ActualSize={fileContent.LongLength}" );
+                }
+                else {
+                    var computedHash = Convert.ToHexString( SHA256.HashData( fileContent ) );
+                    if(!string.Equals( computedHash, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase )) {
+                        failed++;
+                        logger.Warn( $"マニフェストで定義されたハッシュと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredHash={manifestFile.Sha256}, ActualHash={computedHash}" );
+                    }
+                    else {
+                        await fileService.SaveAsync( destinationPath, fileContent ).ConfigureAwait( false );
+                        success++;
+                        logger.Info( $"ファイルを保存した。Path={destinationPath}" );
+                    }
+                }
+            }
+            catch(Exception ex) {
+                failed++;
+                logger.Error( $"ZIPエントリの展開に失敗した。Entry={entry.FullName}, Path={destinationPath}", ex );
+            }
+
+            processed++;
+            await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
+        }
+
+        await UpdateDownloadProgressAsync( 100 );
+        if(failed > 0) {
+            logger.Warn( $"ZIP展開で一部のファイル保存に失敗した。Success={success}, Failed={failed}, Total={totalFiles}" );
+            await ShowSnackbarAsync( $"一部のファイルの保存に失敗しました ({failed}/{totalFiles})" );
+        }
+        else {
+            logger.Info( $"ZIP展開が完了した。Success={success}, Total={totalFiles}" );
+            await ShowSnackbarAsync( "ダウンロード完了" );
+        }
+
+        logger.Info( "ダウンロード処理が完了した。" );
+        return true;
+    }
+
+    /// <summary>
+    /// 翻訳ファイルを対象の miz へ適用する。
+    /// </summary>
+    /// <param name="targetEntries">適用対象のファイル一覧。</param>
+    /// <param name="rootFullPath">miz 配置ルートの絶対パス。</param>
+    /// <param name="rootWithSeparator">区切り文字付きのルート絶対パス。</param>
+    /// <param name="translateFullPath">翻訳ディレクトリの絶対パス。</param>
+    /// <param name="translateRootWithSeparator">区切り文字付き翻訳ルート。</param>
+    /// <returns>処理が完了した場合は true。</returns>
+    private async Task<bool> ProcessApplyAsync(
+        List<IFileEntryViewModel> targetEntries,
+        string rootFullPath,
+        string rootWithSeparator,
+        string translateFullPath,
+        string translateRootWithSeparator
+    ) {
+        var repoOnlyEntries = targetEntries
+            .Where( entry => entry.ChangeType == FileChangeType.RepoOnly )
+            .ToList();
+
+        if(repoOnlyEntries.Count > 0) {
+            logger.Info( $"リポジトリのみのファイルを取得する。Count={repoOnlyEntries.Count}" );
+            var downloadResult = await apiService.DownloadFilesAsync(
+                new ApiDownloadFilesRequest( repoOnlyEntries.ConvertAll( e => e.Path ), null )
+            ).ConfigureAwait( false );
+            if(downloadResult.IsFailed) {
+                var reason = downloadResult.Errors.Count > 0 ? downloadResult.Errors[0].Message : null;
+                logger.Error( $"リポジトリからの取得に失敗した。Reason={reason}" );
+                await ShowSnackbarAsync( "リポジトリからの取得に失敗しました" );
+                return false;
+            }
+
+            var archive = downloadResult.Value;
+            if(!archive.IsNotModified) {
+                if(archive.Content.Length == 0) {
+                    logger.Warn( "取得した ZIP が空のため適用を中断する。" );
+                    await ShowSnackbarAsync( "取得ファイルが見つかりませんでした" );
+                    return false;
+                }
+
+                var extracted = await ExtractDownloadArchiveAsync( archive, translateFullPath ).ConfigureAwait( false );
+                if(!extracted) {
+                    await ShowSnackbarAsync( "リポジトリファイルの保存に失敗しました" );
+                    return false;
+                }
+            }
+
+            foreach(var repoEntry in repoOnlyEntries) {
+                if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, repoEntry.Path, out var repoPath ) || !File.Exists( repoPath )) {
+                    logger.Warn( $"取得後もファイルが存在しない。Path={repoEntry.Path}, Resolved={repoPath}" );
+                    await ShowSnackbarAsync( $"取得失敗: {repoEntry.Path}" );
+                    return false;
+                }
+            }
+        }
+
+        var progressed = 0;
+        var totalApplied = targetEntries.Count;
+        var success = 0;
+        var failed = 0;
+
+        if(totalApplied == 0) {
+            await UpdateApplyProgressAsync( 100 );
+            await ShowSnackbarAsync( "適用完了 成功:0 件 失敗:0 件" );
+            logger.Info( "適用処理が完了した。成功=0, 失敗=0" );
+            return true;
+        }
+
+        foreach(var entry in targetEntries) {
+            try {
+                string? snackbarMessage = null;
+
+                if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, entry.Path, out var sourceFilePath )) {
+                    failed++;
+                    snackbarMessage = $"不正な翻訳ファイル: {entry.Path}";
+                    logger.Warn( $"翻訳ディレクトリ外のファイルが指定されたためスキップする。Path={entry.Path}" );
+                }
+                else if(!File.Exists( sourceFilePath )) {
+                    failed++;
+                    snackbarMessage = $"翻訳ファイルが見つかりません: {entry.Path}";
+                    logger.Warn( $"翻訳ファイルが存在しないため適用できない。Path={sourceFilePath}" );
+                }
+                else {
+                    var parts = entry.Path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
+                    var mizIndex = Array.FindIndex( parts, p => p.EndsWith( ".miz", StringComparison.OrdinalIgnoreCase ) );
+                    if(mizIndex == -1) {
+                        failed++;
+                        snackbarMessage = $"不正なパス: .miz が見つかりません -> {entry.Path}";
+                        logger.Warn( $".miz の位置を特定できず適用に失敗した。Path={entry.Path}" );
+                    }
+                    else {
+                        var mizSegments = parts.Take( mizIndex + 1 ).Skip( 3 ).ToArray();
+                        if(mizSegments.Length == 0) {
+                            failed++;
+                            snackbarMessage = $"不正なパス構造: {entry.Path}";
+                            logger.Warn( $"パス構造が不正のため適用に失敗した。Path={entry.Path}" );
+                        }
+                        else {
+                            var mizRelativePath = string.Join( '/', mizSegments );
+                            if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, mizRelativePath, out var mizPath )) {
+                                failed++;
+                                snackbarMessage = $"不正な適用先: {entry.Path}";
+                                logger.Warn( $"適用先がルート外を指しているため拒否した。Entry={entry.Path}, MizRelative={mizRelativePath}" );
+                            }
+                            else if(!File.Exists( mizPath )) {
+                                failed++;
+                                snackbarMessage = $"miz ファイルが存在しません: {entry.Path}";
+                                logger.Warn( $"適用先の miz ファイルが存在しない。MizPath={mizPath}" );
+                            }
+                            else {
+                                var entryPathSegments = parts.Skip( mizIndex + 1 ).ToArray();
+                                if(entryPathSegments.Length == 0) {
+                                    failed++;
+                                    snackbarMessage = $"miz 内パスが不正です: {entry.Path}";
+                                    logger.Warn( $"miz 内のパスが空のため適用できない。Path={entry.Path}" );
+                                }
+                                else {
+                                    var entryPath = string.Join( '/', entryPathSegments );
+                                    var addResult = zipService.AddEntry( mizPath, entryPath, sourceFilePath );
+                                    if(addResult.IsFailed) {
+                                        failed++;
+                                        snackbarMessage = $"適用失敗: {entry.Path}";
+                                        var reason = string.Join( ", ", addResult.Errors.Select( e => e.Message ) );
+                                        logger.Warn( $"miz への適用に失敗した。MizPath={mizPath}, EntryPath={entryPath}, Reason={reason}" );
+                                    }
+                                    else {
+                                        logger.Info( $"miz ファイルへ適用した。MizPath={mizPath}, EntryPath={entryPath}" );
+                                        success++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if(snackbarMessage is not null) {
+                    await ShowSnackbarAsync( snackbarMessage );
+                }
+            }
+            catch(Exception ex) {
+                failed++;
+                logger.Error( $"適用処理で例外が発生した。Path={entry.Path}", ex );
+                await ShowSnackbarAsync( $"適用失敗: {entry.Path}" );
+            }
+
+            progressed++;
+            await UpdateApplyProgressAsync( Math.Min( 100, (double)progressed / totalApplied * 100 ) );
+        }
+
+        await UpdateApplyProgressAsync( 100 );
+        await ShowSnackbarAsync( $"適用完了 成功:{success} 件 失敗:{failed} 件" );
+        logger.Info( $"適用処理が完了した。成功={success}, 失敗={failed}" );
+        return true;
+    }
+
+    /// <summary>
+    /// ダウンロード進捗を更新する。
+    /// </summary>
+    /// <param name="value">進捗率。</param>
+    private Task UpdateDownloadProgressAsync( double value ) =>
+        dispatcherService.InvokeAsync( () => {
+            DownloadedProgress = value;
+            return Task.CompletedTask;
+        } );
+
+    /// <summary>
+    /// 適用進捗を更新する。
+    /// </summary>
+    /// <param name="value">進捗率。</param>
+    private Task UpdateApplyProgressAsync( double value ) =>
+        dispatcherService.InvokeAsync( () => {
+            AppliedProgress = value;
+            return Task.CompletedTask;
+        } );
+
+    /// <summary>
+    /// スナックバーにメッセージを表示する。
+    /// </summary>
+    /// <param name="message">表示メッセージ。</param>
+    private Task ShowSnackbarAsync( string message ) =>
+        dispatcherService.InvokeAsync( () => {
+            snackbarService.Show( message );
+            return Task.CompletedTask;
+        } );
 
     /// <summary>ZIPアーカイブを指定ディレクトリへ展開する。</summary>
     private async Task<bool> ExtractDownloadArchiveAsync( ApiDownloadFilesResult archive, string destinationRootFullPath ) {
