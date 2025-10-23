@@ -16,10 +16,11 @@ using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
+using DcsTranslationTool.Presentation.Wpf.ViewModels;
 
 using FluentResults;
 
-namespace DcsTranslationTool.Presentation.Wpf.ViewModels;
+namespace DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 
 /// <summary>
 /// PR作成ダイアログの ViewModel。
@@ -126,7 +127,8 @@ public class CreatePullRequestViewModel(
         IFileContentInspector fileContentInspector,
         ILoggingService logger,
         IWindowManager windowManager,
-        CancellationToken cancellationToken = default ) {
+        CancellationToken cancellationToken = default
+    ) {
         ArgumentNullException.ThrowIfNull( windowManager );
         ArgumentNullException.ThrowIfNull( parameters );
         ArgumentNullException.ThrowIfNull( logger );

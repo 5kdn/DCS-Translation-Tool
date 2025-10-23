@@ -93,8 +93,8 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         if(sanitizedPaths.Length == 0)
             return Result.Fail( "Paths には少なくとも1つの空でない値が含まれている必要があります。" );
 
-        if(sanitizedPaths.Length > 100)
-            return Result.Fail( "Paths には100個以下のアイテムを含める必要があります。" );
+        if(sanitizedPaths.Length > 500)
+            return Result.Fail( "Paths には500個以下のアイテムを含める必要があります。" );
 
         try {
             var payload = new DownloadFilesRequest( sanitizedPaths );

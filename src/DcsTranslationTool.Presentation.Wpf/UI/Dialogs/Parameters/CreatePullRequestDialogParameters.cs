@@ -3,7 +3,7 @@ using DcsTranslationTool.Application.Models;
 namespace DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 
 /// <summary>
-/// <see cref="DcsTranslationTool.ViewModels.CreatePullRequestViewModel"/> に渡すパラメーター
+/// <see cref="Features.CreatePullRequest.CreatePullRequestViewModel"/> に渡すパラメーター
 /// </summary>
 public record CreatePullRequestDialogParameters {
 

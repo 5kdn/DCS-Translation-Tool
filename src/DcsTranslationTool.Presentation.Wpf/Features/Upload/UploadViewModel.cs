@@ -8,6 +8,7 @@ using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Domain.Models;
+using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;

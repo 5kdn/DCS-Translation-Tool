@@ -4,6 +4,7 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
+using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
@@ -17,6 +18,7 @@ using InfraLoggingService = DcsTranslationTool.Infrastructure.Interfaces.ILoggin
 namespace DcsTranslationTool.Presentation.Wpf;
 public class Bootstrapper : BootstrapperBase {
     private SimpleContainer? container;
+    private ILoggingService? loggingService;
 
     public Bootstrapper() {
         Initialize();
@@ -33,7 +35,8 @@ public class Bootstrapper : BootstrapperBase {
         // Presentation層で実装していないサービス群を登録
         CompositionRegistration.Register( container );
         var infraLoggingService = container.GetInstance<InfraLoggingService>();
-        container.Instance<ILoggingService>( new LoggingServiceAdapter( infraLoggingService ) );
+        loggingService = new LoggingServiceAdapter( infraLoggingService );
+        container.Instance<ILoggingService>( loggingService );
 
         container.Singleton<IDialogProvider, DialogProvider>();
         container.Singleton<IDispatcherService, DispatcherService>();
@@ -42,12 +45,14 @@ public class Bootstrapper : BootstrapperBase {
         // ViewModels
         container.Singleton<ShellViewModel>();
         container.PerRequest<MainViewModel>();
+        container.PerRequest<SettingsViewModel>();
         container.PerRequest<DownloadViewModel>();
         container.PerRequest<UploadViewModel>();
-        container.PerRequest<SettingsViewModel>();
+        container.PerRequest<CreatePullRequestViewModel>();
     }
 
     protected override async void OnStartup( object sender, StartupEventArgs e ) {
+        loggingService?.Info( "起動" );
         var shellView = new ShellView();
         var frameAdapter = new FrameAdapter( shellView.RootFrame, true );
         container!.Instance<INavigationService>( frameAdapter );
@@ -68,6 +73,7 @@ public class Bootstrapper : BootstrapperBase {
     /// アプリ終了時に NLog を安全にシャットダウン。
     /// </summary>
     protected override void OnExit( object sender, EventArgs e ) {
+        loggingService?.Info( "終了" );
         base.OnExit( sender, e );
         NLog.LogManager.Shutdown();
     }
