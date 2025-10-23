@@ -21,17 +21,11 @@ public static class CompositionRegistration {
     /// Infrastructure のサービス登録を一括実行。
     /// </summary>
     public static void Register( SimpleContainer c ) {
-        var assembly = Assembly.GetEntryAssembly() ?? throw new InvalidOperationException( "エントリーアセンブリを取得できませんでした。" );
-        string? title;
-        try {
-            title = assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
-        }
-        catch(Exception ex) {
-            throw new InvalidOperationException( "AssemblyTitleAttribute の取得に失敗しました。", ex );
-        }
+        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly() ?? typeof( CompositionRegistration ).Assembly;
+        var title = ResolveAssemblyTitle( assembly ) ?? "DcsTranslationTool";
         var saveDir = Path.Combine(
                 Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData ),
-                title ?? "DcsTranslationTool"
+                title
             );
         const string fileName = "appsettings.json";
         var loggingOptions = CreateLoggingOptions();
@@ -83,5 +77,20 @@ public static class CompositionRegistration {
                 ArchiveSuffixFormat = "${shortdate}.{#}"
             };
 #endif
+    }
+
+    /// <summary>
+    /// アセンブリのタイトル属性を安全に解決する。
+    /// </summary>
+    /// <param name="assembly">対象アセンブリ。</param>
+    /// <returns>タイトル文字列。</returns>
+    private static string? ResolveAssemblyTitle( Assembly? assembly ) {
+        if(assembly is null) return null;
+        try {
+            return assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
+        }
+        catch {
+            return null;
+        }
     }
 }
