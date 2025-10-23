@@ -473,7 +473,7 @@ public sealed class UploadViewModel(
                 Operation = (entry.RepoSha, entry.LocalSha) switch
                 {
                     (string _, null ) => CommitOperationType.Delete,
-                    _ => CommitOperationType.AddOrUpdate,
+                    _ => CommitOperationType.Upsert,
                 },
                 LocalPath = Path.Combine( appSettingsService.Settings.TranslateFileDir, entry.Path ),
                 RepoPath = entry.Path,

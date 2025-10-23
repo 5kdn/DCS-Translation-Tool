@@ -38,7 +38,7 @@ public class CreatePullRequestViewModel(
     private readonly TaskCompletionSource<CreatePullRequestResult> _tcs = new();
 
     /// <summary>Commitで追加または更新されるファイル。</summary>
-    private IEnumerable<CommitFile> _addOrUpdateFiles = [];
+    private IEnumerable<CommitFile> _upsertFiles = [];
 
     /// <summary>Commitで削除されるファイル。</summary>
     private IEnumerable<CommitFile> _deleteFiles = [];
@@ -68,7 +68,7 @@ public class CreatePullRequestViewModel(
     public IEnumerable<CommitFile> CommitFiles { get; init; } = dialogParameters.CommitFiles;
 
     /// <summary>追加または更新されるファイル一覧。</summary>
-    public IEnumerable<CommitFile> AddOrUpdateFiles => _addOrUpdateFiles;
+    public IEnumerable<CommitFile> UpsertFiles => _upsertFiles;
 
     /// <summary>削除されるファイル一覧。</summary>
     public IEnumerable<CommitFile> DeleteFiles => _deleteFiles;
@@ -150,23 +150,23 @@ public class CreatePullRequestViewModel(
         logger.Info( $"CreatePullRequestViewModel をアクティブ化する。Category={Category}, SubCategory={SubCategory}, FileCount={CommitFiles.Count()}" );
 
         // ファイルの種別振り分け
-        List<CommitFile> addOrUpdateFiles = [];
+        List<CommitFile> upsertFiles = [];
         List<CommitFile> deleteFiles = [];
         foreach(var file in CommitFiles) {
             switch(file.Operation) {
-                case CommitOperationType.AddOrUpdate:
-                    addOrUpdateFiles.Add( file );
+                case CommitOperationType.Upsert:
+                    upsertFiles.Add( file );
                     break;
                 case CommitOperationType.Delete:
                     deleteFiles.Add( file );
                     break;
             }
         }
-        _addOrUpdateFiles = addOrUpdateFiles;
-        NotifyOfPropertyChange( () => AddOrUpdateFiles );
+        _upsertFiles = upsertFiles;
+        NotifyOfPropertyChange( () => UpsertFiles );
         _deleteFiles = deleteFiles;
         NotifyOfPropertyChange( () => DeleteFiles );
-        logger.Info( $"コミットファイルを分類した。AddOrUpdate={_addOrUpdateFiles.Count()}, Delete={_deleteFiles.Count()}" );
+        logger.Info( $"コミットファイルを分類した。Upsert={_upsertFiles.Count()}, Delete={_deleteFiles.Count()}" );
 
         // 変更種別と同意項目の購読設定
         HookCollection( PullRequestChangeKinds, OnKindItemPropertyChanged );
@@ -251,13 +251,8 @@ public class CreatePullRequestViewModel(
                 };
             }
             else {
-                logger.Info( $"PR リクエストを組み立てる。Branch={branchName}, AddOrUpdate={AddOrUpdateFiles.Count()}, Delete={DeleteFiles.Count()}" );
-                var request = new ApiCreatePullRequestRequest(
-                    branchName,
-                    commitMessage,
-                    PRTitle,
-                    body,
-                    files );
+                logger.Info( $"PR リクエストを組み立てる。Branch={branchName}, Upsert={UpsertFiles.Count()}, Delete={DeleteFiles.Count()}" );
+                var request = new ApiCreatePullRequestRequest( branchName, commitMessage, PRTitle, body, files );
 
                 var apiResult = await apiService.CreatePullRequestAsync( request );
                 if(apiResult.IsFailed) {
@@ -344,7 +339,7 @@ public class CreatePullRequestViewModel(
     private async Task<List<ApiPullRequestFile>> BuildPullRequestFilesAsync() {
         List<ApiPullRequestFile> files = [];
 
-        foreach(var commitFile in AddOrUpdateFiles) {
+        foreach(var commitFile in UpsertFiles) {
             if(string.IsNullOrWhiteSpace( commitFile.LocalPath )) throw new InvalidOperationException( $"ローカルパスが未指定のためファイルを読み込めない。RepoPath={commitFile.RepoPath}" );
 
             if(!File.Exists( commitFile.LocalPath )) throw new FileNotFoundException( $"コミット対象ファイルが存在しない。Path={commitFile.LocalPath}", commitFile.LocalPath );
