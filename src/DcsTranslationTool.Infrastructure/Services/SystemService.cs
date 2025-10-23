@@ -9,7 +9,8 @@ namespace DcsTranslationTool.Infrastructure.Services;
 /// システム関連の操作を提供するサービス。
 /// </summary>
 /// <param name="logger">ロギングサービス。</param>
-public sealed class SystemService( ILoggingService logger ) : ISystemService {
+/// <param name="processLauncher">プロセス起動サービス。</param>
+public sealed class SystemService( ILoggingService logger, IProcessLauncher processLauncher ) : ISystemService {
     /// <inheritdoc/>
     public void OpenInWebBrowser( string url ) {
         ArgumentException.ThrowIfNullOrWhiteSpace( url );
@@ -20,7 +21,7 @@ public sealed class SystemService( ILoggingService logger ) : ISystemService {
                 FileName = url,
                 UseShellExecute = true
             };
-            Process.Start( psi );
+            processLauncher.Start( psi );
         }
         catch(Exception ex) {
             logger.Error( $"既定ブラウザーでの URL オープンに失敗した。Url={url}", ex );
@@ -47,7 +48,7 @@ public sealed class SystemService( ILoggingService logger ) : ISystemService {
             UseShellExecute = true
         };
         try {
-            Process.Start( psi );
+            processLauncher.Start( psi );
             logger.Info( $"エクスプローラーでディレクトリを開いた。Path={path}" );
         }
         catch(Exception ex) {

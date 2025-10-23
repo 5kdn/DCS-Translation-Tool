@@ -43,6 +43,7 @@ public static class CompositionRegistration {
 
         c.Singleton<IApplicationInfoService, ApplicationInfoService>();
         c.Singleton<IEnvironmentProvider, EnvironmentProvider>();
+        c.Singleton<IProcessLauncher, ProcessLauncher>();
         c.Singleton<ISystemService, SystemService>();
     }
 
