@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
@@ -31,7 +32,6 @@ public class DownloadViewModel(
     IAppSettingsService appSettingsService,
     IDispatcherService dispatcherService,
     IFileEntryService fileEntryService,
-    IFileService fileService,
     ILoggingService logger,
     ISnackbarService snackbarService,
     ISystemService systemService,
@@ -71,6 +71,7 @@ public class DownloadViewModel(
     #region Properties
 
     private const string ManifestFileName = "manifest.json";
+    private const int StreamCopyBufferSize = 128 * 1024;
 
     /// <summary>
     /// ローカル側のエントリ一覧
@@ -622,27 +623,48 @@ public class DownloadViewModel(
                 continue;
             }
 
+            var shouldDelete = false;
             try {
                 var directoryName = Path.GetDirectoryName( destinationPath );
                 if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
 
                 await using Stream entryStream = entry.Open();
-                await using MemoryStream buffer = new();
-                await entryStream.CopyToAsync( buffer ).ConfigureAwait( false );
-                byte[] fileContent = buffer.ToArray();
+                await using FileStream destinationStream = new(
+                    destinationPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    StreamCopyBufferSize,
+                    useAsync: true
+                );
+                using var hash = IncrementalHash.CreateHash( HashAlgorithmName.SHA256 );
+                var buffer = ArrayPool<byte>.Shared.Rent( StreamCopyBufferSize );
+                long totalBytes = 0;
+                try {
+                    int read;
+                    while((read = await entryStream.ReadAsync( buffer.AsMemory( 0, buffer.Length ) ).ConfigureAwait( false )) > 0) {
+                        hash.AppendData( buffer, 0, read );
+                        await destinationStream.WriteAsync( buffer.AsMemory( 0, read ) ).ConfigureAwait( false );
+                        totalBytes += read;
+                    }
+                }
+                finally {
+                    ArrayPool<byte>.Shared.Return( buffer );
+                }
 
-                if(fileContent.LongLength != manifestFile.Size) {
+                if(totalBytes != manifestFile.Size) {
                     failed++;
-                    logger.Warn( $"マニフェストで定義されたサイズと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredSize={manifestFile.Size}, ActualSize={fileContent.LongLength}" );
+                    shouldDelete = true;
+                    logger.Warn( $"マニフェストで定義されたサイズと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredSize={manifestFile.Size}, ActualSize={totalBytes}" );
                 }
                 else {
-                    var computedHash = Convert.ToHexString( SHA256.HashData( fileContent ) );
+                    var computedHash = Convert.ToHexString( hash.GetHashAndReset() );
                     if(!string.Equals( computedHash, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase )) {
                         failed++;
+                        shouldDelete = true;
                         logger.Warn( $"マニフェストで定義されたハッシュと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredHash={manifestFile.Sha256}, ActualHash={computedHash}" );
                     }
                     else {
-                        await fileService.SaveAsync( destinationPath, fileContent ).ConfigureAwait( false );
                         success++;
                         logger.Info( $"ファイルを保存した。Path={destinationPath}" );
                     }
@@ -650,11 +672,21 @@ public class DownloadViewModel(
             }
             catch(Exception ex) {
                 failed++;
+                shouldDelete = true;
                 logger.Error( $"ZIPエントリの展開に失敗した。Entry={entry.FullName}, Path={destinationPath}", ex );
             }
-
-            processed++;
-            await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
+            finally {
+                processed++;
+                await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
+                if(shouldDelete && File.Exists( destinationPath )) {
+                    try {
+                        File.Delete( destinationPath );
+                    }
+                    catch(Exception deleteEx) {
+                        logger.Warn( $"検証失敗によりファイル削除に失敗した。Path={destinationPath}", deleteEx );
+                    }
+                }
+            }
         }
 
         await UpdateDownloadProgressAsync( 100 );
@@ -896,19 +928,47 @@ public class DownloadViewModel(
                 continue;
             }
 
+            var shouldDelete = false;
             try {
                 var directoryName = Path.GetDirectoryName( destinationPath );
                 if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
 
                 await using Stream entryStream = entry.Open();
-                await using MemoryStream buffer = new();
-                await entryStream.CopyToAsync( buffer );
-                await fileService.SaveAsync( destinationPath, buffer.ToArray() );
+                await using FileStream destinationStream = new(
+                    destinationPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    StreamCopyBufferSize,
+                    useAsync: true
+                );
+                var buffer = ArrayPool<byte>.Shared.Rent( StreamCopyBufferSize );
+                try {
+                    int read;
+                    while((read = await entryStream.ReadAsync( buffer.AsMemory( 0, buffer.Length ) ).ConfigureAwait( false )) > 0) {
+                        await destinationStream.WriteAsync( buffer.AsMemory( 0, read ) ).ConfigureAwait( false );
+                    }
+                }
+                finally {
+                    ArrayPool<byte>.Shared.Return( buffer );
+                }
+
                 logger.Info( $"ZIPエントリを展開した。Path={destinationPath}" );
             }
             catch(Exception ex) {
                 hasFailure = true;
+                shouldDelete = true;
                 logger.Error( $"ZIPエントリの展開に失敗した。Entry={entry.FullName}, Path={destinationPath}", ex );
+            }
+            finally {
+                if(shouldDelete && File.Exists( destinationPath )) {
+                    try {
+                        File.Delete( destinationPath );
+                    }
+                    catch(Exception deleteEx) {
+                        logger.Warn( $"ZIPエントリ展開失敗後のクリーンアップに失敗した。Path={destinationPath}", deleteEx );
+                    }
+                }
             }
         }
 
