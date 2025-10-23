@@ -1,6 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using Caliburn.Micro;
 
@@ -64,6 +69,8 @@ public class DownloadViewModel(
     #endregion
 
     #region Properties
+
+    private const string ManifestFileName = "manifest.json";
 
     /// <summary>
     /// ローカル側のエントリ一覧
@@ -267,6 +274,16 @@ public class DownloadViewModel(
             return;
         }
 
+        var saveRootPath = appSettingsService.Settings.TranslateFileDir;
+        if(string.IsNullOrWhiteSpace( saveRootPath )) {
+            logger.Warn( "保存先ディレクトリが設定されていないため保存を中断する。" );
+            await dispatcherService.InvokeAsync( () => {
+                snackbarService.Show( "保存先フォルダーが設定されていません" );
+                return Task.CompletedTask;
+            } );
+            return;
+        }
+
         IsDownloading = true;
         DownloadedProgress = 0.0;
         NotifyOfPropertyChange( () => CanDownload );
@@ -317,15 +334,6 @@ public class DownloadViewModel(
             }
 
             var newFiles = result.Value;
-            var saveRootPath = appSettingsService.Settings.TranslateFileDir;
-            if(string.IsNullOrWhiteSpace( saveRootPath )) {
-                logger.Warn( "保存先ディレクトリが設定されていないため保存を中断する。" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "保存先フォルダーが設定されていません" );
-                    return Task.CompletedTask;
-                } );
-                return;
-            }
 
             if(newFiles.IsNotModified) {
                 logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
@@ -354,13 +362,143 @@ public class DownloadViewModel(
             await using MemoryStream zipStream = new( newFiles.Content, writable: false );
             using ZipArchive archive = new( zipStream, ZipArchiveMode.Read, leaveOpen: false );
 
-            var fileEntries = archive.Entries.Where( entry => !string.IsNullOrEmpty( entry?.Name ) ).ToList();
-            if(fileEntries.Count == 0) {
-                logger.Warn( "ZIPアーカイブに保存対象のファイルエントリが含まれていなかった。" );
+            async Task ShowManifestErrorAsync() {
                 await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "保存対象が見つかりませんでした" );
+                    snackbarService.Show( "マニフェストの検証に失敗しました" );
                     return Task.CompletedTask;
                 } );
+            }
+
+            var manifestEntry = archive.Entries.FirstOrDefault( entry => string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) );
+            if(manifestEntry is null) {
+                logger.Error( "ZIPアーカイブに manifest.json が含まれていない。" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            DownloadManifest? manifest;
+            try {
+                using StreamReader reader = new( manifestEntry.Open(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true );
+                string manifestJson = await reader.ReadToEndAsync();
+                manifest = JsonSerializer.Deserialize<DownloadManifest>( manifestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+            }
+            catch(Exception ex) {
+                logger.Error( "manifest.json の解析に失敗した。", ex );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            if(manifest is null) {
+                logger.Error( "manifest.json の解析結果が null だった。" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            if(manifest.Version != 1) {
+                logger.Warn( $"マニフェストのバージョンが想定外だった。Version={manifest.Version}" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            if(string.IsNullOrWhiteSpace( manifest.GeneratedAt ) || !DateTimeOffset.TryParse( manifest.GeneratedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out _ )) {
+                logger.Warn( $"マニフェストの生成日時が不正だった。GeneratedAt={manifest.GeneratedAt}" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            if(manifest.Files is null || manifest.Files.Count == 0) {
+                logger.Warn( "マニフェストにファイル情報が含まれていなかった。" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            var manifestFiles = new Dictionary<string, DownloadManifestFile>( StringComparer.OrdinalIgnoreCase );
+            foreach(var file in manifest.Files) {
+                if(file is null) {
+                    logger.Warn( "マニフェストに null のファイル情報が含まれていた。" );
+                    await ShowManifestErrorAsync();
+                    return;
+                }
+
+                if(string.IsNullOrWhiteSpace( file.Path )) {
+                    logger.Warn( "マニフェストのファイルパスが空だった。" );
+                    await ShowManifestErrorAsync();
+                    return;
+                }
+
+                if(file.Size < 0) {
+                    logger.Warn( $"マニフェストのファイルサイズが不正だった。Path={file.Path}, Size={file.Size}" );
+                    await ShowManifestErrorAsync();
+                    return;
+                }
+
+                var normalizedManifestPath = NormalizeArchivePath( file.Path );
+                if(string.IsNullOrWhiteSpace( normalizedManifestPath )) {
+                    logger.Warn( $"マニフェストのファイルパスが不正だった。Path={file.Path}" );
+                    await ShowManifestErrorAsync();
+                    return;
+                }
+
+                if(!IsValidSha256( file.Sha256 )) {
+                    logger.Warn( $"マニフェストのハッシュ値が不正だった。Path={file.Path}, Sha256={file.Sha256}" );
+                    await ShowManifestErrorAsync();
+                    return;
+                }
+
+                if(manifestFiles.ContainsKey( normalizedManifestPath )) {
+                    logger.Warn( $"マニフェストに重複するファイルパスが含まれていた。Path={normalizedManifestPath}" );
+                    await ShowManifestErrorAsync();
+                    return;
+                }
+
+                manifestFiles.Add( normalizedManifestPath, file );
+            }
+
+            var fileEntries = archive.Entries
+                .Where( entry => !string.IsNullOrEmpty( entry?.Name ) && !string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) )
+                .ToList();
+            if(fileEntries.Count == 0) {
+                logger.Warn( "ZIPアーカイブに保存対象のファイルエントリが含まれていなかった。" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            var entryPathSet = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+            var duplicatePaths = new List<string>();
+            foreach(var entry in fileEntries) {
+                var normalizedPath = NormalizeArchivePath( entry.FullName );
+                if(!entryPathSet.Add( normalizedPath )) {
+                    duplicatePaths.Add( normalizedPath );
+                }
+            }
+
+            if(duplicatePaths.Count > 0) {
+                var duplicates = string.Join( ",", duplicatePaths );
+                logger.Error( $"ZIPアーカイブに重複するファイルエントリが含まれている。Duplicates={duplicates}" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            var missingManifestFiles = manifestFiles.Keys.Where( path => !entryPathSet.Contains( path ) ).ToList();
+            if(missingManifestFiles.Count > 0) {
+                var missing = string.Join( ",", missingManifestFiles );
+                logger.Error( $"マニフェストに記載されたファイルが ZIP に存在しない。Missing={missing}" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            var unexpectedEntries = entryPathSet.Where( path => !manifestFiles.ContainsKey( path ) ).ToList();
+            if(unexpectedEntries.Count > 0) {
+                var unexpected = string.Join( ",", unexpectedEntries );
+                logger.Error( $"マニフェストに記載されていないファイルが ZIP に含まれている。Unexpected={unexpected}" );
+                await ShowManifestErrorAsync();
+                return;
+            }
+
+            var totalFiles = manifestFiles.Count;
+            if(totalFiles == 0) {
+                logger.Warn( "マニフェストに保存対象のファイルが存在しなかった。" );
+                await ShowManifestErrorAsync();
                 return;
             }
 
@@ -370,7 +508,7 @@ public class DownloadViewModel(
             DownloadedProgress = 0;
 
             foreach(var entry in archive.Entries) {
-                var normalizedEntry = entry.FullName.Replace( '\\', '/' ).TrimStart( '/' );
+                var normalizedEntry = NormalizeArchivePath( entry.FullName );
                 if(string.IsNullOrWhiteSpace( normalizedEntry )) continue;
 
                 if(string.IsNullOrEmpty( entry.Name )) {
@@ -386,6 +524,19 @@ public class DownloadViewModel(
                     continue;
                 }
 
+                if(string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase )) {
+                    logger.Info( $"manifest.json を保存対象から除外する。Entry={entry.FullName}" );
+                    continue;
+                }
+
+                if(!manifestFiles.TryGetValue( normalizedEntry, out var manifestFile )) {
+                    logger.Error( $"マニフェストに存在しないファイルを検出した。Entry={entry.FullName}" );
+                    failed++;
+                    processed++;
+                    DownloadedProgress = Math.Min( 100, (double)processed / totalFiles * 100 );
+                    continue;
+                }
+
                 var destinationPath = Path.GetFullPath(
                     Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
                 );
@@ -393,7 +544,7 @@ public class DownloadViewModel(
                     logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
                     failed++;
                     processed++;
-                    DownloadedProgress = Math.Min( 100, (double)processed / fileEntries.Count * 100 );
+                    DownloadedProgress = Math.Min( 100, (double)processed / totalFiles * 100 );
                     continue;
                 }
 
@@ -404,7 +555,22 @@ public class DownloadViewModel(
                     await using Stream entryStream = entry.Open();
                     await using MemoryStream buffer = new();
                     await entryStream.CopyToAsync( buffer );
-                    await fileService.SaveAsync( destinationPath, buffer.ToArray() );
+                    byte[] fileContent = buffer.ToArray();
+
+                    if(fileContent.LongLength != manifestFile.Size) {
+                        failed++;
+                        logger.Warn( $"マニフェストで定義されたサイズと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredSize={manifestFile.Size}, ActualSize={fileContent.LongLength}" );
+                        continue;
+                    }
+
+                    var computedHash = Convert.ToHexString( SHA256.HashData( fileContent ) );
+                    if(!string.Equals( computedHash, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase )) {
+                        failed++;
+                        logger.Warn( $"マニフェストで定義されたハッシュと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredHash={manifestFile.Sha256}, ActualHash={computedHash}" );
+                        continue;
+                    }
+
+                    await fileService.SaveAsync( destinationPath, fileContent );
                     success++;
                     logger.Info( $"ファイルを保存した。Path={destinationPath}" );
                 }
@@ -415,21 +581,21 @@ public class DownloadViewModel(
                 finally {
                     if(!string.IsNullOrEmpty( entry.Name )) {
                         processed++;
-                        DownloadedProgress = Math.Min( 100, (double)processed / fileEntries.Count * 100 );
+                        DownloadedProgress = Math.Min( 100, (double)processed / totalFiles * 100 );
                     }
                 }
             }
 
             DownloadedProgress = 100;
             if(failed > 0) {
-                logger.Warn( $"ZIP展開で一部のファイル保存に失敗した。Success={success}, Failed={failed}, Total={fileEntries.Count}" );
+                logger.Warn( $"ZIP展開で一部のファイル保存に失敗した。Success={success}, Failed={failed}, Total={totalFiles}" );
                 await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( $"一部のファイルの保存に失敗しました ({failed}/{fileEntries.Count})" );
+                    snackbarService.Show( $"一部のファイルの保存に失敗しました ({failed}/{totalFiles})" );
                     return Task.CompletedTask;
                 } );
             }
             else {
-                logger.Info( $"ZIP展開が完了した。Success={success}, Total={fileEntries.Count}" );
+                logger.Info( $"ZIP展開が完了した。Success={success}, Total={totalFiles}" );
                 await dispatcherService.InvokeAsync( () => {
                     snackbarService.Show( "ダウンロード完了" );
                     return Task.CompletedTask;
@@ -933,6 +1099,48 @@ public class DownloadViewModel(
                     loggingService ) );
         }
     }
+
+    /// <summary>
+    /// ZIP 内のパスを正規化する。
+    /// </summary>
+    /// <param name="path">正規化対象のパス</param>
+    /// <returns>正規化後のパス</returns>
+    private static string NormalizeArchivePath( string path ) {
+        if(string.IsNullOrEmpty( path )) return string.Empty;
+        return path.Replace( '\\', '/' ).TrimStart( '/' );
+    }
+
+    /// <summary>
+    /// SHA256 ハッシュ文字列の妥当性を検証する。
+    /// </summary>
+    /// <param name="value">検証対象の文字列</param>
+    /// <returns>妥当であるかどうか</returns>
+    private static bool IsValidSha256( string value ) {
+        if(string.IsNullOrWhiteSpace( value ) || value.Length != 64) return false;
+        foreach(char c in value) {
+            var isHexDigit = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+            if(!isHexDigit) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// ダウンロードマニフェスト情報を表現する。
+    /// </summary>
+    private sealed record DownloadManifest(
+        [property: JsonPropertyName( "version" )] int Version,
+        [property: JsonPropertyName( "generatedAt" )] string GeneratedAt,
+        [property: JsonPropertyName( "files" )] IReadOnlyList<DownloadManifestFile>? Files
+    );
+
+    /// <summary>
+    /// マニフェスト内のファイル情報を表現する。
+    /// </summary>
+    private sealed record DownloadManifestFile(
+        [property: JsonPropertyName( "path" )] string Path,
+        [property: JsonPropertyName( "size" )] long Size,
+        [property: JsonPropertyName( "sha256" )] string Sha256
+    );
 
     #endregion
 }

@@ -75,7 +75,10 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
     }
 
     /// <summary>APIを呼び出して複数ファイルをZIPでダウンロードする</summary>
-    public async Task<Result<ApiDownloadFilesResult>> DownloadFilesAsync( ApiDownloadFilesRequest request, CancellationToken cancellationToken = default ) {
+    public async Task<Result<ApiDownloadFilesResult>> DownloadFilesAsync(
+        ApiDownloadFilesRequest request,
+        CancellationToken cancellationToken = default
+    ) {
         ArgumentNullException.ThrowIfNull( request );
 
         if(request.Paths is null || request.Paths.Count == 0)
@@ -220,7 +223,8 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
 
         client.BaseAddress ??= new Uri( DefaultBaseUrl );
 
-        if(client.DefaultRequestHeaders.Accept.All( header => header.MediaType != "application/json" )) client.DefaultRequestHeaders.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
+        if(client.DefaultRequestHeaders.Accept.All( header => header.MediaType != "application/json" ))
+            client.DefaultRequestHeaders.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
 
         return client;
     }
