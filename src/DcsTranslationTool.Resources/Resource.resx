@@ -279,4 +279,26 @@ DCS.openbeta の可能性もあるため注意してください。</value>
     <value>ダウンロードした翻訳ファイルが保存されるフォルダーのパス。
 このフォルダー内のファイルの変更を検出してアップロードを行います。</value>
   </data>
+  <data name="CreatePullRequestDialogPullRequestSummaryTitle" xml:space="preserve">
+    <value>概要</value>
+  </data>
+  <data name="CreatePullRequestDialogPullRequestSummaryPlaceholder" xml:space="preserve">
+    <value>この変更の目的・背景を簡潔に書いてください</value>
+  </data>
+  <data name="CreatePullRequestDialogPullRequestDetailTitle" xml:space="preserve">
+    <value>変更内容</value>
+  </data>
+  <data name="CreatePullRequestDialogPullRequestDetailPlaceholder" xml:space="preserve">
+    <value>&lt;!-- 具体的な変更内容を記載してください --&gt;
+- mizファイル単位で箇条書きで記載してください
+- 機体やキャンペーン全体に関連する場合、機体やキャンペーンごとの記載でも大丈夫です</value>
+  </data>
+  <data name="CreatePullRequestDialogPullRequestNoteTitle" xml:space="preserve">
+    <value>留意点</value>
+  </data>
+  <data name="CreatePullRequestDialogPullRequestNotePlaceholder" xml:space="preserve">
+    <value>&lt;!-- このPRを使用するうえで注意すべきことをリストアップしてください --&gt;
+&lt;!-- 必要がなければ N/A としてください --&gt;
+N/A</value>
+  </data>
 </root>

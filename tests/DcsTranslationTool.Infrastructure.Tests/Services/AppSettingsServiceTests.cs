@@ -84,7 +84,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         await using var sut = CreateService();
 
         //Act
-        await sut.SaveAsync();
+        await sut.SaveAsync( TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( File.Exists( path ) );
@@ -100,7 +100,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         await using var sut = CreateService(root);
 
         // Act
-        await sut.SaveAsync();
+        await sut.SaveAsync( TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( Directory.Exists( root ) );
@@ -115,12 +115,12 @@ public sealed class AppSettingsServiceTests : IDisposable {
         await using var sut = CreateService();
 
         // Act
-        await sut.SaveAsync();
+        await sut.SaveAsync( TestContext.Current.CancellationToken );
         var firstWriteTime = File.GetLastWriteTimeUtc(path);
         var firstBakWriteTime = File.GetLastWriteTimeUtc(bak);
 
-        await Task.Delay( 50 );
-        await sut.SaveAsync();
+        await Task.Delay( 50, TestContext.Current.CancellationToken );
+        await sut.SaveAsync( TestContext.Current.CancellationToken );
 
         var secondWriteTime = File.GetLastWriteTimeUtc(path);
         var secondBakWriteTime = File.GetLastWriteTimeUtc(bak);
@@ -200,7 +200,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while(sw.ElapsedMilliseconds < timeoutMs) {
             if(File.Exists( path ) && new FileInfo( path ).Length > 0) return;
-            await Task.Delay( 50 );
+            await Task.Delay( 50, TestContext.Current.CancellationToken );
         }
         Assert.True( File.Exists( path ), "ファイルが所定時間内に作成されなかった" );
         Assert.True( new FileInfo( path ).Length > 0, "ファイルサイズが0だった" );
@@ -224,7 +224,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while(sw.ElapsedMilliseconds < timeoutMs) {
             if(File.Exists( path ) && new FileInfo( path ).Length > 0) return;
-            await Task.Delay( 50 );
+            await Task.Delay( 50, TestContext.Current.CancellationToken );
         }
         Assert.True( File.Exists( path ), "ファイルが所定時間内に作成されなかった" );
         Assert.True( new FileInfo( path ).Length > 0, "ファイルサイズが0だった" );
@@ -247,7 +247,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while(sw.ElapsedMilliseconds < timeoutMs) {
             if(File.Exists( path ) && new FileInfo( path ).Length > 0) return;
-            await Task.Delay( 50 );
+            await Task.Delay( 50, TestContext.Current.CancellationToken );
         }
         Assert.True( File.Exists( path ), "ファイルが所定時間内に作成されなかった" );
         Assert.True( new FileInfo( path ).Length > 0, "ファイルサイズが0だった" );
@@ -327,14 +327,14 @@ public sealed class AppSettingsServiceTests : IDisposable {
         await using var sut = CreateService();
 
         // Act
-        await sut.SaveAsync();
+        await sut.SaveAsync( TestContext.Current.CancellationToken );
         await sut.DisposeAsync(); // ここで最終フラッシュにより更新されうる
 
         var tDisposed = File.GetLastWriteTimeUtc( path );
 
         // 破棄後に保存要求（無視されるはず）
         InvokePrivate( sut, "RequestSave" );
-        await Task.Delay( 400 );
+        await Task.Delay( 400, TestContext.Current.CancellationToken );
         var tAfter = File.GetLastWriteTimeUtc( path );
 
         // Assert
@@ -360,7 +360,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while(sw.ElapsedMilliseconds < timeoutMs) {
             if(File.Exists( path ) && new FileInfo( path ).Length > 0) return;
-            await Task.Delay( 50 );
+            await Task.Delay( 50, TestContext.Current.CancellationToken );
         }
         Assert.True( File.Exists( path ), "ファイルが所定時間内に作成されなかった" );
         Assert.True( new FileInfo( path ).Length > 0, "ファイルサイズが0だった" );

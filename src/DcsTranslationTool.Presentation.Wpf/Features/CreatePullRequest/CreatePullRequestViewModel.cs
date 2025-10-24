@@ -17,6 +17,7 @@ using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
+using DcsTranslationTool.Resources;
 
 using FluentResults;
 
@@ -43,8 +44,14 @@ public class CreatePullRequestViewModel(
     /// <summary>Commitで削除されるファイル。</summary>
     private IEnumerable<CommitFile> _deleteFiles = [];
 
-    /// <summary>PRコメント。</summary>
-    private string _prComment = Resources.Resource.CreatePullRequestDialogPullRequestTemplate;
+    /// <summary>PR概要。</summary>
+    private string _prSummary = string.Empty;
+
+    /// <summary>PR詳細</summary>
+    private string _prDetail = Resources.Resource.CreatePullRequestDialogPullRequestDetailPlaceholder;
+
+    /// <summary>PRの留意点</summary>
+    private string _prNotes = Resources.Resource.CreatePullRequestDialogPullRequestNotePlaceholder;
 
     /// <summary><see cref="PullRequestDialogAgreementCheckItem"/> が全て同意されているか。</summary>
     private bool _isAgreeToAllAgreementItems;
@@ -90,10 +97,47 @@ public class CreatePullRequestViewModel(
         }
     }
 
+    ///<summary>PRタイトル。</summary>
+    public string PRSummary {
+        get => _prSummary;
+        set {
+            if(Set( ref _prSummary, value )) {
+                NotifyOfPropertyChange( nameof( CanCreatePullRequest ) );
+            }
+        }
+    }
+
+    ///<summary>PR詳細。</summary>
+    public string PRDetail {
+        get => _prDetail;
+        set => Set( ref _prDetail, value );
+    }
+
+    //<summary>PRの留意点。</summary>
+    public string PRNotes {
+        get => _prNotes;
+        set => Set( ref _prNotes, value );
+    }
+
     /// <summary>PR本文。</summary>
     public string PRComment {
-        get => _prComment;
-        set => Set( ref _prComment, value );
+        get {
+            return
+                ":pushpin: "
+                + Resource.CreatePullRequestDialogPullRequestSummaryTitle
+                + "\n\n"
+                + PRSummary
+                + "\n\n"
+                + ":hammer_and_wrench: "
+                + Resource.CreatePullRequestDialogPullRequestDetailTitle
+                + "\n\n"
+                + PRDetail
+                + "\n\n"
+                + ":warning: "
+                + Resource.CreatePullRequestDialogPullRequestNoteTitle
+                + "\n\n"
+                + PRNotes;
+        }
     }
 
     /// <summary>同意チェック項目コレクション。</summary>
@@ -215,7 +259,10 @@ public class CreatePullRequestViewModel(
     #region Action Guards
 
     /// <summary>PR作成に必要な入力が満たされているか。</summary>
-    public bool CanCreatePullRequest => AllAgreed && AnyKindSelected;
+    public bool CanCreatePullRequest =>
+        AllAgreed &&
+        AnyKindSelected &&
+        !string.IsNullOrWhiteSpace( _prSummary );
 
     #endregion
 
@@ -235,6 +282,7 @@ public class CreatePullRequestViewModel(
 
         var msgFromKinds = string.Join("\n", PullRequestChangeKinds.Where(x => x.IsChecked).Select(x => x.DisplayName));
         var branchName = CreateBranchName();
+        //var bodyCandidate = string.IsNullOrWhiteSpace( PRComment ) ? msgFromKinds : PRComment;
         var bodyCandidate = string.IsNullOrWhiteSpace( PRComment ) ? msgFromKinds : PRComment;
         var body = string.IsNullOrWhiteSpace( bodyCandidate ) ? "(no summary)" : bodyCandidate;
         var commitMessage = PRTitle;

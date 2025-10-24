@@ -115,6 +115,64 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   &lt;!-- 具体的な変更内容を記載してください --&gt;
+        ///- mizファイル単位で箇条書きで記載してください
+        ///- 機体やキャンペーン全体に関連する場合、機体やキャンペーンごとの記載でも大丈夫です に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreatePullRequestDialogPullRequestDetailPlaceholder {
+            get {
+                return ResourceManager.GetString("CreatePullRequestDialogPullRequestDetailPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   変更内容 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreatePullRequestDialogPullRequestDetailTitle {
+            get {
+                return ResourceManager.GetString("CreatePullRequestDialogPullRequestDetailTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   &lt;!-- このPRを使用するうえで注意すべきことをリストアップしてください --&gt;
+        ///&lt;!-- 必要がなければ N/A としてください --&gt;
+        ///N/A に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreatePullRequestDialogPullRequestNotePlaceholder {
+            get {
+                return ResourceManager.GetString("CreatePullRequestDialogPullRequestNotePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   留意点 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreatePullRequestDialogPullRequestNoteTitle {
+            get {
+                return ResourceManager.GetString("CreatePullRequestDialogPullRequestNoteTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   この変更の目的・背景を簡潔に書いてください に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreatePullRequestDialogPullRequestSummaryPlaceholder {
+            get {
+                return ResourceManager.GetString("CreatePullRequestDialogPullRequestSummaryPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   概要 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreatePullRequestDialogPullRequestSummaryTitle {
+            get {
+                return ResourceManager.GetString("CreatePullRequestDialogPullRequestSummaryTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   ## 📌 概要
         ///
         ///&lt;!-- このPRの目的・背景を簡潔に書いてください --&gt;

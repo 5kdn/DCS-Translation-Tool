@@ -9,6 +9,9 @@ using DcsTranslationTool.Infrastructure.Services;
 namespace DcsTranslationTool.Infrastructure.Tests.Services;
 
 public class ApiServiceTests {
+    private static readonly JsonSerializerOptions s_webOptions = new(JsonSerializerDefaults.Web);
+    private static readonly string[] expected = ["path/one", "path/two"];
+
     [Fact]
     public async Task GetHealthAsyncは正常レスポンスを成功として返す() {
         // Arrange
@@ -21,7 +24,7 @@ public class ApiServiceTests {
             {
                 status = "ok",
                 timestamp,
-            }, new JsonSerializerOptions( JsonSerializerDefaults.Web ) );
+            }, s_webOptions );
 
             var response = new HttpResponseMessage( HttpStatusCode.OK )
             {
@@ -33,7 +36,7 @@ public class ApiServiceTests {
         var sut = new ApiService( client );
 
         // Act
-        var result = await sut.GetHealthAsync();
+        var result = await sut.GetHealthAsync( TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsSuccess );
@@ -54,7 +57,7 @@ public class ApiServiceTests {
         var sut = new ApiService( client );
 
         // Act
-        var result = await sut.GetHealthAsync();
+        var result = await sut.GetHealthAsync( TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsFailed );
@@ -106,7 +109,7 @@ public class ApiServiceTests {
         var sut = new ApiService( client );
 
         // Act
-        var result = await sut.GetTreeAsync();
+        var result = await sut.GetTreeAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.True( result.IsSuccess );
@@ -146,7 +149,7 @@ public class ApiServiceTests {
                 .Select( element => element.GetString() )
                 .ToArray();
 
-            Assert.Equal( new[] { "path/one", "path/two" }, pathValues );
+            Assert.Equal( expected, pathValues );
 
             var response = new HttpResponseMessage( HttpStatusCode.NotModified );
             response.Headers.ETag = new EntityTagHeaderValue( "\"etag-value\"" );
@@ -158,7 +161,7 @@ public class ApiServiceTests {
         var request = new ApiDownloadFilesRequest( paths, "\"etag-value\"" );
 
         // Act
-        var result = await sut.DownloadFilesAsync( request );
+        var result = await sut.DownloadFilesAsync( request, TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsSuccess );
@@ -233,7 +236,7 @@ public class ApiServiceTests {
         );
 
         // Act
-        var result = await sut.CreatePullRequestAsync( request );
+        var result = await sut.CreatePullRequestAsync( request, TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsSuccess );
@@ -257,7 +260,7 @@ public class ApiServiceTests {
         var request = new ApiDownloadFilesRequest( [], null );
 
         // Act
-        var result = await sut.DownloadFilesAsync( request );
+        var result = await sut.DownloadFilesAsync( request, TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsFailed );

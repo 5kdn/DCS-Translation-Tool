@@ -74,7 +74,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{x:Static resx:Resource.CreatePullRequestDialogPRTitleLabel}"
-                                    Style="{StaticResource MaterialDesignHeadlineLargeTextBlock}"/>
+                                   Style="{StaticResource MaterialDesignHeadlineLargeTextBlock}"/>
                         <TextBlock Grid.Column="1"
                                 Text="{Binding PRTitle}"
                                 TextWrapping="Wrap"
@@ -101,14 +101,43 @@
                         </ItemsControl>
                     </StackPanel>
                 </StackPanel>
-                <TextBox Text="{Binding PRComment, Mode=TwoWay}"
-                         Margin="{StaticResource SmallTopMargin}"
-                         BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
-                         BorderThickness="1"
-                         Style="{StaticResource MaterialDesignFilledTextBox}"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"/>
+
+                <!-- リファクタリング -->
+                <StackPanel Margin="{StaticResource SmallTopMargin}">
+                    <TextBlock Text="{x:Static resx:Resource.CreatePullRequestDialogPullRequestSummaryTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBox Text="{Binding PRSummary, Mode=TwoWay}"
+                             md:HintAssist.Hint="{x:Static resx:Resource.CreatePullRequestDialogPullRequestSummaryPlaceholder}"
+                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                             BorderThickness="1"
+                             Style="{StaticResource MaterialDesignFilledTextBox}"
+                             AcceptsReturn="False"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+                <StackPanel Margin="{StaticResource SmallTopMargin}">
+                    <TextBlock Text="{x:Static resx:Resource.CreatePullRequestDialogPullRequestDetailTitle}"
+                                Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBox Text="{Binding PRDetail, Mode=TwoWay}"
+                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                             BorderThickness="1"
+                             Style="{StaticResource MaterialDesignFilledTextBox}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+                <StackPanel Margin="{StaticResource SmallTopMargin}">
+                    <TextBlock Text="{x:Static resx:Resource.CreatePullRequestDialogPullRequestNoteTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBox Text="{Binding PRNotes, Mode=TwoWay}"
+                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                             BorderThickness="1"
+                             Style="{StaticResource MaterialDesignFilledTextBox}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
             </StackPanel>
 
             <!-- 同意文 -->
