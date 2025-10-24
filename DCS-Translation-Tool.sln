@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Shared.T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Composition.Tests", "tests\DcsTranslationTool.Composition.Tests\DcsTranslationTool.Composition.Tests.csproj", "{D3602B22-6D73-468F-8643-1952644B63DE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Presentation.Wpf.Tests", "tests\DcsTranslationTool.Presentation.Wpf.Tests\DcsTranslationTool.Presentation.Wpf.Tests.csproj", "{E3156474-1666-49CB-81A9-62A6C10598C0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,10 @@ Global
 		{D3602B22-6D73-468F-8643-1952644B63DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D3602B22-6D73-468F-8643-1952644B63DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D3602B22-6D73-468F-8643-1952644B63DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3156474-1666-49CB-81A9-62A6C10598C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3156474-1666-49CB-81A9-62A6C10598C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3156474-1666-49CB-81A9-62A6C10598C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3156474-1666-49CB-81A9-62A6C10598C0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
