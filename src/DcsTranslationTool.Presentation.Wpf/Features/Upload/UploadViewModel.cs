@@ -7,7 +7,6 @@ using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Domain.Models;
-using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
@@ -28,12 +27,10 @@ public sealed class UploadViewModel(
     IAppSettingsService appSettingsService,
     IDialogService dialogService,
     IDispatcherService dispatcherService,
-    IFileContentInspector fileContentInspector,
     IFileEntryService fileEntryService,
     ILoggingService logger,
     ISnackbarService snackbarService,
-    ISystemService systemService,
-    IWindowManager windowManager
+    ISystemService systemService
 ) : Screen, IActivate {
 
     #region Fields
@@ -261,7 +258,7 @@ public sealed class UploadViewModel(
         // 削除するファイルが含まれる場合確認ダイアログを表示し、Yesでない場合即座に中止する。
         if(dialogParameters.CommitFiles.Any( cf => cf.Operation == CommitOperationType.Delete )) {
             logger.Warn( "削除予定のファイルが含まれているため確認ダイアログを表示する。" );
-            var confirmed = await dialogService.ShowAsync(
+            var confirmed = await dialogService.ContinueCancelDialogShowAsync(
                 new ConfirmationDialogParameters
                 {
                     Title = "削除確認",
@@ -284,8 +281,7 @@ public sealed class UploadViewModel(
             } );
 
         try {
-            var result =
-                await CreatePullRequestViewModel.ShowDialogAsync( dialogParameters, apiService, fileContentInspector, logger, windowManager);
+            var result = await dialogService.CreatePullRequestDialogShowAsync( dialogParameters );
             logger.Info( $"Pull Request ダイアログが完了した。IsOk={result.IsOk}" );
 
             var (message, actionContent, actionHandler) = result switch

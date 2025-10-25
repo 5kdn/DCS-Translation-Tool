@@ -1,5 +1,10 @@
+using Caliburn.Micro;
+
+using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Views;
 
 using MaterialDesignThemes.Wpf;
@@ -10,9 +15,17 @@ namespace DcsTranslationTool.Presentation.Wpf.Services;
 /// Material Design ダイアログを利用して汎用的なダイアログ処理を提供する。
 /// </summary>
 /// <param name="logger">ロギングサービス。</param>
-public sealed class DialogService( ILoggingService logger ) : IDialogService {
+/// <param name="apiService">GitHub API サービス。</param>
+/// <param name="fileContentInspector">ファイル内容検査サービス。</param>
+/// <param name="windowManager">ウィンドウマネージャー。</param>
+public sealed class DialogService(
+    ILoggingService logger,
+    IApiService apiService,
+    IFileContentInspector fileContentInspector,
+    IWindowManager windowManager
+) : IDialogService {
     /// <inheritdoc/>
-    public async Task<bool> ShowAsync( ConfirmationDialogParameters parameters ) {
+    public async Task<bool> ContinueCancelDialogShowAsync( ConfirmationDialogParameters parameters ) {
         ArgumentNullException.ThrowIfNull( parameters );
         logger.Info( $"確認ダイアログを表示する。Title={parameters.Title}, Identifier={parameters.DialogIdentifier}" );
         var dialog = new ConfirmationDialog
@@ -28,5 +41,23 @@ public sealed class DialogService( ILoggingService logger ) : IDialogService {
         };
         logger.Info( $"確認ダイアログが閉じられた。Confirmed={isConfirmed}" );
         return isConfirmed;
+    }
+
+    /// <inheritdoc/>
+    public async Task<CreatePullRequestResult> CreatePullRequestDialogShowAsync(
+        CreatePullRequestDialogParameters parameters,
+        CancellationToken cancellationToken = default
+    ) {
+        ArgumentNullException.ThrowIfNull( parameters );
+        logger.Info( $"PRダイアログを表示する。Category={parameters.Category}, SubCategory={parameters.SubCategory}" );
+        var result = await CreatePullRequestViewModel.ShowDialogAsync(
+            parameters,
+            apiService,
+            fileContentInspector,
+            logger,
+            windowManager,
+            cancellationToken );
+        logger.Info( $"PRダイアログが閉じられた。IsOk={result.IsOk}" );
+        return result;
     }
 }
