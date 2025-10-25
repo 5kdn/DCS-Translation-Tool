@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Windows;
 
 using Caliburn.Micro;
 
@@ -27,6 +26,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.Upload;
 public sealed class UploadViewModel(
     IApiService apiService,
     IAppSettingsService appSettingsService,
+    IDialogService dialogService,
     IDispatcherService dispatcherService,
     IFileContentInspector fileContentInspector,
     IFileEntryService fileEntryService,
@@ -279,9 +279,16 @@ public sealed class UploadViewModel(
         // 削除するファイルが含まれる場合確認ダイアログを表示し、Yesでない場合即座に中止する。
         if(dialogParameters.CommitFiles.Any( cf => cf.Operation == CommitOperationType.Delete )) {
             logger.Warn( "削除予定のファイルが含まれているため確認ダイアログを表示する。" );
-            var deleteCheckResult = MessageBox.Show("削除予定のファイルが含まれます。続行しますか？", "削除確認", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var confirmed = await dialogService.ShowAsync(
+                new ConfirmationDialogParameters
+                {
+                    Title = "削除確認",
+                    Message = "削除予定のファイルが含まれます。続行しますか？",
+                    ConfirmButtonText = "続行",
+                    CancelButtonText = "中止",
+                } );
 
-            if(deleteCheckResult != MessageBoxResult.Yes) {
+            if(!confirmed) {
                 logger.Warn( "削除確認でキャンセルが選択されたため処理を終了する。" );
                 return;
             }

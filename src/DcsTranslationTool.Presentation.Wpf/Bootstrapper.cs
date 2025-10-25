@@ -40,6 +40,7 @@ public class Bootstrapper : BootstrapperBase {
         container.Instance<ILoggingService>( loggingService );
         appSettingsService = container.GetInstance<IAppSettingsService>();
 
+        container.Singleton<IDialogService, DialogService>();
         container.Singleton<IDialogProvider, DialogProvider>();
         container.Singleton<IDispatcherService, DispatcherService>();
         container.Singleton<ISnackbarService, SnackbarService>();
