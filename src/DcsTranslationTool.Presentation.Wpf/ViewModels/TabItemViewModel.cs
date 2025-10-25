@@ -36,9 +36,7 @@ public sealed class TabItemViewModel(
     public IFileEntryViewModel Root {
         get => rootEntry;
         set {
-            if(ReferenceEquals( rootEntry, value )) return;
-            rootEntry = value;
-            NotifyOfPropertyChange( () => Root );
+            if(!Set( ref rootEntry, value )) return;
             logger.Info( $"タブのルートを更新した。TabType={TabType}" );
         }
     }

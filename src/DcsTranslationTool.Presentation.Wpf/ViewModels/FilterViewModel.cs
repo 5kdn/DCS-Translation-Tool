@@ -26,9 +26,7 @@ public sealed class FilterViewModel( ILoggingService logger ) : PropertyChangedB
     public bool All {
         get => _all;
         set {
-            if(_all == value) return;
-            _all = value;
-            NotifyOfPropertyChange( () => All );
+            if(!Set( ref _all, value )) return;
             logger.Info( $"All フィルターを更新した。IsChecked={value}" );
 
             Unchanged = value;
@@ -44,9 +42,7 @@ public sealed class FilterViewModel( ILoggingService logger ) : PropertyChangedB
     public bool Unchanged {
         get => _unchanged;
         set {
-            if(_unchanged == value) return;
-            _unchanged = value;
-            NotifyOfPropertyChange( () => Unchanged );
+            if(!Set( ref _unchanged, value )) return;
             UpdateAll();
             logger.Info( $"Unchanged フィルターを更新した。IsChecked={value}" );
         }
@@ -55,9 +51,7 @@ public sealed class FilterViewModel( ILoggingService logger ) : PropertyChangedB
     public bool RepoOnly {
         get => _repoOnly;
         set {
-            if(_repoOnly == value) return;
-            _repoOnly = value;
-            NotifyOfPropertyChange( () => RepoOnly );
+            if(!Set( ref _repoOnly, value )) return;
             UpdateAll();
             logger.Info( $"RepoOnly フィルターを更新した。IsChecked={value}" );
         }
@@ -66,9 +60,7 @@ public sealed class FilterViewModel( ILoggingService logger ) : PropertyChangedB
     public bool LocalOnly {
         get => _localOnly;
         set {
-            if(_localOnly == value) return;
-            _localOnly = value;
-            NotifyOfPropertyChange( () => LocalOnly );
+            if(!Set( ref _localOnly, value )) return;
             UpdateAll();
             logger.Info( $"LocalOnly フィルターを更新した。IsChecked={value}" );
         }
@@ -77,9 +69,7 @@ public sealed class FilterViewModel( ILoggingService logger ) : PropertyChangedB
     public bool Modified {
         get => _modified;
         set {
-            if(_modified == value) return;
-            _modified = value;
-            NotifyOfPropertyChange( () => Modified );
+            if(!Set( ref _modified, value )) return;
             UpdateAll();
             logger.Info( $"Modified フィルターを更新した。IsChecked={value}" );
         }
@@ -102,9 +92,7 @@ public sealed class FilterViewModel( ILoggingService logger ) : PropertyChangedB
     /// </summary>
     private void UpdateAll() {
         var allChecked = Unchanged && RepoOnly && LocalOnly && Modified;
-        if(_all != allChecked) {
-            _all = allChecked;
-            NotifyOfPropertyChange( () => All );
+        if(Set( ref _all, allChecked )) {
             logger.Info( $"All フィルターを再計算した。IsChecked={_all}" );
         }
 

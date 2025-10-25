@@ -69,11 +69,7 @@ public sealed class UploadViewModel(
     /// </summary>
     public IReadOnlyList<FileEntry> LocalEntries {
         get => _localEntries;
-        private set {
-            if(ReferenceEquals( _localEntries, value )) return;
-            _localEntries = value;
-            NotifyOfPropertyChange( () => LocalEntries );
-        }
+        private set => Set( ref _localEntries, value );
     }
 
     /// <summary>
@@ -81,11 +77,7 @@ public sealed class UploadViewModel(
     /// </summary>
     public IReadOnlyList<FileEntry> RepoEntries {
         get => _repoEntries;
-        private set {
-            if(ReferenceEquals( _repoEntries, value )) return;
-            _repoEntries = value;
-            NotifyOfPropertyChange( () => RepoEntries );
-        }
+        private set => Set( ref _repoEntries, value );
     }
 
     /// <summary>
@@ -93,10 +85,7 @@ public sealed class UploadViewModel(
     /// </summary>
     public ObservableCollection<TabItemViewModel> Tabs {
         get => _tabs;
-        set {
-            if(!Set( ref _tabs, value )) return;
-            NotifyOfPropertyChange( () => Tabs );
-        }
+        set => Set( ref _tabs, value );
     }
 
     /// <summary>
@@ -104,10 +93,7 @@ public sealed class UploadViewModel(
     /// </summary>
     public int SelectedTabIndex {
         get => _selectedTabIndex;
-        set {
-            if(!Set( ref _selectedTabIndex, value )) return;
-            NotifyOfPropertyChange( () => SelectedTabIndex );
-        }
+        set => Set( ref _selectedTabIndex, value );
     }
 
     /// <summary>
@@ -115,19 +101,15 @@ public sealed class UploadViewModel(
     /// </summary>
     public IFilterViewModel Filter {
         get => _filter;
-        set {
-            if(!Set( ref _filter, value )) return;
-            NotifyOfPropertyChange( () => Filter );
-        }
+        set => Set( ref _filter, value );
     }
 
     public bool IsFetching {
         get => _isFetching;
         set {
-            if(Set( ref _isFetching, value )) {
-                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
-                NotifyOfPropertyChange( () => CanShowCreatePullRequestDialog );
-            }
+            if(!Set( ref _isFetching, value )) return;
+            NotifyOfPropertyChange( nameof( IsTreeInteractionEnabled ) );
+            NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
         }
     }
 
@@ -398,7 +380,7 @@ public sealed class UploadViewModel(
     private void OnRootCheckStateChanged( object? sender, bool? e ) {
         _ = sender;
         _ = e;
-        NotifyOfPropertyChange( () => CanShowCreatePullRequestDialog );
+        NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
         logger.Info( $"ルートチェック状態が変化した。SelectedIndex={SelectedTabIndex}, NewState={e}" );
     }
 
@@ -412,7 +394,7 @@ public sealed class UploadViewModel(
         foreach(var tab in Tabs) {
             ApplyFilterRecursive( tab.Root, types );
         }
-        NotifyOfPropertyChange( () => CanShowCreatePullRequestDialog );
+        NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
         logger.Info( "フィルタ適用が完了した。" );
     }
 

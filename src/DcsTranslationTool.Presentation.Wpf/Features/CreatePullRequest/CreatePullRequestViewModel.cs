@@ -101,9 +101,8 @@ public class CreatePullRequestViewModel(
     public string PRSummary {
         get => _prSummary;
         set {
-            if(Set( ref _prSummary, value )) {
-                NotifyOfPropertyChange( nameof( CanCreatePullRequest ) );
-            }
+            if(!Set( ref _prSummary, value )) return;
+            NotifyOfPropertyChange( nameof( CanCreatePullRequest ) );
         }
     }
 
@@ -207,9 +206,9 @@ public class CreatePullRequestViewModel(
             }
         }
         _upsertFiles = upsertFiles;
-        NotifyOfPropertyChange( () => UpsertFiles );
+        NotifyOfPropertyChange( nameof( UpsertFiles ) );
         _deleteFiles = deleteFiles;
-        NotifyOfPropertyChange( () => DeleteFiles );
+        NotifyOfPropertyChange( nameof( DeleteFiles ) );
         logger.Info( $"コミットファイルを分類した。Upsert={_upsertFiles.Count()}, Delete={_deleteFiles.Count()}" );
 
         // 変更種別と同意項目の購読設定

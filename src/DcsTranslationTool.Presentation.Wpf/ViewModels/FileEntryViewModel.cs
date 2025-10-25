@@ -62,21 +62,13 @@ public class FileEntryViewModel(
     /// <inheritdoc/>
     public bool IsExpanded {
         get => _isExpanded;
-        set {
-            if(_isExpanded == value) return;
-            _isExpanded = value;
-            NotifyOfPropertyChange( () => IsExpanded );
-        }
+        set => Set( ref _isExpanded, value );
     }
 
     /// <inheritdoc/>
     public bool IsVisible {
         get => _isVisible;
-        set {
-            if(_isVisible == value) return;
-            _isVisible = value;
-            NotifyOfPropertyChange( () => IsVisible );
-        }
+        set => Set( ref _isVisible, value );
     }
 
     #endregion
@@ -203,9 +195,9 @@ public class FileEntryViewModel(
             logger.Info( $"子ノードコレクションを更新した。Path={Model.Path}, ChildCount={_children.Count}" );
 
             // 参照入替に伴い集計系を更新
-            NotifyOfPropertyChange( () => ChangeType );
+            NotifyOfPropertyChange( nameof( ChangeType ) );
             RecomputeCheckStateFromChildren();
-            NotifyOfPropertyChange( () => CanCheck );
+            NotifyOfPropertyChange( nameof( CanCheck ) );
             if(!CanCheck && _checkState is not false) CheckState = false;
         }
     }
@@ -293,7 +285,7 @@ public class FileEntryViewModel(
 
         if(CheckState == newState) return;
         CheckState = newState;
-        NotifyOfPropertyChange( () => CheckState );
+        NotifyOfPropertyChange( nameof( CheckState ) );
         CheckStateChanged?.Invoke( this, CheckState );
         logger.Info( $"子ノードに基づきチェック状態を再計算した。Path={Model.Path}, Value={newState}" );
     }
@@ -329,9 +321,9 @@ public class FileEntryViewModel(
         if(e.Action == NotifyCollectionChangedAction.Reset) {
             DetachChildrenHandlers( Children );
             AttachChildrenHandlers( Children );
-            NotifyOfPropertyChange( () => ChangeType );
+            NotifyOfPropertyChange( nameof( ChangeType ) );
             RecomputeCheckStateFromChildren();
-            NotifyOfPropertyChange( () => CanCheck );
+            NotifyOfPropertyChange( nameof( CanCheck ) );
             if(!CanCheck && CheckState != false) CheckState = false;
             logger.Info( $"子ノードコレクションがリセットされた。Path={Model.Path}" );
             return;
@@ -350,16 +342,16 @@ public class FileEntryViewModel(
             }
         }
 
-        NotifyOfPropertyChange( () => ChangeType );
+        NotifyOfPropertyChange( nameof( ChangeType ) );
         RecomputeCheckStateFromChildren();
-        NotifyOfPropertyChange( () => CanCheck );
+        NotifyOfPropertyChange( nameof( CanCheck ) );
         if(!CanCheck && CheckState is not false) CheckState = false;
     }
 
     private void OnChildPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
         if(e.PropertyName == nameof( ChangeType )) {
-            NotifyOfPropertyChange( () => ChangeType );
-            NotifyOfPropertyChange( () => CanCheck );
+            NotifyOfPropertyChange( nameof( ChangeType ) );
+            NotifyOfPropertyChange( nameof( CanCheck ) );
             if(!CanCheck && CheckState is not false) CheckState = false;
         }
     }

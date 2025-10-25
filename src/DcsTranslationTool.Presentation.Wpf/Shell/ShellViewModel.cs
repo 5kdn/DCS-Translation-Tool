@@ -39,7 +39,7 @@ public class ShellViewModel(
         set {
             _shellWidth = value;
             appSettingsService.Settings.ShellWidth = value;
-            NotifyOfPropertyChange( () => ShellWidth );
+            NotifyOfPropertyChange( nameof( ShellWidth ) );
         }
     }
 
@@ -51,7 +51,7 @@ public class ShellViewModel(
         set {
             _shellHeight = value;
             appSettingsService.Settings.ShellHeight = value;
-            NotifyOfPropertyChange( () => ShellHeight );
+            NotifyOfPropertyChange( nameof( ShellHeight ) );
         }
     }
 
@@ -106,22 +106,22 @@ public class ShellViewModel(
     public void GoBack() {
         logger.Info( $"前のページへ戻る。CanGoBack={navigationService.CanGoBack}" );
         navigationService.GoBack();
-        NotifyOfPropertyChange( () => CanGoBack );
-        NotifyOfPropertyChange( () => CanGoForward );
+        NotifyOfPropertyChange( nameof( CanGoBack ) );
+        NotifyOfPropertyChange( nameof( CanGoForward ) );
     }
 
     public void GoForward() {
         logger.Info( $"次のページへ進む。CanGoForward={navigationService.CanGoForward}" );
         navigationService.GoForward();
-        NotifyOfPropertyChange( () => CanGoBack );
-        NotifyOfPropertyChange( () => CanGoForward );
+        NotifyOfPropertyChange( nameof( CanGoBack ) );
+        NotifyOfPropertyChange( nameof( CanGoForward ) );
     }
 
     public void NavToSettings() {
         logger.Info( "SettingsViewModel へ遷移する。" );
         navigationService.For<SettingsViewModel>().Navigate();
-        NotifyOfPropertyChange( () => CanGoBack );
-        NotifyOfPropertyChange( () => CanGoForward );
+        NotifyOfPropertyChange( nameof( CanGoBack ) );
+        NotifyOfPropertyChange( nameof( CanGoForward ) );
     }
 
     public void BrowseTranslationRepository() {
@@ -136,14 +136,14 @@ public class ShellViewModel(
     private void OnNavigating( object? s, NavigatingCancelEventArgs e ) {
         logger.Info( $"ナビゲーションを開始した。Uri={e.Uri}" );
         // 直前でも有効/無効が変わるケースに備えて更新
-        NotifyOfPropertyChange( () => CanGoBack );
-        NotifyOfPropertyChange( () => CanGoForward );
+        NotifyOfPropertyChange( nameof( CanGoBack ) );
+        NotifyOfPropertyChange( nameof( CanGoForward ) );
     }
     private void OnNavigated( object? s, NavigationEventArgs e ) {
         logger.Info( $"ナビゲーションが完了した。Content={e.Content?.GetType().Name ?? "null"}" );
         // スタック確定後に更新
-        NotifyOfPropertyChange( () => CanGoBack );
-        NotifyOfPropertyChange( () => CanGoForward );
+        NotifyOfPropertyChange( nameof( CanGoBack ) );
+        NotifyOfPropertyChange( nameof( CanGoForward ) );
 
         ValidateAppSettingsAndNotify();
     }

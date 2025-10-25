@@ -104,8 +104,8 @@ public class DownloadViewModel(
         get => _selectedTabIndex;
         set {
             if(!Set( ref _selectedTabIndex, value )) return;
-            NotifyOfPropertyChange( () => CanDownload );
-            NotifyOfPropertyChange( () => CanApply );
+            NotifyOfPropertyChange( nameof( CanDownload ) );
+            NotifyOfPropertyChange( nameof( CanApply ) );
         }
     }
 
@@ -120,18 +120,16 @@ public class DownloadViewModel(
     public bool IsFetching {
         get => _isFetching;
         set {
-            if(Set( ref _isFetching, value )) {
-                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
-            }
+            if(!Set( ref _isFetching, value )) return;
+            NotifyOfPropertyChange( nameof( IsTreeInteractionEnabled ) );
         }
     }
 
     public bool IsDownloading {
         get => _isDownloading;
         set {
-            if(Set( ref _isDownloading, value )) {
-                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
-            }
+            if(!Set( ref _isDownloading, value )) return;
+            NotifyOfPropertyChange( nameof( IsTreeInteractionEnabled ) );
         }
     }
 
@@ -143,9 +141,8 @@ public class DownloadViewModel(
     public bool IsApplying {
         get => _isApplying;
         set {
-            if(Set( ref _isApplying, value )) {
-                NotifyOfPropertyChange( () => IsTreeInteractionEnabled );
-            }
+            if(!Set( ref _isApplying, value )) return;
+            NotifyOfPropertyChange( nameof( IsTreeInteractionEnabled ) );
         }
     }
 
@@ -301,8 +298,8 @@ public class DownloadViewModel(
 
         IsDownloading = true;
         await UpdateDownloadProgressAsync( 0.0 );
-        NotifyOfPropertyChange( () => CanDownload );
-        NotifyOfPropertyChange( () => CanApply );
+        NotifyOfPropertyChange( nameof( CanDownload ) );
+        NotifyOfPropertyChange( nameof( CanApply ) );
 
         try {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
@@ -355,8 +352,8 @@ public class DownloadViewModel(
         }
         finally {
             IsDownloading = false;
-            NotifyOfPropertyChange( () => CanDownload );
-            NotifyOfPropertyChange( () => CanApply );
+            NotifyOfPropertyChange( nameof( CanDownload ) );
+            NotifyOfPropertyChange( nameof( CanApply ) );
             logger.Info( "ダウンロード処理を終了した。" );
         }
     }
@@ -374,8 +371,8 @@ public class DownloadViewModel(
 
         IsApplying = true;
         await UpdateApplyProgressAsync( 0.0 );
-        NotifyOfPropertyChange( () => CanApply );
-        NotifyOfPropertyChange( () => CanDownload );
+        NotifyOfPropertyChange( nameof( CanApply ) );
+        NotifyOfPropertyChange( nameof( CanDownload ) );
 
         try {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
@@ -441,8 +438,8 @@ public class DownloadViewModel(
         }
         finally {
             IsApplying = false;
-            NotifyOfPropertyChange( () => CanApply );
-            NotifyOfPropertyChange( () => CanDownload );
+            NotifyOfPropertyChange( nameof( CanApply ) );
+            NotifyOfPropertyChange( nameof( CanDownload ) );
             logger.Info( "適用処理を終了した。" );
         }
     }
@@ -1053,8 +1050,8 @@ public class DownloadViewModel(
         SelectedTabIndex = Tabs.Count == 0 ? 0 : Math.Clamp( tabIndex, 0, Tabs.Count - 1 );
 
         ApplyFilter();
-        NotifyOfPropertyChange( () => CanDownload );
-        NotifyOfPropertyChange( () => CanApply );
+        NotifyOfPropertyChange( nameof( CanDownload ) );
+        NotifyOfPropertyChange( nameof( CanApply ) );
         logger.Info( $"タブの再構築が完了した。TabCount={Tabs.Count}, SelectedIndex={SelectedTabIndex}" );
     }
 
@@ -1066,8 +1063,8 @@ public class DownloadViewModel(
     private void OnRootCheckStateChanged( object? sender, bool? e ) {
         _ = sender;
         _ = e;
-        NotifyOfPropertyChange( () => CanDownload );
-        NotifyOfPropertyChange( () => CanApply );
+        NotifyOfPropertyChange( nameof( CanDownload ) );
+        NotifyOfPropertyChange( nameof( CanApply ) );
         logger.Info( $"ルートチェック状態が変化した。SelectedIndex={SelectedTabIndex}, NewState={e}" );
     }
 
@@ -1092,8 +1089,8 @@ public class DownloadViewModel(
         foreach(var tab in Tabs) {
             ApplyFilterRecursive( tab.Root, types );
         }
-        NotifyOfPropertyChange( () => CanDownload );
-        NotifyOfPropertyChange( () => CanApply );
+        NotifyOfPropertyChange( nameof( CanDownload ) );
+        NotifyOfPropertyChange( nameof( CanApply ) );
         logger.Info( "フィルタ適用が完了した。" );
     }
 
