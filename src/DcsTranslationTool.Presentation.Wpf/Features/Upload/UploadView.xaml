@@ -4,7 +4,172 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Upload"
+      xmlns:common="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.Common"
+      xmlns:vm="clr-namespace:DcsTranslationTool.Presentation.Wpf.ViewModels"
+      xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
+      xmlns:conv="clr-namespace:DcsTranslationTool.Presentation.Wpf.Converters"
+      xmlns:enums="clr-namespace:DcsTranslationTool.Presentation.Wpf.UI.Enums"
+      xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+      xmlns:cal="http://www.caliburnproject.org"
+      d:DataContext="{d:DesignInstance Type=local:UploadViewModel}"
       mc:Ignorable="d"
       d:DesignHeight="450" d:DesignWidth="800">
 
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <conv:FileEntryToIconKindConverter x:Key="FileEntryToIconKindConverter"/>
+        <conv:FileChangeTypeToBrushConverter x:Key="FileChangeTypeToBrushConverter"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Style="{StaticResource MaterialDesignDisplayLargeTextBlock}"
+                   Text="{x:Static resx:Strings_Upload.Title}" />
+
+        <!-- Contents -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- フィルター -->
+            <StackPanel Orientation="Horizontal">
+                <CheckBox Content="{x:Static resx:Strings_Upload.FilterAllContentText}"
+                          Foreground="{StaticResource Brush.Upload.Unchanged}"
+                          Margin="{StaticResource SmallRightMargin}"
+                          IsChecked="{Binding Filter.All, Mode=TwoWay}"/>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Upload.Modified}"
+                          IsChecked="{Binding Filter.Modified, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileAlertOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Upload.FilterModifiedText}" />
+                    </StackPanel>
+                </CheckBox>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Upload.LocalOnly}"
+                          IsChecked="{Binding Filter.LocalOnly, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileUploadOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Upload.FilterLocalOnlyText}"/>
+                    </StackPanel>
+                </CheckBox>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Upload.Unchanged}"
+                          IsChecked="{Binding Filter.Unchanged, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileCheckOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Upload.FilterUnchangedText}" />
+                    </StackPanel>
+                </CheckBox>
+
+                <CheckBox Margin="{StaticResource SmallRightMargin}"
+                          Foreground="{StaticResource Brush.Upload.RepoOnly}"
+                          IsChecked="{Binding Filter.RepoOnly, Mode=TwoWay}">
+                    <StackPanel Orientation="Horizontal">
+                        <md:PackIcon Kind="FileRemoveOutline" Margin="0,0,4,0" />
+                        <TextBlock Text="{x:Static resx:Strings_Upload.FilterRepoOnlyText}" />
+                    </StackPanel>
+                </CheckBox>
+            </StackPanel>
+
+            <!-- タブ＋ツリー -->
+            <TabControl Grid.Row="1"
+                        Style="{StaticResource MaterialDesignFilledTabControl}"
+                        Margin="{StaticResource SmallTopMargin}"
+                        IsEnabled="{Binding IsTreeInteractionEnabled}"
+                        SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                        ItemsSource="{Binding Tabs}">
+                <TabControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
+                        <TextBlock Text="{Binding Title}"/>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+
+                <TabControl.ContentTemplate>
+                    <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
+                        <TreeView x:Name="TreeViewControl" ItemsSource="{Binding Root.Children}" Margin="{StaticResource XSmallTopMargin}">
+                            <TreeView.ItemContainerStyle>
+                                <Style TargetType="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                    <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Style>
+                            </TreeView.ItemContainerStyle>
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox IsChecked="{Binding CheckState, Mode=TwoWay}" IsEnabled="{Binding CanCheck}" />
+                                        <md:PackIcon Margin="{StaticResource XSmallLeftMargin}" VerticalAlignment="Center">
+                                            <md:PackIcon.Foreground>
+                                                <MultiBinding Converter="{StaticResource FileChangeTypeToBrushConverter}">
+                                                    <Binding Path="ChangeType"/>
+                                                    <Binding Source="{x:Static enums:ChangeTypeMode.Upload}"/>
+                                                </MultiBinding>
+                                            </md:PackIcon.Foreground>
+                                            <md:PackIcon.Kind>
+                                                <MultiBinding Converter="{StaticResource FileEntryToIconKindConverter}">
+                                                    <Binding Path="IsDirectory"/>
+                                                    <Binding Path="ChangeType"/>
+                                                    <Binding Source="{x:Static enums:ChangeTypeMode.Upload}"/>
+                                                </MultiBinding>
+                                            </md:PackIcon.Kind>
+                                        </md:PackIcon>
+                                        <TextBlock Text="{Binding Name}" Margin="{StaticResource XSmallLeftMargin}" VerticalAlignment="Center">
+                                            <TextBlock.Foreground>
+                                                <MultiBinding Converter="{StaticResource FileChangeTypeToBrushConverter}">
+                                                    <Binding Path="ChangeType"/>
+                                                    <Binding Source="{x:Static enums:ChangeTypeMode.Upload}"/>
+                                                </MultiBinding>
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
+
+            <!-- ボタン -->
+            <Grid Grid.Row="2" Margin="{StaticResource MediumTopMargin}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- コントロール -->
+                <StackPanel Orientation="Horizontal">
+                    <!-- リロード -->
+                    <common:ActionButton IconKind="Reload"
+                                         Grid.Column="1"
+                                         Text="{x:Static resx:Strings_Upload.FetchButtonContentText}"
+                                         IsIndicatorVisible="{Binding IsFetching}"
+                                         IsIndeterminate="True"
+                                         cal:Message.Attach="[Event Click] = [Fetch]" />
+
+                    <!-- フォルダを開く -->
+                    <common:ActionButton IconKind="FolderOpenOutline"
+                                         Margin="{StaticResource SmallLeftMargin}"
+                                         Text="{x:Static resx:Strings_Upload.OpenDirectoryButtonContent}"
+                                         cal:Message.Attach="[Event Click] = [OpenDirectory]" />
+                </StackPanel>
+
+                <!-- Create PR -->
+                <common:ActionButton IconKind="Upload"
+                                     Grid.Column="1"
+                                     Margin="{StaticResource SmallLeftMargin}"
+                                     Text="{x:Static resx:Strings_Upload.CreatePRButtonContentText}"
+                                     cal:Message.Attach="[Event Click] = [ShowCreatePullRequestDialog]" />
+            </Grid>
+        </Grid>
+    </Grid>
 </Page>

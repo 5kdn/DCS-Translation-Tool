@@ -4,6 +4,7 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Infrastructure.IO;
 using DcsTranslationTool.Infrastructure.Providers;
 using DcsTranslationTool.Infrastructure.Services;
 
@@ -35,6 +36,7 @@ public static class CompositionRegistration {
         c.Instance<IAppSettingsService>( appSettingsService );
 
         c.Singleton<IApiService, ApiService>();
+        c.Singleton<IFileContentInspector, FileContentInspector>();
         c.Singleton<IFileEntryService, FileEntryService>();
         c.Singleton<IFileService, FileService>();
         c.Singleton<IZipService, ZipService>();
