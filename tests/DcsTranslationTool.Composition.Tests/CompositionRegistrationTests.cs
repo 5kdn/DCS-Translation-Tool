@@ -15,48 +15,50 @@ namespace DcsTranslationTool.Composition.Tests;
 public class CompositionRegistrationTests {
     [Fact]
     public void Registerを呼び出すとインフラサービスが登録される() {
+        // Arrange
         using var context = CreateContext();
         var container = context.Container;
 
+        // Act
         var loggingService = container.GetInstance( typeof( ILoggingService ), null );
-        Assert.NotNull( loggingService );
-        Assert.IsType<LoggingService>( loggingService );
-
         var appSettingsService = container.GetInstance( typeof( IAppSettingsService ), null );
-        context.TrackedAppSettings = Assert.IsType<AppSettingsService>( appSettingsService );
-
         var apiService1 = container.GetInstance( typeof( IApiService ), null );
         var apiService2 = container.GetInstance( typeof( IApiService ), null );
-        Assert.Same( apiService1, apiService2 );
-        Assert.IsType<ApiService>( apiService1 );
-
         var zipService1 = container.GetInstance( typeof( IZipService ), null );
         var zipService2 = container.GetInstance( typeof( IZipService ), null );
-        Assert.Same( zipService1, zipService2 );
 
+        // Assert
+        Assert.NotNull( loggingService );
+        Assert.IsType<LoggingService>( loggingService );
+        context.TrackedAppSettings = Assert.IsType<AppSettingsService>( appSettingsService );
+        Assert.Same( apiService1, apiService2 );
+        Assert.IsType<ApiService>( apiService1 );
+        Assert.Same( zipService1, zipService2 );
         Assert.NotNull( NLogManager.Configuration );
     }
 
     [Fact]
     public void Registerを呼び出すとAppData配下に設定ファイルが作成される() {
+        // Arrange
         using var context = CreateContext();
         var container = context.Container;
-
-        var appSettingsService = container.GetInstance( typeof( IAppSettingsService ), null );
-        context.TrackedAppSettings = Assert.IsType<AppSettingsService>( appSettingsService );
-
-        var field = typeof( AppSettingsService ).GetField( "_filePath", BindingFlags.NonPublic | BindingFlags.Instance );
-        Assert.NotNull( field );
-
-        var actualFilePath = Assert.IsType<string>( field!.GetValue( context.TrackedAppSettings ) );
-
         var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly() ?? typeof( CompositionRegistration ).Assembly;
         var title = assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title ?? "DcsTranslationTool";
         var appData = Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData );
         var expectedDirectory = Path.Combine( appData, title );
         var expectedFilePath = Path.Combine( expectedDirectory, "appsettings.json" );
+
+        // Act
+        var appSettingsService = container.GetInstance( typeof( IAppSettingsService ), null );
+        var appSettingsImplementation = appSettingsService as AppSettingsService;
+        var field = typeof( AppSettingsService ).GetField( "_filePath", BindingFlags.NonPublic | BindingFlags.Instance );
+        var actualFilePath = field?.GetValue( appSettingsImplementation );
         context.DirectoryToDelete = expectedDirectory;
 
+        // Assert
+        context.TrackedAppSettings = Assert.IsType<AppSettingsService>( appSettingsService );
+        Assert.NotNull( field );
+        Assert.IsType<string>( actualFilePath );
         Assert.Equal( expectedFilePath, actualFilePath );
         Assert.True( Directory.Exists( expectedDirectory ) );
     }

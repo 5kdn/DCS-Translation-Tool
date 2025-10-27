@@ -61,7 +61,6 @@ public class FileEntryToIconKindConverter : IMultiValueConverter {
     /// <param name="parameter">未使用</param>
     /// <param name="culture">カルチャ</param>
     /// <returns>変換結果</returns>
-    public object[] ConvertBack( object value, Type[] targetTypes, object? parameter, CultureInfo culture ) {
+    public object[] ConvertBack( object value, Type[] targetTypes, object? parameter, CultureInfo culture ) =>
         throw new NotImplementedException();
-    }
 }

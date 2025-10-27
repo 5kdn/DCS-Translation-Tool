@@ -28,7 +28,12 @@ public sealed class Base64UrlTests {
 
     [Fact]
     public void Encodeは空配列を空文字列に変換する() {
+        // Arrange
+
+        // Act
         var result = Base64Url.Encode([]);
+
+        // Assert
         Assert.Equal( string.Empty, result );
     }
 
@@ -39,8 +44,13 @@ public sealed class Base64UrlTests {
     [InlineData( "foobar" )]
     [InlineData( "日本語" )]
     public void Encodeの結果にはプラスやスラッシュやパディングが含まれない( string plain ) {
+        // Arrange
         var bytes = Encoding.UTF8.GetBytes(plain);
+
+        // Act
         var encoded = Base64Url.Encode(bytes);
+
+        // Assert
         Assert.DoesNotContain( "+", encoded );
         Assert.DoesNotContain( "/", encoded );
         Assert.DoesNotContain( "=", encoded );
@@ -78,27 +88,44 @@ public sealed class Base64UrlTests {
 
     [Fact]
     public void Encodeはnull入力でArgumentNullExceptionを送出する() {
+        // Arrange
+
+        // Act & Assert
         Assert.Throws<ArgumentNullException>( () => Base64Url.Encode( null! ) );
     }
 
     [Fact]
     public void Decodeは空文字列を空配列に変換する() {
+        // Arrange
+
+        // Act
         var result = Base64Url.Decode(string.Empty);
+
+        // Assert
         Assert.Empty( result );
     }
 
     [Fact]
     public void Decodeが不正な文字列を受け取るとFormatExceptionを送出する() {
+        // Arrange
+
+        // Act & Assert
         Assert.Throws<FormatException>( () => Base64Url.Decode( "###" ) );
     }
 
     [Fact]
     public void Decodeは不正な長さの文字列でFormatExceptionを送出する() {
+        // Arrange
+
+        // Act & Assert
         Assert.Throws<FormatException>( () => Base64Url.Decode( "Z" ) );
     }
 
     [Fact]
     public void Decodeは無効文字を含む場合FormatExceptionを送出する() {
+        // Arrange
+
+        // Act & Assert
         Assert.Throws<FormatException>( () => Base64Url.Decode( "Zg$" ) );
     }
 

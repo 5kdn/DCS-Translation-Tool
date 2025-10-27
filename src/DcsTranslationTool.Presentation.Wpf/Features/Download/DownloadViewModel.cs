@@ -72,6 +72,11 @@ public class DownloadViewModel(
 
     private const string ManifestFileName = "manifest.json";
     private const int StreamCopyBufferSize = 128 * 1024;
+    /// <summary>manifest.jsonを逆シリアル化するときのオプションを提供する。</summary>
+    private static readonly JsonSerializerOptions ManifestSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
 
     /// <summary>
     /// ローカル側のエントリ一覧
@@ -487,7 +492,7 @@ public class DownloadViewModel(
         try {
             using StreamReader reader = new( manifestEntry.Open(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true );
             string manifestJson = await reader.ReadToEndAsync().ConfigureAwait( false );
-            manifest = JsonSerializer.Deserialize<DownloadManifest>( manifestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+            manifest = JsonSerializer.Deserialize<DownloadManifest>( manifestJson, ManifestSerializerOptions );
         }
         catch(Exception ex) {
             logger.Error( "manifest.json の解析に失敗した。", ex );

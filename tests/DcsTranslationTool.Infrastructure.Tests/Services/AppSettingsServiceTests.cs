@@ -138,7 +138,7 @@ public sealed class AppSettingsServiceTests : IDisposable {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // Arrange
+        // Act & Assert
         await Assert.ThrowsAnyAsync<OperationCanceledException>( () => sut.SaveAsync( cts.Token ) );
     }
 
@@ -259,16 +259,17 @@ public sealed class AppSettingsServiceTests : IDisposable {
 
     [Fact]
     public void Attachで同一インスタンスを登録しても重複購読しない() {
-        // Assert
+        // Arrange
         var dummy = new DummyNotifying();
         using var sut = CreateService();
 
-        // Act & Assert
+        // Act
         InvokePrivate( sut, "AttachChangeObservers", dummy );
         var count1 = ObservedCount(sut);
         InvokePrivate( sut, "AttachChangeObservers", dummy );
         var count2 = ObservedCount(sut);
 
+        // Assert
         Assert.Equal( count1, count2 );
     }
 
