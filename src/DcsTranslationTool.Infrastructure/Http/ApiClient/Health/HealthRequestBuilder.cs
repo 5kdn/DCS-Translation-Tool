@@ -32,6 +32,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.Health
         public HealthRequestBuilder(string rawUrl, IRequestAdapter requestAdapter) : base(requestAdapter, "{+baseurl}/health", rawUrl)
         {
         }
+        /// <summary>
+        /// アプリケーションが稼働中であることを確認するためのエンドポイント。システム監視や Kubernetes の Liveness Probe などに利用できる。成功時には HTTP 200 とともに現在時刻を ISO 8601 形式で返す。
+        /// </summary>
         /// <returns>A <see cref="global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthGetResponse"/></returns>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
@@ -47,6 +50,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.Health
             var requestInfo = ToGetRequestInformation(requestConfiguration);
             return await RequestAdapter.SendAsync<global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthGetResponse>(requestInfo, global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthGetResponse.CreateFromDiscriminatorValue, default, cancellationToken).ConfigureAwait(false);
         }
+        /// <summary>
+        /// アプリケーションが稼働中であることを確認するためのエンドポイント。システム監視や Kubernetes の Liveness Probe などに利用できる。成功時には HTTP 200 とともに現在時刻を ISO 8601 形式で返す。
+        /// </summary>
         /// <returns>A <see cref="global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthResponse"/></returns>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
@@ -63,6 +69,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.Health
             var requestInfo = ToGetRequestInformation(requestConfiguration);
             return await RequestAdapter.SendAsync<global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthResponse>(requestInfo, global::DcsTranslationTool.Infrastructure.Http.ApiClient.Health.HealthResponse.CreateFromDiscriminatorValue, default, cancellationToken).ConfigureAwait(false);
         }
+        /// <summary>
+        /// アプリケーションが稼働中であることを確認するためのエンドポイント。システム監視や Kubernetes の Liveness Probe などに利用できる。成功時には HTTP 200 とともに現在時刻を ISO 8601 形式で返す。
+        /// </summary>
         /// <returns>A <see cref="RequestInformation"/></returns>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER

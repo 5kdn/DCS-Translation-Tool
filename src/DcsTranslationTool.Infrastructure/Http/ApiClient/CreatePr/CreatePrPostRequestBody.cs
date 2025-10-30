@@ -68,7 +68,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
         /// <param name="parseNode">The parse node to use to read the discriminator value and create the object</param>
         public static global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody CreateFromDiscriminatorValue(IParseNode parseNode)
         {
-            _ = parseNode ?? throw new ArgumentNullException(nameof(parseNode));
+            if(ReferenceEquals(parseNode, null)) throw new ArgumentNullException(nameof(parseNode));
             return new global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody();
         }
         /// <summary>
@@ -92,7 +92,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
         /// <param name="writer">Serialization writer to use to serialize this model</param>
         public virtual void Serialize(ISerializationWriter writer)
         {
-            _ = writer ?? throw new ArgumentNullException(nameof(writer));
+            if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("branchName", BranchName);
             writer.WriteStringValue("commitMessage", CommitMessage);
             writer.WriteCollectionOfObjectValues<global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody.CreatePrPostRequestBody_files>("files", Files);
@@ -129,7 +129,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
             /// <param name="parseNode">The parse node to use to read the discriminator value and create the object</param>
             public static global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody.CreatePrPostRequestBody_files CreateFromDiscriminatorValue(IParseNode parseNode)
             {
-                _ = parseNode ?? throw new ArgumentNullException(nameof(parseNode));
+                if(ReferenceEquals(parseNode, null)) throw new ArgumentNullException(nameof(parseNode));
                 var result = new global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody.CreatePrPostRequestBody_files();
                 result.CreatePrPostRequestBodyFilesMember1 = new global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody_filesMember1();
                 result.CreatePrPostRequestBodyFilesMember2 = new global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody_filesMember2();
@@ -153,7 +153,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
             /// <param name="writer">Serialization writer to use to serialize this model</param>
             public virtual void Serialize(ISerializationWriter writer)
             {
-                _ = writer ?? throw new ArgumentNullException(nameof(writer));
+                if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
                 writer.WriteObjectValue<global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody_filesMember1>(null, CreatePrPostRequestBodyFilesMember1, CreatePrPostRequestBodyFilesMember2);
             }
         }

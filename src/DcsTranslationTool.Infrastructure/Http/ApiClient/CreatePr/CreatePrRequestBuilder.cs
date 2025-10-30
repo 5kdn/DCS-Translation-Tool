@@ -32,6 +32,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
         public CreatePrRequestBuilder(string rawUrl, IRequestAdapter requestAdapter) : base(requestAdapter, "{+baseurl}/create-pr", rawUrl)
         {
         }
+        /// <summary>
+        /// 指定のブランチにファイル変更をコミットし、Pull Request を作成します。リクエスト:- prTitle: PR のタイトル（必須）- prBody: PR の本文（任意）- branchName: 作成または更新するブランチ名（必須）- commitMessage: コミットメッセージ（任意、未指定時はデフォルト）- files: 変更対象の配列。{ path, content, operation }。operation は upsert|delete。検証/安全性:- path は ensureUserPathSafe によってパス走査などを防止します。応答:- 成功時は prNumber, prUrl, branchName, commitSha, note を含む配列を返します。エラー:- 400: リクエスト不正- 403: 権限不足- 422: 処理不能（内容不整合など）- 500: サーバエラー
+        /// </summary>
         /// <returns>A <see cref="global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostResponse"/></returns>
         /// <param name="body">The request body</param>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
@@ -49,7 +52,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
         public async Task<global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostResponse> PostAsCreatePrPostResponseAsync(global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody body, Action<RequestConfiguration<DefaultQueryParameters>> requestConfiguration = default, CancellationToken cancellationToken = default)
         {
 #endif
-            _ = body ?? throw new ArgumentNullException(nameof(body));
+            if(ReferenceEquals(body, null)) throw new ArgumentNullException(nameof(body));
             var requestInfo = ToPostRequestInformation(body, requestConfiguration);
             var errorMapping = new Dictionary<string, ParsableFactory<IParsable>>
             {
@@ -60,6 +63,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
             };
             return await RequestAdapter.SendAsync<global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostResponse>(requestInfo, global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostResponse.CreateFromDiscriminatorValue, errorMapping, cancellationToken).ConfigureAwait(false);
         }
+        /// <summary>
+        /// 指定のブランチにファイル変更をコミットし、Pull Request を作成します。リクエスト:- prTitle: PR のタイトル（必須）- prBody: PR の本文（任意）- branchName: 作成または更新するブランチ名（必須）- commitMessage: コミットメッセージ（任意、未指定時はデフォルト）- files: 変更対象の配列。{ path, content, operation }。operation は upsert|delete。検証/安全性:- path は ensureUserPathSafe によってパス走査などを防止します。応答:- 成功時は prNumber, prUrl, branchName, commitSha, note を含む配列を返します。エラー:- 400: リクエスト不正- 403: 権限不足- 422: 処理不能（内容不整合など）- 500: サーバエラー
+        /// </summary>
         /// <returns>A <see cref="global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrResponse"/></returns>
         /// <param name="body">The request body</param>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
@@ -78,7 +84,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
         public async Task<global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrResponse> PostAsync(global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody body, Action<RequestConfiguration<DefaultQueryParameters>> requestConfiguration = default, CancellationToken cancellationToken = default)
         {
 #endif
-            _ = body ?? throw new ArgumentNullException(nameof(body));
+            if(ReferenceEquals(body, null)) throw new ArgumentNullException(nameof(body));
             var requestInfo = ToPostRequestInformation(body, requestConfiguration);
             var errorMapping = new Dictionary<string, ParsableFactory<IParsable>>
             {
@@ -89,6 +95,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
             };
             return await RequestAdapter.SendAsync<global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrResponse>(requestInfo, global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrResponse.CreateFromDiscriminatorValue, errorMapping, cancellationToken).ConfigureAwait(false);
         }
+        /// <summary>
+        /// 指定のブランチにファイル変更をコミットし、Pull Request を作成します。リクエスト:- prTitle: PR のタイトル（必須）- prBody: PR の本文（任意）- branchName: 作成または更新するブランチ名（必須）- commitMessage: コミットメッセージ（任意、未指定時はデフォルト）- files: 変更対象の配列。{ path, content, operation }。operation は upsert|delete。検証/安全性:- path は ensureUserPathSafe によってパス走査などを防止します。応答:- 成功時は prNumber, prUrl, branchName, commitSha, note を含む配列を返します。エラー:- 400: リクエスト不正- 403: 権限不足- 422: 処理不能（内容不整合など）- 500: サーバエラー
+        /// </summary>
         /// <returns>A <see cref="RequestInformation"/></returns>
         /// <param name="body">The request body</param>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
@@ -101,7 +110,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr
         public RequestInformation ToPostRequestInformation(global::DcsTranslationTool.Infrastructure.Http.ApiClient.CreatePr.CreatePrPostRequestBody body, Action<RequestConfiguration<DefaultQueryParameters>> requestConfiguration = default)
         {
 #endif
-            _ = body ?? throw new ArgumentNullException(nameof(body));
+            if(ReferenceEquals(body, null)) throw new ArgumentNullException(nameof(body));
             var requestInfo = new RequestInformation(Method.POST, UrlTemplate, PathParameters);
             requestInfo.Configure(requestConfiguration);
             requestInfo.Headers.TryAdd("Accept", "application/json");

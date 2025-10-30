@@ -32,6 +32,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.Tree
         public TreeRequestBuilder(string rawUrl, IRequestAdapter requestAdapter) : base(requestAdapter, "{+baseurl}/tree", rawUrl)
         {
         }
+        /// <summary>
+        /// 指定された GitHub リポジトリのデフォルトブランチから、DCSWorld 配下のファイル一覧（TreeItem配列）を取得して返す。
+        /// </summary>
         /// <returns>A <see cref="global::DcsTranslationTool.Infrastructure.Http.ApiClient.Tree.TreeGetResponse"/></returns>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
@@ -58,6 +61,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.Tree
             };
             return await RequestAdapter.SendAsync<global::DcsTranslationTool.Infrastructure.Http.ApiClient.Tree.TreeGetResponse>(requestInfo, global::DcsTranslationTool.Infrastructure.Http.ApiClient.Tree.TreeGetResponse.CreateFromDiscriminatorValue, errorMapping, cancellationToken).ConfigureAwait(false);
         }
+        /// <summary>
+        /// 指定された GitHub リポジトリのデフォルトブランチから、DCSWorld 配下のファイル一覧（TreeItem配列）を取得して返す。
+        /// </summary>
         /// <returns>A <see cref="global::DcsTranslationTool.Infrastructure.Http.ApiClient.Tree.TreeResponse"/></returns>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
@@ -85,6 +91,9 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.Tree
             };
             return await RequestAdapter.SendAsync<global::DcsTranslationTool.Infrastructure.Http.ApiClient.Tree.TreeResponse>(requestInfo, global::DcsTranslationTool.Infrastructure.Http.ApiClient.Tree.TreeResponse.CreateFromDiscriminatorValue, errorMapping, cancellationToken).ConfigureAwait(false);
         }
+        /// <summary>
+        /// 指定された GitHub リポジトリのデフォルトブランチから、DCSWorld 配下のファイル一覧（TreeItem配列）を取得して返す。
+        /// </summary>
         /// <returns>A <see cref="RequestInformation"/></returns>
         /// <param name="requestConfiguration">Configuration for the request such as headers, query parameters, and middleware options.</param>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
