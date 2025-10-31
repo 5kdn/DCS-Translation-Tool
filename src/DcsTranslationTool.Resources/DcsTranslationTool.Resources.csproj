@@ -7,6 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Update="Strings.CreatePullRequest.Designer.cs">
+          <DesignTime>True</DesignTime>
+          <AutoGen>True</AutoGen>
+          <DependentUpon>Strings.CreatePullRequest.resx</DependentUpon>
+        </Compile>
         <Compile Update="Strings.Download.Designer.cs">
           <DesignTime>True</DesignTime>
           <AutoGen>True</AutoGen>
@@ -30,6 +35,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <EmbeddedResource Update="Strings.CreatePullRequest.resx">
+          <Generator>PublicResXFileCodeGenerator</Generator>
+          <LastGenOutput>Strings.CreatePullRequest.Designer.cs</LastGenOutput>
+        </EmbeddedResource>
         <EmbeddedResource Update="Strings.Download.resx">
           <Generator>PublicResXFileCodeGenerator</Generator>
           <LastGenOutput>Strings.Download.Designer.cs</LastGenOutput>

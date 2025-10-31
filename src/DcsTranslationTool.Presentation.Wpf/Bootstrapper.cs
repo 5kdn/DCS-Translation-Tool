@@ -4,6 +4,7 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
+using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
@@ -41,7 +42,9 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IApplicationInfoService, ApplicationInfoService>();
         appSettingsService = container.GetInstance<IAppSettingsService>();
 
+        container.Singleton<IDialogService, DialogService>();
         container.Singleton<IDialogProvider, DialogProvider>();
+        container.Singleton<IDispatcherService, DispatcherService>();
         container.Singleton<ISnackbarService, SnackbarService>();
 
         // ViewModels
@@ -50,6 +53,7 @@ public class Bootstrapper : BootstrapperBase {
         container.PerRequest<SettingsViewModel>();
         container.PerRequest<DownloadViewModel>();
         container.PerRequest<UploadViewModel>();
+        container.PerRequest<CreatePullRequestViewModel>();
     }
 
     protected override async void OnStartup( object sender, StartupEventArgs e ) {
