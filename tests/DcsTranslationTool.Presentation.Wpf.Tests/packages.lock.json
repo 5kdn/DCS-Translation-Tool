@@ -331,6 +331,19 @@
           "xunit.v3.runner.common": "[3.1.0]"
         }
       },
+      "DCS-Translation-Tool": {
+        "type": "Project",
+        "dependencies": {
+          "Caliburn.Micro": "[5.0.258, )",
+          "Caliburn.Micro.Core": "[5.0.258, )",
+          "DcsTranslationTool.Application": "[1.2.3, )",
+          "DcsTranslationTool.Composition": "[1.2.3, )",
+          "DcsTranslationTool.Resources": "[1.2.3, )",
+          "DcsTranslationTool.Shared": "[1.2.3, )",
+          "MaterialDesignThemes": "[5.3.0, )",
+          "NLog": "[6.0.5, )"
+        }
+      },
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {
@@ -366,19 +379,6 @@
           "NLog": "[6.0.5, )",
           "Newtonsoft.Json": "[13.0.4, )",
           "UTF.Unknown": "[2.6.0, )"
-        }
-      },
-      "dcstranslationtool.presentation.wpf": {
-        "type": "Project",
-        "dependencies": {
-          "Caliburn.Micro": "[5.0.258, )",
-          "Caliburn.Micro.Core": "[5.0.258, )",
-          "DcsTranslationTool.Application": "[1.2.3, )",
-          "DcsTranslationTool.Composition": "[1.2.3, )",
-          "DcsTranslationTool.Resources": "[1.2.3, )",
-          "DcsTranslationTool.Shared": "[1.2.3, )",
-          "MaterialDesignThemes": "[5.3.0, )",
-          "NLog": "[6.0.5, )"
         }
       },
       "dcstranslationtool.resources": {
