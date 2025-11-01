@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/5kdn/DCS-Translation-Tool/compare/v0.1.3...v0.1.4) (2025-11-01)
+
+
+### Features
+
+* add README and LICENSE ([#18](https://github.com/5kdn/DCS-Translation-Tool/issues/18)) ([7981089](https://github.com/5kdn/DCS-Translation-Tool/commit/7981089ccd9a7b2b088ed99e20aee346ae04185b))
+
 ## [0.1.3](https://github.com/5kdn/DCS-Translation-Tool/compare/v0.1.2...v0.1.3) (2025-11-01)
 
 
