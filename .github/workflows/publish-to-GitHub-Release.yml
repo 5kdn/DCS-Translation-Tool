@@ -86,31 +86,31 @@ jobs:
           -p:DebugSymbols=false
           --no-restore
 
-      - name: Archive artifacts
-        shell: pwsh
-        run: |
-          $dest = "${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip"
-          if (Test-Path $dest) { Remove-Item $dest -Force }
-          Compress-Archive -Path "publish/*" -DestinationPath $dest -CompressionLevel Optimal
-          # generate SHA256 checksum
-          $hash = Get-FileHash -Path $dest -Algorithm SHA256
-          $shaFile = "$dest.sha256"
-          Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
-
-      # サードパーティライセンス生成（1回のみ）
       - name: Generate third-party notices
-        if: matrix.rid == 'win-x64'
         shell: pwsh
         run: |
           dotnet tool install -g nuget-license
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-          New-Item -ItemType Directory -Force -Path artifacts\THIRD-PARTY-NOTICES | Out-Null
+          # 出力先を当該 RID の publish フォルダへ
+          $outDir = "publish/${{ matrix.rid }}"
+          if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
           nuget-license `
             -i "${{ env.TARGET_PROJECT }}" `
             -t `
             -o table `
             -exclude-projects tests/* `
-            -fo artifacts/THIRD-PARTY-NOTICES/THIRD-PARTY-NOTICES.txt
+            -fo "$outDir/THIRD-PARTY-NOTICES.txt"
+
+      - name: Archive artifacts
+        shell: pwsh
+        run: |
+          $dest = "${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip"
+          if (Test-Path $dest) { Remove-Item $dest -Force }
+          Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath $dest -CompressionLevel Optimal
+          # generate SHA256 checksum
+          $hash = Get-FileHash -Path $dest -Algorithm SHA256
+          $shaFile = "$dest.sha256"
+          Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
 
       - name: Attach assets to the current Release
         uses: softprops/action-gh-release@v2
@@ -118,15 +118,5 @@ jobs:
           files: |
             ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip
             ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip.sha256
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # ライセンスファイルをリリースに添付（重複回避のため x64 のみ）
-      - name: Attach THIRD-PARTY-NOTICES
-        if: matrix.rid == 'win-x64'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/THIRD-PARTY-NOTICES/THIRD-PARTY-NOTICES.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
