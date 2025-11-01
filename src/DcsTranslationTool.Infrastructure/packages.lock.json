@@ -14,20 +14,20 @@
       },
       "Microsoft.Kiota.Abstractions": {
         "type": "Direct",
-        "requested": "[1.20.1, )",
-        "resolved": "1.20.1",
-        "contentHash": "bv1n2gnxA/O+1a26h3YB6bgcc3ZSLCjRumMh7sVkFmksLaVonhcrJpUrEtBlnnYPrnHwzm/1BYQnYjCVG7A+fA==",
+        "requested": "[1.21.0, )",
+        "resolved": "1.21.0",
+        "contentHash": "RPQIHERQopj0e4Y0/oPcs2eT7oqb7CwGX5ZBhSoObEp8IwCGwLkruJBdZcylrsC2LWIhyYdLPnDT2NfJhzprzg==",
         "dependencies": {
           "Std.UriTemplate": "2.0.5"
         }
       },
       "Microsoft.Kiota.Serialization.Form": {
         "type": "Direct",
-        "requested": "[1.20.1, )",
-        "resolved": "1.20.1",
-        "contentHash": "n7izb8GZSoatmFSpMaHmh78U3oW+YdYb2gDwhkG86COHuiGWV9s0BKBeUlFakAV00CDwaH9iFqxCQ0veYVkG1A==",
+        "requested": "[1.21.0, )",
+        "resolved": "1.21.0",
+        "contentHash": "Uk/nneGdh8xkWw4xCx0+TbMkRg3sL5oxgvKobjnymhty+CaP4NMMFx8xJws8w+KK6P8WcvGE3cQh3g1mgzn10Q==",
         "dependencies": {
-          "Microsoft.Kiota.Abstractions": "1.20.1"
+          "Microsoft.Kiota.Abstractions": "1.21.0"
         }
       },
       "Microsoft.Kiota.Serialization.Json": {
@@ -101,8 +101,8 @@
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {
-          "DcsTranslationTool.Domain": "[1.2.3, )",
-          "DcsTranslationTool.Shared": "[1.2.3, )",
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )",
           "FluentResults": "[4.0.0, )"
         }
       },
