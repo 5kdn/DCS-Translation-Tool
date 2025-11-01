@@ -9,8 +9,9 @@
     <UseWPF>True</UseWPF>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
-    <PackageId>DCS-Translation-Tool</PackageId>
     <Title>DCS Translation Tool</Title>
+    <Product>DCS-Translation-Tool</Product>
+    <AssemblyName>DCS-Translation-Tool</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
