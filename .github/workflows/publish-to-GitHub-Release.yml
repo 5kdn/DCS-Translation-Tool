@@ -15,7 +15,7 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: 1
   APP_NAME: ${{ github.event.repository.name }}
-  TARGET_PROJECT: DcsTranslationTool
+  TARGET_PROJECT: src/DcsTranslationTool.Presentation.Wpf/DcsTranslationTool.Presentation.Wpf.csproj
 
 jobs:
   Release:
@@ -70,11 +70,10 @@ jobs:
       - name: Publish
         shell: pwsh
         run: >
-          dotnet publish
-          ${{ env.TARGET_PROJECT }}/${{ env.TARGET_PROJECT }}.csproj
+          dotnet publish ${{ env.TARGET_PROJECT }}
           -c Release
           -r ${{ matrix.rid }}
-          -o publish
+          -o publish/${{ matrix.rid }}
           --self-contained true
           -p:PublishSingleFile=true
           -p:PublishTrimmed=false
@@ -98,11 +97,36 @@ jobs:
           $shaFile = "$dest.sha256"
           Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
 
+      # サードパーティライセンス生成（1回のみ）
+      - name: Generate third-party notices
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          dotnet tool install -g nuget-license
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+          New-Item -ItemType Directory -Force -Path artifacts\THIRD-PARTY-NOTICES | Out-Null
+          nuget-license `
+            -i "${{ env.TARGET_PROJECT }}" `
+            -t `
+            -o table `
+            -exclude-projects tests/* `
+            -fo artifacts/THIRD-PARTY-NOTICES/THIRD-PARTY-NOTICES.txt
+
       - name: Attach assets to the current Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip
             ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ライセンスファイルをリリースに添付（重複回避のため x64 のみ）
+      - name: Attach THIRD-PARTY-NOTICES
+        if: matrix.rid == 'win-x64'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/THIRD-PARTY-NOTICES/THIRD-PARTY-NOTICES.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
