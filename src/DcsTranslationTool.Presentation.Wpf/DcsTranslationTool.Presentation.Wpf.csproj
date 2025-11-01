@@ -9,6 +9,8 @@
     <UseWPF>True</UseWPF>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
+    <PackageId>DCS-Translation-Tool</PackageId>
+    <Title>DCS Translation Tool</Title>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,12 +40,6 @@
     <None Update="App.xaml">
         <Generator>MSBuild:Compile</Generator>
       </None>
-  </ItemGroup>
-
-
-  <ItemGroup>
-    <Folder Include="Features\CreatePullRequest\" />
-    <Folder Include="Views\" />
   </ItemGroup>
 
 </Project>
