@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/5kdn/DCS-Translation-Tool/compare/v0.1.0...v0.1.1) (2025-11-01)
+
+
+### Features
+
+* append 3rd-party notice file in zip ([#10](https://github.com/5kdn/DCS-Translation-Tool/issues/10)) ([b96dbb4](https://github.com/5kdn/DCS-Translation-Tool/commit/b96dbb4d7b09be85709954bd825eecc7f5931a5e))
+* fix rp ([#12](https://github.com/5kdn/DCS-Translation-Tool/issues/12)) ([4924383](https://github.com/5kdn/DCS-Translation-Tool/commit/492438388d8a31bdf92935113cc4ab0c4a08d043))
+
 ## [0.1.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v0.0.1...v0.1.0) (2025-11-01)
 
 
