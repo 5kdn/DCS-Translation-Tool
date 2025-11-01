@@ -104,10 +104,42 @@ jobs:
       - name: Archive artifacts
         shell: pwsh
         run: |
-          $dest = "${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip"
-          if (Test-Path $dest) { Remove-Item $dest -Force }
-          Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath $dest -CompressionLevel Optimal
-          # generate SHA256 checksum
+          $pubDir  = "publish/${{ matrix.rid }}"
+          $stage   = "package/${{ matrix.rid }}"   # ZIP 直前のステージング
+          $dest    = "${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip"
+
+          if (-not (Test-Path $pubDir)) {
+            throw "publish directory not found: $pubDir"
+          }
+
+          # ステージングを作り直し
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          # 発行物を集約
+          Copy-Item -Path "$pubDir/*" -Destination $stage -Recurse -Force
+
+          # ルートの LICENSE → LICENSE.txt として同梱
+          if (Test-Path "LICENSE") {
+            Copy-Item -Path "LICENSE" -Destination (Join-Path $stage "LICENSE.txt") -Force
+          } else {
+            throw "LICENSE not found at repo root"
+          }
+
+          # ルートの README.md を同梱
+          if (Test-Path "README.md") {
+            Copy-Item -Path "README.md" -Destination (Join-Path $stage "README.md") -Force
+          } else {
+            throw "README.md not found at repo root"
+          }
+
+          # ZIP 作成
+          if (Test-Path $dest) {
+            Remove-Item $dest -Force
+          }
+          Compress-Archive -Path "$stage/*" -DestinationPath $dest -CompressionLevel Optimal
+
+          # SHA256 生成
           $hash = Get-FileHash -Path $dest -Algorithm SHA256
           $shaFile = "$dest.sha256"
           Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
