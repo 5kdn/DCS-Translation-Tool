@@ -101,8 +101,8 @@
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {
-          "DcsTranslationTool.Domain": "[1.0.0, )",
-          "DcsTranslationTool.Shared": "[1.0.0, )",
+          "DcsTranslationTool.Domain": "[1.2.3, )",
+          "DcsTranslationTool.Shared": "[1.2.3, )",
           "FluentResults": "[4.0.0, )"
         }
       },
