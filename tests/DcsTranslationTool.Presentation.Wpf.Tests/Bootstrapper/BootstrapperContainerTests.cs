@@ -73,6 +73,7 @@ public sealed class BootstrapperContainerTests {
             var infraLogging = (InfraLoggingService)Container.GetInstance( typeof( InfraLoggingService ), null )!;
             var loggingAdapter = new LoggingServiceAdapter( infraLogging );
             Container.Instance<PresentationLoggingService>( loggingAdapter );
+            Container.Singleton<IApplicationInfoService, ApplicationInfoService>();
 
             AppSettingsService = (AppSettingsService)Container.GetInstance( typeof( IAppSettingsService ), null )!;
 

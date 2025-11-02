@@ -38,6 +38,7 @@ public class Bootstrapper : BootstrapperBase {
         var infraLoggingService = container.GetInstance<InfraLoggingService>();
         loggingService = new LoggingServiceAdapter( infraLoggingService );
         container.Instance<ILoggingService>( loggingService );
+        container.Singleton<IApplicationInfoService, ApplicationInfoService>();
         appSettingsService = container.GetInstance<IAppSettingsService>();
 
         container.Singleton<IDialogService, DialogService>();
