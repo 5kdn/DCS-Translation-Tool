@@ -113,8 +113,8 @@
       "dcstranslationtool.application": {
         "type": "Project",
         "dependencies": {
-          "DcsTranslationTool.Domain": "[1.2.3, )",
-          "DcsTranslationTool.Shared": "[1.2.3, )",
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )",
           "FluentResults": "[4.0.0, )"
         }
       },
@@ -124,9 +124,9 @@
       "dcstranslationtool.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "DcsTranslationTool.Application": "[1.2.3, )",
-          "DcsTranslationTool.Domain": "[1.2.3, )",
-          "DcsTranslationTool.Shared": "[1.2.3, )",
+          "DcsTranslationTool.Application": "[1.0.0, )",
+          "DcsTranslationTool.Domain": "[1.0.0, )",
+          "DcsTranslationTool.Shared": "[1.0.0, )",
           "FluentResults": "[4.0.0, )",
           "Microsoft.Kiota.Abstractions": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Form": "[1.21.0, )",
