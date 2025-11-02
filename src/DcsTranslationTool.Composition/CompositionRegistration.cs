@@ -55,11 +55,12 @@ public static class CompositionRegistration {
     /// </returns>
     private static LoggingOptions CreateLoggingOptions() {
 #if DEBUG
+        var logDirectory = ResolveLogDirectory();
         return new LoggingOptions
         {
             MinLevel = LogLevel.Debug,
             EnableDebugOutput = true,
-            LogDirectory = "Logs",
+            LogDirectory = logDirectory,
             FileName = "app.debug.log",
             ArchiveEvery = FileArchivePeriod.Hour,
             ArchiveAboveSizeMB = 50,
@@ -67,16 +68,17 @@ public static class CompositionRegistration {
             ArchiveSuffixFormat = "${shortdate}.{#}"
         };
 #else
-            return new LoggingOptions {
-                MinLevel = LogLevel.Info,
-                EnableDebugOutput = false,
-                LogDirectory = "Logs",
-                FileName = "app.log",
-                ArchiveEvery = FileArchivePeriod.Day,
-                ArchiveAboveSizeMB = 3,
-                MaxArchiveFiles = 5,
-                ArchiveSuffixFormat = "${shortdate}.{#}"
-            };
+        var logDirectory = ResolveLogDirectory();
+        return new LoggingOptions {
+            MinLevel = LogLevel.Info,
+            EnableDebugOutput = false,
+            LogDirectory = logDirectory,
+            FileName = "app.log",
+            ArchiveEvery = FileArchivePeriod.Day,
+            ArchiveAboveSizeMB = 3,
+            MaxArchiveFiles = 5,
+            ArchiveSuffixFormat = "${shortdate}.{#}"
+        };
 #endif
     }
 
@@ -93,5 +95,18 @@ public static class CompositionRegistration {
         catch {
             return null;
         }
+    }
+
+    /// <summary>
+    /// ログ出力先ディレクトリを実行ファイルと同階層に解決する。
+    /// </summary>
+    /// <returns>ログディレクトリの絶対パス。</returns>
+    private static string ResolveLogDirectory() {
+        var processPath = Environment.ProcessPath;
+        var baseDir = !string.IsNullOrEmpty( processPath )
+            ? Path.GetDirectoryName( processPath )
+            : null;
+        baseDir ??= AppContext.BaseDirectory;
+        return Path.GetFullPath( Path.Combine( baseDir, "Logs" ) );
     }
 }
