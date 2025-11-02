@@ -1,85 +1,30 @@
 ﻿# DCS Translation Tool
 
-## TODO
-
-### パッケージ
-
-- FluentResults: Domain 以外で「直接 Result/Result<T> を使うプロジェクト」にだけ入れる
-- UTF.Unknown
-
-
 DCS: World の日本語化をサポートする**非公式**ツールです。
 
 ## 主な機能
 
-- [翻訳ファイルのリポジトリ](https://github.com/5kdn/test_DCS) から翻訳ファイルをダウンロード
+- [翻訳ファイルのリポジトリ](https://github.com/5kdn/DCS-Translation-Japanese) から翻訳ファイルをダウンロード
 - 翻訳ファイルを `.miz` ファイルへ注入
 - ユーザーが作成した翻訳ファイルをリポジトリへアップロード
-## プロジェクト構成（抜粋）
 
-```text
-/
-├─ DcsTranslationTool/         # エントリ（起動）プロジェクト
-├─ DcsTranslationTool.Core/    # コアライブラリ
-├─ DcsTranslationTool.Tests/   # テスト
-├─ BuildTasks/                 # ビルド関連タスク
-└─ DcsTranslationTool.sln
-```
+### 翻訳ファイルをダウンロード・mizファイルへ注入する
 
-## セットアップ
+1. Download ページを開く
+2. 必要なファイルにチェックを付ける
+3. mizファイルに注入する場合
+   1. Apply ボタンを押す
+4. 翻訳ファイルをダウンロードだけする場合
 
-### 1. クローン & 依存解決
+### 自作・修正した翻訳ファイルをアップロードする
 
-```powershell
-git clone https://github.com/5kdn/DCS-Translation-Tool.git
-cd DCS-Translation-Tool
-dotnet restore
-```
-
-### 2. ローカル開発用の設定（必要な場合）
-
-リリースビルド時に必要な環境変数は GitHub Actions（workflow）で付与されます。
-ローカル開発では任意に **`Directory.Build.props.user`** を作成してプロパティを上書きできます。
-
-例:
-
-```xml
-<Project>
-  <PropertyGroup>
-    <Version>1.2.3</Version>
-    <Algo>algorithm-version</Algo>
-    <!-- 例: 秘密鍵などをローカル検証用に設定 -->
-    <GH_APP_PRIVATE_KEY>dummy-private-key</GH_APP_PRIVATE_KEY>
-  </PropertyGroup>
-</Project>
-```
-
-> **メモ**: 上記のキー名/値は開発例です。実運用のシークレットは *workflow の secrets* を利用し、平文でのコミットは避けてください。
-
-## テスト
-
-- 使用フレームワーク
-  - **xUnit 2.9.3**
-  - **Moq 4.20.72**
-
-実行コマンド:
-
-```powershell
-dotnet test .\DcsTranslationTool.sln -c Debug --nologo --verbosity minimal
-```
+1. Upload ページを開く
+2. アップロードまたは削除したいファイルにチェックを付ける
+3. Create PR ボタンを押す
+4. 変更する理由を記述
+5. Create PR ボタンを押す
 
 ---
-
-## リリース運用
-
-- 自動リリース: `.github/workflows/publish-to-GitHub-Release.yml`
-- バージョニング/リリース PR 自動化: `.github/workflows/release-please.yml`
-  - 設定ファイル: `release-please-config.json`, `.release-please-manifest.json`
-- リポジトリ戦略: **GitHub Flow**
-  - **Squash-merge** で `master` にマージ
-  - `master` は常にデプロイ可能状態を維持
-
-> リリース時に必要な環境変数・シークレットは **workflow 内で付与** されます（ローカルでは不要）。
 
 ## ライセンス / 行動規範 他
 

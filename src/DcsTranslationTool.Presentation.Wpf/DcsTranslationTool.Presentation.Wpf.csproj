@@ -10,8 +10,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
     <Title>DCS Translation Tool</Title>
-    <Product>DCS-Translation-Tool</Product>
-    <AssemblyName>DCS-Translation-Tool</AssemblyName>
+    <Product>DcsTranslationTool</Product>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,4 +42,16 @@
       </None>
   </ItemGroup>
 
+
+    <Target Name="RenamePublishOutput" AfterTargets="Publish">
+        <PropertyGroup>
+            <_PublishSourceExe>$(PublishDir)$(AssemblyName).exe</_PublishSourceExe>
+            <_PublishTargetExe>$(PublishDir)DCS-Translation-Tool.exe</_PublishTargetExe>
+        </PropertyGroup>
+        <Delete Files="$(_PublishTargetExe)" Condition="Exists('$(_PublishTargetExe)')" />
+        <Move SourceFiles="$(_PublishSourceExe)"
+              DestinationFiles="$(_PublishTargetExe)"
+              Condition="Exists('$(_PublishSourceExe)')" />
+    </Target>
+    
 </Project>

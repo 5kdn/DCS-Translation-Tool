@@ -133,6 +133,13 @@ jobs:
             throw "README.md not found at repo root"
           }
 
+          # ルートの CHANGELOG.md を同梱
+          if (Test-Path "CHANGELOG.md") {
+            Copy-Item -Path "CHANGELOG.md" -Destination (Join-Path $stage "CHANGELOG.md") -Force
+          } else {
+            throw "CHANGELOG.md not found at repo root"
+          }
+
           # ZIP 作成
           if (Test-Path $dest) {
             Remove-Item $dest -Force
