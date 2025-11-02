@@ -13,6 +13,13 @@
     <Product>DcsTranslationTool</Product>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <Version>0.1.5</Version> <!-- x-release-please-version -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>$(Version).0</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Caliburn.Micro" Version="5.0.258" />
     <PackageReference Include="Caliburn.Micro.Core" Version="5.0.258" />
@@ -53,5 +60,5 @@
               DestinationFiles="$(_PublishTargetExe)"
               Condition="Exists('$(_PublishSourceExe)')" />
     </Target>
-    
+
 </Project>
