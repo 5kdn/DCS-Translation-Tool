@@ -102,10 +102,10 @@
       },
       "Microsoft.Kiota.Serialization.Multipart": {
         "type": "Transitive",
-        "resolved": "1.20.1",
-        "contentHash": "tP7ZxA1zsIi3FE8CHwfA5JnzlW1NYld+LpFihFq+S7IXFDv1x37I968lPKGIdEpWW9vWacuqDQVKIyJiKZ257A==",
+        "resolved": "1.21.0",
+        "contentHash": "fCAx5tgVvz6gI2hwN9Q2p8t/uPOwD4l8EwoFxkn8F6apqngjwbCSietDlXvX6gaStVvwSS4J5fn/xSghXW5cFg==",
         "dependencies": {
-          "Microsoft.Kiota.Abstractions": "1.20.1"
+          "Microsoft.Kiota.Abstractions": "1.21.0"
         }
       },
       "Microsoft.Kiota.Serialization.Text": {
@@ -310,7 +310,7 @@
           "Microsoft.Kiota.Abstractions": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Form": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Json": "[1.20.1, )",
-          "Microsoft.Kiota.Serialization.Multipart": "[1.20.1, )",
+          "Microsoft.Kiota.Serialization.Multipart": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.0, )",
           "NLog": "[6.0.5, )",
           "Newtonsoft.Json": "[13.0.4, )",

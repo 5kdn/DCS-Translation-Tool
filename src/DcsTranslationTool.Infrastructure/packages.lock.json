@@ -41,11 +41,11 @@
       },
       "Microsoft.Kiota.Serialization.Multipart": {
         "type": "Direct",
-        "requested": "[1.20.1, )",
-        "resolved": "1.20.1",
-        "contentHash": "tP7ZxA1zsIi3FE8CHwfA5JnzlW1NYld+LpFihFq+S7IXFDv1x37I968lPKGIdEpWW9vWacuqDQVKIyJiKZ257A==",
+        "requested": "[1.21.0, )",
+        "resolved": "1.21.0",
+        "contentHash": "fCAx5tgVvz6gI2hwN9Q2p8t/uPOwD4l8EwoFxkn8F6apqngjwbCSietDlXvX6gaStVvwSS4J5fn/xSghXW5cFg==",
         "dependencies": {
-          "Microsoft.Kiota.Abstractions": "1.20.1"
+          "Microsoft.Kiota.Abstractions": "1.21.0"
         }
       },
       "Microsoft.Kiota.Serialization.Text": {
