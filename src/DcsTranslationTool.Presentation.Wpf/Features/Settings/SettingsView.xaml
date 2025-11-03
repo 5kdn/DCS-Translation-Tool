@@ -39,13 +39,15 @@
                                             ExplanationText="{x:Static resx:Resource.SettingsPageSourceDlcCampaignDirExplanationText}"
                                             Path="{Binding SourceDlcCampaignDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Key="DlcCampaign"
-                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}" />
+                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}"
+                                            Margin="{StaticResource MediumBottomMargin}" />
 
                     <common:DirectoryPicker LabelText="{x:Static resx:Resource.SettingsPageSourceUserMissionDirText}"
                                             ExplanationText="{x:Static resx:Resource.SettingsPageSourceUserMissionDirExplanationText}"
                                             Path="{Binding SourceUserMissionDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Key="UserMission"
-                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}" />
+                                            ButtonText="{x:Static resx:Resource.SettingsPageSelectButton}"
+                                            Margin="{StaticResource MediumBottomMargin}" />
 
                     <common:DirectoryPicker LabelText="{x:Static resx:Resource.SettingsPageTranslateFileDirText}"
                                             ExplanationText="{x:Static resx:Resource.SettingsPageSourceTranslateFileDirExplanationText}"
@@ -72,16 +74,6 @@
                             Style="{StaticResource HyperLinkButtonStyle}">
                         <TextBlock Text="{x:Static resx:Resource.SettingsPageReleaseLatestText}" TextDecorations="Underline" />
                     </Button>
-                </StackPanel>
-                <!-- ライセンス情報 -->
-                <StackPanel Margin="{StaticResource MediumTopMargin}">
-                    <TextBlock Text="{x:Static resx:Resource.SettingsPageLicensesTitle}"
-                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
-                    <Button cal:Message.Attach="BrowseToLicensePage()"
-                            Style="{StaticResource HyperLinkButtonStyle}">
-                        <TextBlock Text="{Binding LisenseType}" TextDecorations="Underline" />
-                    </Button>
-
                 </StackPanel>
                 <!-- プライバシーポリシー -->
                 <StackPanel Margin="{StaticResource MediumTopMargin}">
