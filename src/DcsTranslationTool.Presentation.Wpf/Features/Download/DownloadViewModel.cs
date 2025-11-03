@@ -400,6 +400,7 @@ public class DownloadViewModel(
             {
                 CategoryType.Aircraft => appSettingsService.Settings.SourceAircraftDir,
                 CategoryType.DlcCampaigns => appSettingsService.Settings.SourceDlcCampaignDir,
+                CategoryType.UserMissions => appSettingsService.Settings.SourceUserMissionDir,
                 _ => throw new InvalidOperationException( $"未対応のタブ種別: {tab.TabType}" ),
             };
 
@@ -813,7 +814,8 @@ public class DownloadViewModel(
                         logger.Warn( $".miz の位置を特定できず適用に失敗した。Path={entry.Path}" );
                     }
                     else {
-                        var mizSegments = parts.Take( mizIndex + 1 ).Skip( 3 ).ToArray();
+                        var rootSkipCount = GetRootSegmentSkipCount( parts );
+                        var mizSegments = parts.Take( mizIndex + 1 ).Skip( rootSkipCount ).ToArray();
                         if(mizSegments.Length == 0) {
                             failed++;
                             snackbarMessage = $"不正なパス構造: {entry.Path}";
@@ -909,6 +911,7 @@ public class DownloadViewModel(
 
     /// <summary>ZIPアーカイブを指定ディレクトリへ展開する。</summary>
     private async Task<bool> ExtractDownloadArchiveAsync( ApiDownloadFilesResult archive, string destinationRootFullPath ) {
+        logger.Debug( $"ZIPアーカイブを展開する。Destination={destinationRootFullPath}" );
         ArgumentNullException.ThrowIfNull( archive );
         ArgumentException.ThrowIfNullOrWhiteSpace( destinationRootFullPath );
 
@@ -1008,6 +1011,23 @@ public class DownloadViewModel(
 
         resolvedPath = candidate;
         return true;
+    }
+
+    /// <summary>パス先頭のルートセグメントを何個スキップするかを取得する。</summary>
+    private static int GetRootSegmentSkipCount( string[] segments ) {
+        if(segments.Length == 0) return 0;
+
+        if(string.Equals( segments[0], "DCSWorld", StringComparison.OrdinalIgnoreCase )) {
+            if(segments.Length >= 3 && string.Equals( segments[1], "Mods", StringComparison.OrdinalIgnoreCase )) {
+                return 3;
+            }
+        }
+
+        if(string.Equals( segments[0], "UserMissions", StringComparison.OrdinalIgnoreCase )) {
+            return 1;
+        }
+
+        return 0;
     }
 
     /// <summary>

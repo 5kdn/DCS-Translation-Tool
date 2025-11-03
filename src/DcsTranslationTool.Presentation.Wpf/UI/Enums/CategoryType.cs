@@ -4,5 +4,6 @@ namespace DcsTranslationTool.Presentation.Wpf.UI.Enums;
 /// </summary>
 public enum CategoryType {
     Aircraft,
-    DlcCampaigns
+    DlcCampaigns,
+    UserMissions,
 }
