@@ -173,30 +173,6 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
-        ///   ## 📌 概要
-        ///
-        ///&lt;!-- このPRの目的・背景を簡潔に書いてください --&gt;
-        ///
-        ///## 🛠 変更内容
-        ///
-        ///&lt;!-- 具体的な変更内容を記載してください --&gt;
-        ///- mizファイル単位で箇条書きで記載してください
-        ///- 機体やキャンペーン全体に関連する場合、機体やキャンペーンごとの記載でも大丈夫です
-        ///
-        ///## ⚠️ 留意点
-        ///
-        ///&lt;!-- このPRを使用するうえで注意すべきことをリストアップしてください --&gt;
-        ///&lt;!-- 必要がなければ N/A としてください --&gt;
-        ///N/A
-        /// に類似しているローカライズされた文字列を検索します。
-        /// </summary>
-        public static string CreatePullRequestDialogPullRequestTemplate {
-            get {
-                return ResourceManager.GetString("CreatePullRequestDialogPullRequestTemplate", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   アップロードするファイルリスト に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreatePullRequestDialogUploadFileListHeader {
@@ -337,15 +313,6 @@ namespace DcsTranslationTool.Resources {
         public static string SettingsPageDirectorySettingsTitle {
             get {
                 return ResourceManager.GetString("SettingsPageDirectorySettingsTitle", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   ライセンス情報 に類似しているローカライズされた文字列を検索します。
-        /// </summary>
-        public static string SettingsPageLicensesTitle {
-            get {
-                return ResourceManager.GetString("SettingsPageLicensesTitle", resourceCulture);
             }
         }
         
