@@ -232,7 +232,7 @@
     <value>フォルダ</value>
   </data>
   <data name="CreatePullRequestDialogCreatePRButtonContent" xml:space="preserve">
-    <value>PRを作成</value>
+    <value>アップロード</value>
   </data>
   <data name="CreatePullRequestDialogMainChangesLabel" xml:space="preserve">
     <value>主な変更点</value>
