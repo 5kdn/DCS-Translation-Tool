@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.0.0...v1.1.0) (2025-11-03)
+
+
+### Features
+
+* update README ([647f23a](https://github.com/5kdn/DCS-Translation-Tool/commit/647f23a67bc7498de13bb2756e9590d99b1478d3))
+
+
+### Bug Fixes
+
+* 使用していないファイルを削除 ([d8c95e9](https://github.com/5kdn/DCS-Translation-Tool/commit/d8c95e91f7e93c22be5877a4475e27385827265f))
+
 ## 1.0.0 (2025-11-02)
 
 
