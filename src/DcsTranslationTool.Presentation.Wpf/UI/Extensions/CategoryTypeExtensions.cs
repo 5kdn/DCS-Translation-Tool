@@ -18,6 +18,7 @@ public static class CategoryTypeExtensions {
     {
         CategoryType.Aircraft => "Aircraft",
         CategoryType.DlcCampaigns => "DLC Campaigns",
+        CategoryType.UserMissions => "User Missions",
         _ => throw new ArgumentOutOfRangeException(
             nameof( tabType ),
             tabType,
@@ -36,6 +37,7 @@ public static class CategoryTypeExtensions {
     {
         CategoryType.Aircraft => ["DCSWorld", "Mods", "aircraft"],
         CategoryType.DlcCampaigns => ["DCSWorld", "Mods", "campaigns"],
+        CategoryType.UserMissions => ["UserMissions"],
         _ => throw new ArgumentOutOfRangeException(
             nameof( tabType ),
             tabType,
