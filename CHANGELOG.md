@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.1.0...v1.2.0) (2025-11-03)
+
+
+### Features
+
+* support usermission ([#30](https://github.com/5kdn/DCS-Translation-Tool/issues/30)) ([8513b39](https://github.com/5kdn/DCS-Translation-Tool/commit/8513b3929ece0344e51e65dc8b83bed10b6aff20))
+
 ## [1.1.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.0.0...v1.1.0) (2025-11-03)
 
 
