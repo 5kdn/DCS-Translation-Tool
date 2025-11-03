@@ -634,6 +634,142 @@ public sealed class DownloadViewModelTests : IDisposable {
         zipServiceMock.VerifyAll();
     }
 
+    /// <summary>Applyを呼び出すとUserMissions配下の miz を適用する。</summary>
+    [StaFact]
+    public async Task Applyを呼び出すとUserMissions配下のmizを適用する() {
+        var sourceRoot = Path.Combine( _tempDir, "UserMissionSource" );
+        var mizDirectory = Path.Combine( sourceRoot, "MyMissions" );
+        Directory.CreateDirectory( mizDirectory );
+        var mizPath = Path.Combine( mizDirectory, "SampleMission.miz" );
+        File.WriteAllBytes( mizPath, [] );
+
+        var appSettings = new AppSettings
+        {
+            TranslateFileDir = _tempDir,
+            SourceUserMissionDir = sourceRoot
+        };
+        const string repoEntryPath = "UserMissions/MyMissions/SampleMission.miz/Localization/Example.lua";
+        const string fileContent = "ユーザーミッション miz に適用する";
+
+        var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "userfeed" );
+        var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
+
+        byte[] archiveBytes = CreateZipForApply(
+            (repoEntryPath, fileContent)
+        );
+        var downloadResult = Result.Ok(
+            new ApiDownloadFilesResult(
+                [repoEntryPath],
+                archiveBytes,
+                archiveBytes.Length,
+                "application/zip",
+                "apply-user-missions.zip",
+                "\"user-missions-etag\"",
+                false
+            )
+        );
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        apiServiceMock
+            .Setup( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( treeResult );
+        apiServiceMock
+            .Setup( service => service.DownloadFilesAsync(
+                It.Is<ApiDownloadFilesRequest>( request =>
+                    request.Paths.Count == 1 &&
+                    request.Paths[0] == repoEntryPath &&
+                    request.ETag == null
+                ),
+                It.IsAny<CancellationToken>()
+            ) )
+            .ReturnsAsync( downloadResult );
+
+        var dispatcherServiceMock = new Mock<IDispatcherService>();
+        dispatcherServiceMock
+            .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
+            .Returns<Func<Task>>( func => func() );
+
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( appSettings );
+
+        var fileEntryServiceMock = new Mock<IFileEntryService>();
+        var loggingServiceMock = new Mock<ILoggingService>();
+        var snackbarMessages = new List<string>();
+        var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
+        var snackbarServiceMock = new Mock<ISnackbarService>();
+        snackbarServiceMock
+            .SetupGet( service => service.MessageQueue )
+            .Returns( snackbarMessageQueueMock.Object );
+        snackbarServiceMock
+            .Setup( service => service.Show(
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Action?>(),
+                It.IsAny<object?>(),
+                It.IsAny<TimeSpan?>()
+            ) )
+            .Callback<string, string?, Action?, object?, TimeSpan?>(
+                ( message, _, _, _, _ ) => snackbarMessages.Add( message )
+            );
+
+        var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
+
+        var expectedTranslationPath = Path.Combine(
+            _tempDir,
+            "UserMissions",
+            "MyMissions",
+            "SampleMission.miz",
+            "Localization",
+            "Example.lua"
+        );
+        var zipServiceMock = new Mock<IZipService>( MockBehavior.Strict );
+        zipServiceMock
+            .Setup( service => service.AddEntry(
+                It.Is<string>( value => string.Equals( value, mizPath, StringComparison.OrdinalIgnoreCase ) ),
+                "Localization/Example.lua",
+                It.Is<string>( value => string.Equals( value, expectedTranslationPath, StringComparison.OrdinalIgnoreCase ) )
+            ) )
+            .Returns( Result.Ok );
+
+        var viewModel = new DownloadViewModel(
+            apiServiceMock.Object,
+            appSettingsServiceMock.Object,
+            dispatcherServiceMock.Object,
+            fileEntryServiceMock.Object,
+            loggingServiceMock.Object,
+            snackbarServiceMock.Object,
+            systemServiceMock.Object,
+            zipServiceMock.Object
+        );
+
+        await viewModel.Fetch();
+        var userMissionIndex = viewModel.Tabs
+            .Select( ( tab, index ) => ( tab, index ) )
+            .First( pair => pair.tab.TabType == CategoryType.UserMissions )
+            .index;
+        viewModel.SelectedTabIndex = userMissionIndex;
+
+        var userMissionRoot = viewModel.Tabs[userMissionIndex].Root;
+        var fileNode = FindNodeByPath( userMissionRoot, "MyMissions", "SampleMission.miz", "Localization", "Example.lua" );
+        Assert.NotNull( fileNode );
+        fileNode!.CheckState = true;
+
+        Assert.True( viewModel.CanApply );
+
+        await viewModel.Apply();
+
+        Assert.True( File.Exists( expectedTranslationPath ) );
+        Assert.Equal( fileContent, File.ReadAllText( expectedTranslationPath, Encoding.UTF8 ) );
+        zipServiceMock.VerifyAll();
+        Assert.Contains( snackbarMessages, message => message == "適用完了 成功:1 件 失敗:0 件" );
+        Assert.Equal( 100, viewModel.AppliedProgress );
+        Assert.True( viewModel.CanApply );
+
+        apiServiceMock.VerifyAll();
+    }
+
     /// <summary>Applyを呼び出すと一部の miz 適用に失敗した場合は失敗件数を通知する。</summary>
     [StaFact]
     public async Task Applyを呼び出すと一部のmiz適用に失敗すると失敗件数を通知する() {
