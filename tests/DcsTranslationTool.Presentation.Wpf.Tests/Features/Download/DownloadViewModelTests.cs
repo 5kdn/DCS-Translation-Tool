@@ -607,6 +607,9 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         await viewModel.Apply();
 
+        var manifestPath = Path.Combine( _tempDir, "manifest.json" );
+        Assert.False( File.Exists( manifestPath ) );
+
         var expectedTranslationPath = Path.Combine(
             _tempDir,
             "DCSWorld",
@@ -1063,17 +1066,8 @@ public sealed class DownloadViewModelTests : IDisposable {
     }
 
     /// <summary>適用テスト向けにシンプルなZIPアーカイブを作成する。</summary>
-    private static byte[] CreateZipForApply( params (string Path, string Content)[] entries ) {
-        using var stream = new MemoryStream();
-        using(var archive = new ZipArchive( stream, ZipArchiveMode.Create, leaveOpen: true )) {
-            foreach(var (path, content) in entries) {
-                var entry = archive.CreateEntry( path );
-                using var writer = new StreamWriter( entry.Open(), Encoding.UTF8 );
-                writer.Write( content );
-            }
-        }
-        return stream.ToArray();
-    }
+    private static byte[] CreateZipForApply( params (string Path, string Content)[] entries ) =>
+        CreateZipWithManifest( entries.Select( entry => new ManifestEntryTestData( entry.Path, entry.Content ) ).ToArray() );
 
     private sealed record ManifestEntryTestData( string Path, string Content, long? DeclaredSize = null, string? DeclaredHash = null );
 

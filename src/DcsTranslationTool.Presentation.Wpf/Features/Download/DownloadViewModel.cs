@@ -944,6 +944,11 @@ public class DownloadViewModel(
                 continue;
             }
 
+            if(string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase )) {
+                logger.Info( $"manifest.json を展開対象から除外する。Entry={entry.FullName}" );
+                continue;
+            }
+
             if(!TryResolvePathWithinRoot( destinationRootFullPath, rootWithSeparator, normalizedEntry, out var destinationPath )) {
                 hasFailure = true;
                 logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
