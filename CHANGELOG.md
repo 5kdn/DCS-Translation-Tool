@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.2.0...v1.2.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* manifest.json が保存されないように修正 ([34ec129](https://github.com/5kdn/DCS-Translation-Tool/commit/34ec12959e23561f51fc383e473af49b7a2a7864))
+
 ## [1.2.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.1.0...v1.2.0) (2025-11-03)
 
 
