@@ -22,7 +22,7 @@
 
     <ItemGroup>
         <PackageReference Include="Caliburn.Micro" Version="5.0.258" />
-        <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
+        <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
     </ItemGroup>
 
     <ItemGroup>
