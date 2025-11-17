@@ -1,0 +1,27 @@
+# Changelog
+
+## [1.0.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v0.0.1...v1.0.0) (2025-11-17)
+
+
+### Features
+
+* add ApiService ([b4b1ae8](https://github.com/5kdn/DCS-Translation-Tool/commit/b4b1ae83c1f50e4f8e99e547672136892b322b78))
+* add AppSettingsService ([89f76e3](https://github.com/5kdn/DCS-Translation-Tool/commit/89f76e33715546e9192c95ba740c70e4ab5cc0f1))
+* add EnvironmentProvider ([632a3ac](https://github.com/5kdn/DCS-Translation-Tool/commit/632a3ace2c813579ed82b24640bf8926946c9579))
+* add FileEntryService ([8990e0b](https://github.com/5kdn/DCS-Translation-Tool/commit/8990e0b28f5d3ca776bdfc7492c3b30f9569371d))
+* add FileService ([f211415](https://github.com/5kdn/DCS-Translation-Tool/commit/f211415bee7bc83f0dd80cc15d0369b05bebe293))
+* add LoggingService ([894a090](https://github.com/5kdn/DCS-Translation-Tool/commit/894a09072acb0fc0a0dd66b02567978605152b47))
+* add SnackbarService ([4795fbd](https://github.com/5kdn/DCS-Translation-Tool/commit/4795fbd613b875c4b3e05ce5a9e836301b8f5117))
+* add SystemService ([02e05a7](https://github.com/5kdn/DCS-Translation-Tool/commit/02e05a774fb7bf2e9f8b2235e858f85b4c6679de))
+* add ZipService ([a3bd69a](https://github.com/5kdn/DCS-Translation-Tool/commit/a3bd69a16c212efff6ff7145832f479c08929a9d))
+* implement CreatePullRequestView and ([56a6e72](https://github.com/5kdn/DCS-Translation-Tool/commit/56a6e72948d1cd43aba936bf8573ec9c20601815))
+* implement DownloadView and DownloadViewModel ([f23fc10](https://github.com/5kdn/DCS-Translation-Tool/commit/f23fc101e4290b106a8a3dfa5f4b2e965b01c306))
+* implement MainView and MainViewModel ([b2f7a2c](https://github.com/5kdn/DCS-Translation-Tool/commit/b2f7a2cbf1d1a74e094d7beb69e2060cb21b451b))
+* implement SettingsView and SettingsViewModel ([0b4b1b7](https://github.com/5kdn/DCS-Translation-Tool/commit/0b4b1b72330b7234df8a7de2f1267f89884945a9))
+* implement ShellView and ShellViewModel ([b9651fc](https://github.com/5kdn/DCS-Translation-Tool/commit/b9651fcd6767945d43508faae0777937baa85f13))
+* implement UploadView and UploadViewModel ([ae71aa8](https://github.com/5kdn/DCS-Translation-Tool/commit/ae71aa805672c0ea2c92e2e74c3d699bf5dd4c4e))
+
+
+### Miscellaneous Chores
+
+* release 1.0.0 ([41b2bdc](https://github.com/5kdn/DCS-Translation-Tool/commit/41b2bdcd138ae875a574a180c5924c7134b5ddc9))
