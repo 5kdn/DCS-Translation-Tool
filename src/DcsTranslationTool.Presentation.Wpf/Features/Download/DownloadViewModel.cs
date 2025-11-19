@@ -808,13 +808,39 @@ public class DownloadViewModel(
                 else {
                     var parts = entry.Path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
                     var mizIndex = Array.FindIndex( parts, p => p.EndsWith( ".miz", StringComparison.OrdinalIgnoreCase ) );
+                    var rootSkipCount = GetRootSegmentSkipCount( parts );
+
                     if(mizIndex == -1) {
-                        failed++;
-                        snackbarMessage = $"不正なパス: .miz が見つかりません -> {entry.Path}";
-                        logger.Warn( $".miz の位置を特定できず適用に失敗した。Path={entry.Path}" );
+                        var relativeSegments = parts.Skip( rootSkipCount ).ToArray();
+                        if(relativeSegments.Length == 0) {
+                            failed++;
+                            snackbarMessage = $"不正なパス構造: {entry.Path}";
+                            logger.Warn( $"miz を含まないエントリの相対パスが空のため適用できない。Path={entry.Path}" );
+                        }
+                        else {
+                            var relativePath = string.Join( '/', relativeSegments );
+                            if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, relativePath, out var destinationPath )) {
+                                failed++;
+                                snackbarMessage = $"不正な適用先: {entry.Path}";
+                                logger.Warn( $"miz を含まないエントリがルート外を指しているため拒否した。Entry={entry.Path}, Relative={relativePath}" );
+                            }
+                            else {
+                                try {
+                                    var directoryName = Path.GetDirectoryName( destinationPath );
+                                    if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
+                                    File.Copy( sourceFilePath, destinationPath, overwrite: true );
+                                    logger.Info( $"miz を含まないエントリを直接保存した。Destination={destinationPath}" );
+                                    success++;
+                                }
+                                catch(Exception copyEx) {
+                                    failed++;
+                                    snackbarMessage = $"適用失敗: {entry.Path}";
+                                    logger.Error( $"miz を含まないエントリの保存に失敗した。Entry={entry.Path}, Destination={destinationPath}", copyEx );
+                                }
+                            }
+                        }
                     }
                     else {
-                        var rootSkipCount = GetRootSegmentSkipCount( parts );
                         var mizSegments = parts.Take( mizIndex + 1 ).Skip( rootSkipCount ).ToArray();
                         if(mizSegments.Length == 0) {
                             failed++;
