@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.0.0...v1.1.0) (2025-11-19)
+
+
+### Features
+
+* Apply時 *.miz ディレクトリ配下ではないファイルを直接Source*Dirに保存する機能を追加 ([#2](https://github.com/5kdn/DCS-Translation-Tool/issues/2)) ([6327677](https://github.com/5kdn/DCS-Translation-Tool/commit/632767784d1a62dc12548b2c1308fcedca915500))
+
 ## [1.0.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v0.0.1...v1.0.0) (2025-11-17)
 
 
