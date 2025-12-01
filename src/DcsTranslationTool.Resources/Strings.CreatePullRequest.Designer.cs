@@ -10,8 +10,8 @@
 
 namespace DcsTranslationTool.Resources {
     using System;
-    
-    
+
+
     /// <summary>
     ///   ローカライズされた文字列などを検索するための、厳密に型指定されたリソース クラスです。
     /// </summary>
@@ -23,15 +23,15 @@ namespace DcsTranslationTool.Resources {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Strings_CreatePullRequest {
-        
+
         private static global::System.Resources.ResourceManager resourceMan;
-        
+
         private static global::System.Globalization.CultureInfo resourceCulture;
-        
+
         [global::System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         internal Strings_CreatePullRequest() {
         }
-        
+
         /// <summary>
         ///   このクラスで使用されているキャッシュされた ResourceManager インスタンスを返します。
         /// </summary>
@@ -45,7 +45,7 @@ namespace DcsTranslationTool.Resources {
                 return resourceMan;
             }
         }
-        
+
         /// <summary>
         ///   すべてについて、現在のスレッドの CurrentUICulture プロパティをオーバーライドします
         ///   現在のスレッドの CurrentUICulture プロパティをオーバーライドします。
@@ -59,7 +59,7 @@ namespace DcsTranslationTool.Resources {
                 resourceCulture = value;
             }
         }
-        
+
         /// <summary>
         ///   確認事項 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -68,7 +68,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("ConfirmationLabel", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   PRを作成 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -77,7 +77,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("CreatePRButtonContent", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   削除するファイルリスト に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -86,10 +86,10 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("DeleteFileListHeader", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   &lt;!-- 具体的な変更内容を記載してください --&gt;
-        ///- mizファイル単位で箇条書きで記載してください
+        ///- miz/trkファイル単位で箇条書きで記載してください
         ///- 機体やキャンペーン全体に関連する場合、機体やキャンペーンごとの記載でも大丈夫です に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string DialogPullRequestDetailPlaceholder {
@@ -97,7 +97,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("DialogPullRequestDetailPlaceholder", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   &lt;!-- このPRを使用するうえで注意すべきことをリストアップしてください --&gt;
         ///&lt;!-- 必要がなければ N/A としてください --&gt;
@@ -108,7 +108,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("DialogPullRequestNotePlaceholder", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   主な変更点 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -117,7 +117,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("MainChangesLabel", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   PRタイトル： に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -126,7 +126,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PRTitleLabel", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   変更内容 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -135,7 +135,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PullRequestDetailTitle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   留意点 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -144,7 +144,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PullRequestNoteTitle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   この変更の目的・背景を簡潔に書いてください に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -153,7 +153,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PullRequestSummaryPlaceholder", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   概要 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -162,7 +162,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PullRequestSummaryTitle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   アップロードするファイルリスト に類似しているローカライズされた文字列を検索します。
         /// </summary>

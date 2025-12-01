@@ -72,6 +72,7 @@ public class DownloadViewModel(
 
     private const string ManifestFileName = "manifest.json";
     private const int StreamCopyBufferSize = 128 * 1024;
+    private static readonly string[] ZipLikeExtensions = [".miz", ".trk"];
     /// <summary>manifest.jsonを逆シリアル化するときのオプションを提供する。</summary>
     private static readonly JsonSerializerOptions ManifestSerializerOptions = new()
     {
@@ -364,7 +365,7 @@ public class DownloadViewModel(
     }
 
     /// <summary>
-    /// 選択されたファイルを miz ファイルに適用する
+    /// 選択されたファイルを miz/trk に適用する
     /// </summary>
     /// <returns>非同期タスク</returns>
     public async Task Apply() {
@@ -724,10 +725,10 @@ public class DownloadViewModel(
     }
 
     /// <summary>
-    /// 翻訳ファイルを対象の miz へ適用する。
+    /// 翻訳ファイルを対象の miz/trk へ適用する。
     /// </summary>
     /// <param name="targetEntries">適用対象のファイル一覧。</param>
-    /// <param name="rootFullPath">miz 配置ルートの絶対パス。</param>
+    /// <param name="rootFullPath">圧縮ファイル配置ルートの絶対パス。</param>
     /// <param name="rootWithSeparator">区切り文字付きのルート絶対パス。</param>
     /// <param name="translateFullPath">翻訳ディレクトリの絶対パス。</param>
     /// <param name="translateRootWithSeparator">区切り文字付き翻訳ルート。</param>
@@ -807,76 +808,76 @@ public class DownloadViewModel(
                 }
                 else {
                     var parts = entry.Path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
-                    var mizIndex = Array.FindIndex( parts, p => p.EndsWith( ".miz", StringComparison.OrdinalIgnoreCase ) );
+                    var archiveIndex = Array.FindIndex( parts, IsZipLikeEntrySegment );
                     var rootSkipCount = GetRootSegmentSkipCount( parts );
 
-                    if(mizIndex == -1) {
+                    if(archiveIndex == -1) {
                         var relativeSegments = parts.Skip( rootSkipCount ).ToArray();
                         if(relativeSegments.Length == 0) {
                             failed++;
                             snackbarMessage = $"不正なパス構造: {entry.Path}";
-                            logger.Warn( $"miz を含まないエントリの相対パスが空のため適用できない。Path={entry.Path}" );
+                            logger.Warn( $"ZIP対象拡張子を含まないエントリの相対パスが空のため適用できない。Path={entry.Path}" );
                         }
                         else {
                             var relativePath = string.Join( '/', relativeSegments );
                             if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, relativePath, out var destinationPath )) {
                                 failed++;
                                 snackbarMessage = $"不正な適用先: {entry.Path}";
-                                logger.Warn( $"miz を含まないエントリがルート外を指しているため拒否した。Entry={entry.Path}, Relative={relativePath}" );
+                                logger.Warn( $"ZIP対象拡張子を含まないエントリがルート外を指しているため拒否した。Entry={entry.Path}, Relative={relativePath}" );
                             }
                             else {
                                 try {
                                     var directoryName = Path.GetDirectoryName( destinationPath );
                                     if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
                                     File.Copy( sourceFilePath, destinationPath, overwrite: true );
-                                    logger.Info( $"miz を含まないエントリを直接保存した。Destination={destinationPath}" );
+                                    logger.Info( $"ZIP対象拡張子を含まないエントリを直接保存した。Destination={destinationPath}" );
                                     success++;
                                 }
                                 catch(Exception copyEx) {
                                     failed++;
                                     snackbarMessage = $"適用失敗: {entry.Path}";
-                                    logger.Error( $"miz を含まないエントリの保存に失敗した。Entry={entry.Path}, Destination={destinationPath}", copyEx );
+                                    logger.Error( $"ZIP対象拡張子を含まないエントリの保存に失敗した。Entry={entry.Path}, Destination={destinationPath}", copyEx );
                                 }
                             }
                         }
                     }
                     else {
-                        var mizSegments = parts.Take( mizIndex + 1 ).Skip( rootSkipCount ).ToArray();
-                        if(mizSegments.Length == 0) {
+                        var archiveSegments = parts.Take( archiveIndex + 1 ).Skip( rootSkipCount ).ToArray();
+                        if(archiveSegments.Length == 0) {
                             failed++;
                             snackbarMessage = $"不正なパス構造: {entry.Path}";
                             logger.Warn( $"パス構造が不正のため適用に失敗した。Path={entry.Path}" );
                         }
                         else {
-                            var mizRelativePath = string.Join( '/', mizSegments );
-                            if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, mizRelativePath, out var mizPath )) {
+                            var archiveRelativePath = string.Join( '/', archiveSegments );
+                            if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, archiveRelativePath, out var archivePath )) {
                                 failed++;
                                 snackbarMessage = $"不正な適用先: {entry.Path}";
-                                logger.Warn( $"適用先がルート外を指しているため拒否した。Entry={entry.Path}, MizRelative={mizRelativePath}" );
+                                logger.Warn( $"適用先がルート外を指しているため拒否した。Entry={entry.Path}, ArchiveRelative={archiveRelativePath}" );
                             }
-                            else if(!File.Exists( mizPath )) {
+                            else if(!File.Exists( archivePath )) {
                                 failed++;
-                                snackbarMessage = $"miz ファイルが存在しません: {entry.Path}";
-                                logger.Warn( $"適用先の miz ファイルが存在しない。MizPath={mizPath}" );
+                                snackbarMessage = $"圧縮ファイルが存在しません: {entry.Path}";
+                                logger.Warn( $"適用先の圧縮ファイルが存在しない。ArchivePath={archivePath}" );
                             }
                             else {
-                                var entryPathSegments = parts.Skip( mizIndex + 1 ).ToArray();
+                                var entryPathSegments = parts.Skip( archiveIndex + 1 ).ToArray();
                                 if(entryPathSegments.Length == 0) {
                                     failed++;
-                                    snackbarMessage = $"miz 内パスが不正です: {entry.Path}";
-                                    logger.Warn( $"miz 内のパスが空のため適用できない。Path={entry.Path}" );
+                                    snackbarMessage = $"圧縮ファイル内パスが不正です: {entry.Path}";
+                                    logger.Warn( $"miz/trk 内のパスが空のため適用できない。Path={entry.Path}" );
                                 }
                                 else {
                                     var entryPath = string.Join( '/', entryPathSegments );
-                                    var addResult = zipService.AddEntry( mizPath, entryPath, sourceFilePath );
+                                    var addResult = zipService.AddEntry( archivePath, entryPath, sourceFilePath );
                                     if(addResult.IsFailed) {
                                         failed++;
                                         snackbarMessage = $"適用失敗: {entry.Path}";
                                         var reason = string.Join( ", ", addResult.Errors.Select( e => e.Message ) );
-                                        logger.Warn( $"miz への適用に失敗した。MizPath={mizPath}, EntryPath={entryPath}, Reason={reason}" );
+                                        logger.Warn( $"圧縮ファイルへの適用に失敗した。ArchivePath={archivePath}, EntryPath={entryPath}, Reason={reason}" );
                                     }
                                     else {
-                                        logger.Info( $"miz ファイルへ適用した。MizPath={mizPath}, EntryPath={entryPath}" );
+                                        logger.Info( $"圧縮ファイルへ適用した。ArchivePath={archivePath}, EntryPath={entryPath}" );
                                         success++;
                                     }
                                 }
@@ -1060,6 +1061,12 @@ public class DownloadViewModel(
 
         return 0;
     }
+
+    /// <summary>ZIPとして扱う拡張子を含むかを判定する。</summary>
+    /// <param name="segment">判定対象のパスセグメント。</param>
+    /// <returns>ZIPとして扱う拡張子なら true。</returns>
+    private static bool IsZipLikeEntrySegment( string segment ) =>
+        ZipLikeExtensions.Any( ext => segment.EndsWith( ext, StringComparison.OrdinalIgnoreCase ) );
 
     /// <summary>
     /// 現在のタブでチェックありかを判定する

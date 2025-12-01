@@ -10,8 +10,8 @@
 
 namespace DcsTranslationTool.Resources {
     using System;
-    
-    
+
+
     /// <summary>
     ///   ローカライズされた文字列などを検索するための、厳密に型指定されたリソース クラスです。
     /// </summary>
@@ -23,15 +23,15 @@ namespace DcsTranslationTool.Resources {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Strings_Settings {
-        
+
         private static global::System.Resources.ResourceManager resourceMan;
-        
+
         private static global::System.Globalization.CultureInfo resourceCulture;
-        
+
         [global::System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         internal Strings_Settings() {
         }
-        
+
         /// <summary>
         ///   このクラスで使用されているキャッシュされた ResourceManager インスタンスを返します。
         /// </summary>
@@ -45,7 +45,7 @@ namespace DcsTranslationTool.Resources {
                 return resourceMan;
             }
         }
-        
+
         /// <summary>
         ///   すべてについて、現在のスレッドの CurrentUICulture プロパティをオーバーライドします
         ///   現在のスレッドの CurrentUICulture プロパティをオーバーライドします。
@@ -59,7 +59,7 @@ namespace DcsTranslationTool.Resources {
                 resourceCulture = value;
             }
         }
-        
+
         /// <summary>
         ///   DCS:World の日本語化をサポートする非公式ツールです。 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -68,7 +68,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("AboutText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   このアプリケーションについて に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -77,7 +77,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("AboutTitle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   フォルダー設定 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -86,7 +86,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("DirectorySettingsTitle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   プライバシーポリシー に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -95,7 +95,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PrivacyPolicyText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   プライバシーポリシー に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -104,7 +104,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("PrivacyPolicyTitle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   最新版を探す に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -113,7 +113,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("ReleaseLatestText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   参照 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -122,9 +122,9 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SelectButton", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   翻訳ファイルをmizファイルに適用する機体フォルダーのパス。
+        ///   翻訳ファイルをmiz/trkファイルに適用する機体フォルダーのパス。
         ///&lt;DCSWorldインストールディレクトリ&gt;/Mods/aircraft と同じフォルダー構成にしてください。 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string SourceAircraftDirExplanationText {
@@ -132,7 +132,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceAircraftDirExplanationText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Aircraft フォルダー に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -141,9 +141,9 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceAircraftDirText", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   翻訳ファイルをmizファイルに適用するDLCキャンペーンフォルダーのパス。
+        ///   翻訳ファイルをmiz/trkファイルに適用するDLCキャンペーンフォルダーのパス。
         ///&lt;DCSWorldインストールディレクトリ&gt;/Mods/campaigns と同じフォルダー構成にしてください。 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string SourceDlcCampaignDirExplanationText {
@@ -151,7 +151,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceDlcCampaignDirExplanationText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Campaigns フォルダー に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -160,7 +160,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceDlcCampaignDirText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   ダウンロードした翻訳ファイルが保存されるフォルダーのパス。
         ///このフォルダー内のファイルの変更を検出してアップロードを行います。 に類似しているローカライズされた文字列を検索します。
@@ -170,9 +170,9 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceTranslateFileDirExplanationText", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   翻訳ファイルをmizファイルに適用するユーザーミッションフォルダーのパス。
+        ///   翻訳ファイルをmiz/trkファイルに適用するユーザーミッションフォルダーのパス。
         ///%userprofile%/Saved Games/DCS/Missions と同じフォルダー構成にしてください。
         ///DCS.openbeta の可能性もあるため注意してください。 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -181,7 +181,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceUserMissionDirExplanationText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   ユーザーフォルダー に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -190,7 +190,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("SourceUserMissionDirText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   設定 に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -199,7 +199,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("Title", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   翻訳ファイルダウンロードフォルダー に類似しているローカライズされた文字列を検索します。
         /// </summary>
@@ -208,7 +208,7 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("TranslateFileDirText", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   バージョン に類似しているローカライズされた文字列を検索します。
         /// </summary>

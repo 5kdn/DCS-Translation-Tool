@@ -29,6 +29,168 @@ public sealed class DownloadViewModelTests : IDisposable {
         Directory.CreateDirectory( _tempDir );
     }
 
+    /// <summary>Applyを呼び出すとRepoOnlyエントリを trk へ適用する。</summary>
+    [StaFact]
+    public async Task Applyを呼び出すとRepoOnlyエントリをtrkへ適用する() {
+        var sourceRoot = Path.Combine( _tempDir, "AircraftSourceTrk" );
+        var trkDirectory = Path.Combine( sourceRoot, "A10C", "Missions", "EN" );
+        Directory.CreateDirectory( trkDirectory );
+        var trkPath = Path.Combine( trkDirectory, "Example.trk" );
+        File.WriteAllBytes( trkPath, [] );
+
+        var appSettings = new AppSettings
+        {
+            TranslateFileDir = _tempDir,
+            SourceAircraftDir = sourceRoot
+        };
+        const string repoEntryPath = "DCSWorld/Mods/aircraft/A10C/Missions/EN/Example.trk/Localization/Example.lua";
+        const string fileContent = "trk内に適用する";
+
+        var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "deadc0de" );
+        var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
+
+        byte[] archiveBytes = CreateZipForApply(
+            (repoEntryPath, fileContent)
+        );
+        var downloadResult = Result.Ok(
+            new ApiDownloadFilesResult(
+                [repoEntryPath],
+                archiveBytes,
+                archiveBytes.Length,
+                "application/zip",
+                "apply-trk.zip",
+                "\"apply-trk-etag\"",
+                false
+            )
+        );
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        apiServiceMock
+            .Setup( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( treeResult );
+        apiServiceMock
+            .Setup( service => service.DownloadFilesAsync(
+                It.Is<ApiDownloadFilesRequest>( request =>
+                    request.Paths.Count == 1 &&
+                    request.Paths[0] == repoEntryPath &&
+                    request.ETag == null
+                ),
+                It.IsAny<CancellationToken>()
+            ) )
+            .ReturnsAsync( downloadResult );
+
+        var dispatcherServiceMock = new Mock<IDispatcherService>();
+        dispatcherServiceMock
+            .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
+            .Returns<Func<Task>>( func => func() );
+
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( appSettings );
+
+        var fileEntryServiceMock = new Mock<IFileEntryService>();
+        var loggingServiceMock = new Mock<ILoggingService>();
+        var snackbarMessages = new List<string>();
+        var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
+        var snackbarServiceMock = new Mock<ISnackbarService>();
+        snackbarServiceMock
+            .SetupGet( service => service.MessageQueue )
+            .Returns( snackbarMessageQueueMock.Object );
+        snackbarServiceMock
+            .Setup( service => service.Show(
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Action?>(),
+                It.IsAny<object?>(),
+                It.IsAny<TimeSpan?>()
+            ) )
+            .Callback<string, string?, Action?, object?, TimeSpan?>(
+                ( message, _, _, _, _ ) => snackbarMessages.Add( message )
+            );
+
+        var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
+
+        var zipServiceMock = new Mock<IZipService>( MockBehavior.Strict );
+        zipServiceMock
+            .Setup( service => service.AddEntry(
+                It.Is<string>( value => string.Equals( value, trkPath, StringComparison.OrdinalIgnoreCase ) ),
+                "Localization/Example.lua",
+                It.Is<string>( value => string.Equals(
+                    value,
+                    Path.Combine(
+                        _tempDir,
+                        "DCSWorld",
+                        "Mods",
+                        "aircraft",
+                        "A10C",
+                        "Missions",
+                        "EN",
+                        "Example.trk",
+                        "Localization",
+                        "Example.lua"
+                    ),
+                    StringComparison.OrdinalIgnoreCase ) )
+            ) )
+            .Returns( Result.Ok );
+
+        var viewModel = new DownloadViewModel(
+            apiServiceMock.Object,
+            appSettingsServiceMock.Object,
+            dispatcherServiceMock.Object,
+            fileEntryServiceMock.Object,
+            loggingServiceMock.Object,
+            snackbarServiceMock.Object,
+            systemServiceMock.Object,
+            zipServiceMock.Object
+        );
+
+        await viewModel.Fetch();
+        var aircraftIndex = viewModel.Tabs
+            .Select( ( tab, index ) => ( tab, index ) )
+            .First( pair => pair.tab.TabType == CategoryType.Aircraft )
+            .index;
+        viewModel.SelectedTabIndex = aircraftIndex;
+
+        var aircraftRoot = viewModel.Tabs[aircraftIndex].Root;
+        var fileNode = FindNodeByPath( aircraftRoot, "A10C", "Missions", "EN", "Example.trk", "Localization", "Example.lua" );
+        Assert.NotNull( fileNode );
+        fileNode!.CheckState = true;
+
+        Assert.True( viewModel.CanApply );
+
+        await viewModel.Apply();
+
+        var manifestPath = Path.Combine( _tempDir, "manifest.json" );
+        Assert.False( File.Exists( manifestPath ) );
+
+        var expectedTranslationPath = Path.Combine(
+            _tempDir,
+            "DCSWorld",
+            "Mods",
+            "aircraft",
+            "A10C",
+            "Missions",
+            "EN",
+            "Example.trk",
+            "Localization",
+            "Example.lua"
+        );
+        Assert.True( File.Exists( expectedTranslationPath ) );
+        Assert.Equal( fileContent, File.ReadAllText( expectedTranslationPath, Encoding.UTF8 ) );
+        zipServiceMock.Verify( service => service.AddEntry(
+            It.Is<string>( value => string.Equals( value, trkPath, StringComparison.OrdinalIgnoreCase ) ),
+            "Localization/Example.lua",
+            It.IsAny<string>()
+        ), Times.Once );
+        Assert.Contains( snackbarMessages, message => message == "適用完了 成功:1 件 失敗:0 件" );
+        Assert.Equal( 100, viewModel.AppliedProgress );
+        Assert.True( viewModel.CanApply );
+
+        apiServiceMock.VerifyAll();
+        zipServiceMock.VerifyAll();
+    }
+
     public void Dispose() {
         if(Directory.Exists( _tempDir )) {
             Directory.Delete( _tempDir, true );
@@ -1083,7 +1245,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         ), Times.Once );
         zipServiceMock.VerifyNoOtherCalls();
 
-        Assert.Contains( snackbarMessages, message => message == $"miz ファイルが存在しません: {missingMizPath}" );
+        Assert.Contains( snackbarMessages, message => message == $"圧縮ファイルが存在しません: {missingMizPath}" );
         Assert.Contains( snackbarMessages, message => message == "適用完了 成功:1 件 失敗:1 件" );
         Assert.Equal( 100, viewModel.AppliedProgress );
         Assert.True( viewModel.CanApply );
