@@ -425,7 +425,7 @@ public class CreatePullRequestViewModel(
         var changes = string.Join("_", PullRequestChangeKinds.Where(x => x.IsChecked).Select(x => x.Kind.GetBranchString() ));
         var safeCategory = SanitizeForBranchSegment(Category);
         var safeSubCategory = SanitizeForBranchSegment(SubCategory);
-        var branch = $"feat/{safeCategory}/{safeSubCategory}/{changes}--{dateStr}";
+        var branch = $"feature/{safeCategory}/{safeSubCategory}/{changes}--{dateStr}";
         logger.Info( $"ブランチ名を生成した。Branch={branch}" );
         return branch;
     }
