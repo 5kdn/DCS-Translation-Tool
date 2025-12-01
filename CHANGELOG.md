@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.1.0...v1.2.0) (2025-12-01)
+
+
+### Features
+
+* treat .trk file as zip ([#14](https://github.com/5kdn/DCS-Translation-Tool/issues/14)) ([3ce1d91](https://github.com/5kdn/DCS-Translation-Tool/commit/3ce1d9197081847cbc14e64e8594dfc225b199e5)), closes [#8](https://github.com/5kdn/DCS-Translation-Tool/issues/8)
+
+
+### Bug Fixes
+
+* change branch prefix to feature/ ([#12](https://github.com/5kdn/DCS-Translation-Tool/issues/12)) ([94e67e4](https://github.com/5kdn/DCS-Translation-Tool/commit/94e67e4deb7eeeee6310158386a72d05e20023d2)), closes [#9](https://github.com/5kdn/DCS-Translation-Tool/issues/9)
+
 ## [1.1.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.0.0...v1.1.0) (2025-11-19)
 
 
