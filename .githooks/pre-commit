@@ -48,12 +48,12 @@ if [ "${branch}" = "master" ] || [ "${branch}" = "main" ]; then
 fi
 
 # 許可する種別（| 区切り）。必要に応じて BRANCH_TYPES で上書き。
-TYPES="${BRANCH_TYPES:-feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert}"
+TYPES="${BRANCH_TYPES:-feature|fix|docs|style|refactor|perf|test|build|ci|chore|revert}"
 
 # 形式:
 # <type>/<optional-issue>-<slug>
 #  - optional-issue は「123-」または「ABC-123/」等も許可
-#  - 例: feat/123-add-login, fix/ABC-456/fix-npe
+#  - 例: feature/123-add-login, fix/ABC-456/fix-npe
 PATTERN="^(${TYPES})/(([A-Z]+-[0-9]+|[0-9]+)[-_/])?.+$"
 
 if echo "${branch}" | grep -Eq "${PATTERN}"; then
@@ -64,7 +64,7 @@ cat >&2 <<EOF
 ERROR: ブランチ名が命名規則に一致しません: ${branch}
 
 許可される形式の例:
-    - feat/123-short-desc
+    - feature/123-short-desc
     - fix/ABC-456/fix-npe
     - fix/urgent-rollback
     - docs/update-readme
