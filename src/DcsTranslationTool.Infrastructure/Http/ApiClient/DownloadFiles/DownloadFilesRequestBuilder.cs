@@ -33,7 +33,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadFiles
         {
         }
         /// <summary>
-        /// 指定したリポジトリから複数のファイルを取得し、ZIP ストリームで返却するエンドポイントです。用途: UI からの一括ダウンロードや外部連携。リクエスト:- JSON Body { paths: string[] } を必須とし、空文字・重複・不正パスを検証します。制限:- 件数上限: 500。- 単一ファイル上限: 104857600 bytes。合計上限: 1073741824 bytes。レート制限:- Token Bucket を使用します。X-RateLimit-* ヘッダを返却し、超過時は 429 を返します。キャッシュ:- If-None-Match を評価し、ETag が一致する場合は 304 を返します。エラー応答:- application/problem+json を返します。type は validation / unprocessable / rate-limit / internal を使用します。
+        /// 指定したリポジトリから複数のファイルを取得し、ZIP ストリームで返却するエンドポイントです。用途: UI からの一括ダウンロードや外部連携。リクエスト:- JSON Body { paths: string[] } を必須とし、空文字・重複・不正パスを検証します。制限:- 件数上限: 50。- 単一ファイル上限: 104857600 bytes。合計上限: 1073741824 bytes。レート制限:- Token Bucket を使用します。X-RateLimit-* ヘッダを返却し、超過時は 429 を返します。キャッシュ:- If-None-Match を評価し、ETag が一致する場合は 304 を返します。エラー応答:- application/problem+json を返します。type は validation / unprocessable / rate-limit / internal を使用します。
         /// </summary>
         /// <param name="body">The request body</param>
         /// <param name="cancellationToken">Cancellation token to use when cancelling requests</param>
@@ -63,7 +63,7 @@ namespace DcsTranslationTool.Infrastructure.Http.ApiClient.DownloadFiles
             await RequestAdapter.SendNoContentAsync(requestInfo, errorMapping, cancellationToken).ConfigureAwait(false);
         }
         /// <summary>
-        /// 指定したリポジトリから複数のファイルを取得し、ZIP ストリームで返却するエンドポイントです。用途: UI からの一括ダウンロードや外部連携。リクエスト:- JSON Body { paths: string[] } を必須とし、空文字・重複・不正パスを検証します。制限:- 件数上限: 500。- 単一ファイル上限: 104857600 bytes。合計上限: 1073741824 bytes。レート制限:- Token Bucket を使用します。X-RateLimit-* ヘッダを返却し、超過時は 429 を返します。キャッシュ:- If-None-Match を評価し、ETag が一致する場合は 304 を返します。エラー応答:- application/problem+json を返します。type は validation / unprocessable / rate-limit / internal を使用します。
+        /// 指定したリポジトリから複数のファイルを取得し、ZIP ストリームで返却するエンドポイントです。用途: UI からの一括ダウンロードや外部連携。リクエスト:- JSON Body { paths: string[] } を必須とし、空文字・重複・不正パスを検証します。制限:- 件数上限: 50。- 単一ファイル上限: 104857600 bytes。合計上限: 1073741824 bytes。レート制限:- Token Bucket を使用します。X-RateLimit-* ヘッダを返却し、超過時は 429 を返します。キャッシュ:- If-None-Match を評価し、ETag が一致する場合は 304 を返します。エラー応答:- application/problem+json を返します。type は validation / unprocessable / rate-limit / internal を使用します。
         /// </summary>
         /// <returns>A <see cref="RequestInformation"/></returns>
         /// <param name="body">The request body</param>
