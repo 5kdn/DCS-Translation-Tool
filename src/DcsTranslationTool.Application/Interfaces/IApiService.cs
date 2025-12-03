@@ -16,6 +16,12 @@ public interface IApiService {
     /// <summary>指定パス群のZIPアーカイブをダウンロードする</summary>
     Task<Result<ApiDownloadFilesResult>> DownloadFilesAsync( ApiDownloadFilesRequest request, CancellationToken cancellationToken = default );
 
+    /// <summary>APIを呼び出して複数ファイルのダウンロードリンクを取得する</summary>
+    Task<Result<ApiDownloadFilePathsResult>> DownloadFilePathsAsync(
+        ApiDownloadFilePathsRequest request,
+        CancellationToken cancellationToken = default
+    );
+
     /// <summary>APIを呼び出してPull Requestを作成する</summary>
     Task<Result<ApiCreatePullRequestOutcome>> CreatePullRequestAsync( ApiCreatePullRequestRequest request, CancellationToken cancellationToken = default );
 }
