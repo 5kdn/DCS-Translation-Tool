@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.2.0...v1.3.0) (2025-12-03)
+
+
+### Features
+
+* クライアントサイドでファイルをダウンロードするように変更した ([#16](https://github.com/5kdn/DCS-Translation-Tool/issues/16)) ([085437f](https://github.com/5kdn/DCS-Translation-Tool/commit/085437f64a0411cd1dadb6750acb1f39b1d29f8d))
+
+
+### Bug Fixes
+
+* ダウンロードURL経由の適用に更新し処理後の状態更新を安定化 ([#19](https://github.com/5kdn/DCS-Translation-Tool/issues/19)) ([ff5772b](https://github.com/5kdn/DCS-Translation-Tool/commit/ff5772bdacb5dc2d53e4b49a02ffdac65df5d96f))
+* ファイル監視の多重通知を抑制しダウンロード中の更新漏れを防止 ([#18](https://github.com/5kdn/DCS-Translation-Tool/issues/18)) ([2aaf015](https://github.com/5kdn/DCS-Translation-Tool/commit/2aaf0153e1b2e037f6320fb59eac6a5dbb69d0a1))
+
 ## [1.2.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.1.0...v1.2.0) (2025-12-01)
 
 
