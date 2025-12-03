@@ -186,17 +186,18 @@ public class DownloadViewModel(
         // 既存購読を解除してから再購読する
         _ = OnDeactivateAsync( close: false, cancellationToken );
 
-        _entriesChangedHandler = entries =>
-        dispatcherService.InvokeAsync( () => {
+        _entriesChangedHandler = entries => {
             if(_suppressEntriesChanged) {
-                logger.Info( "ダウンロード中のため EntriesChanged を無視する。" );
+                logger.Info( "ダウンロード中のため EntriesChanged を即時破棄する。" );
                 return Task.CompletedTask;
             }
-            logger.Info( $"EntriesChanged を受信した。件数={entries.Count}" );
-            LocalEntries = entries;
-            RefreshTabs();
-            return Task.CompletedTask;
-        } );
+            return dispatcherService.InvokeAsync( () => {
+                logger.Info( $"EntriesChanged を受信した。件数={entries.Count}" );
+                LocalEntries = entries;
+                RefreshTabs();
+                return Task.CompletedTask;
+            } );
+        };
         fileEntryService.EntriesChanged += _entriesChangedHandler!;
 
         _filtersChangedHandler = ( _, _ ) => ApplyFilter();
@@ -303,6 +304,10 @@ public class DownloadViewModel(
 
         _suppressEntriesChanged = true;
         IsDownloading = true;
+        var entriesChangedHandler = _entriesChangedHandler;
+        if(entriesChangedHandler is not null) {
+            fileEntryService.EntriesChanged -= entriesChangedHandler;
+        }
         await UpdateDownloadProgressAsync( 0.0 );
         NotifyOfPropertyChange( nameof( CanDownload ) );
         NotifyOfPropertyChange( nameof( CanApply ) );
@@ -355,6 +360,10 @@ public class DownloadViewModel(
         finally {
             IsDownloading = false;
             _suppressEntriesChanged = false;
+            if(entriesChangedHandler is not null) {
+                fileEntryService.EntriesChanged += entriesChangedHandler;
+            }
+            await RefreshLocalEntriesAsync();
             NotifyOfPropertyChange( nameof( CanDownload ) );
             NotifyOfPropertyChange( nameof( CanApply ) );
             logger.Info( "ダウンロード処理を終了した。" );
@@ -446,6 +455,24 @@ public class DownloadViewModel(
             NotifyOfPropertyChange( nameof( CanDownload ) );
             logger.Info( "適用処理を終了した。" );
         }
+    }
+
+    private async Task RefreshLocalEntriesAsync() {
+        var entries = await fileEntryService.GetEntriesAsync();
+        if(entries is null) {
+            logger.Warn( "ダウンロード完了後のエントリ取得結果が null のため処理を中断する。" );
+            return;
+        }
+        if(entries.IsFailed) {
+            logger.Warn( "ダウンロード完了後のエントリ再取得に失敗した。" );
+            return;
+        }
+
+        await dispatcherService.InvokeAsync( () => {
+            LocalEntries = entries.Value;
+            RefreshTabs();
+            return Task.CompletedTask;
+        } );
     }
 
     /// <summary>

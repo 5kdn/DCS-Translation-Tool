@@ -1,3 +1,6 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Shared.Helpers;
@@ -16,6 +19,11 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
 
     private FileSystemWatcher? watcher;
     private string _path = string.Empty;
+    private readonly SemaphoreSlim _notifySemaphore = new( 1, 1 );
+    private readonly object _debounceLock = new();
+    private CancellationTokenSource? _debounceCts;
+
+    private const int FileSystemDebounceMilliseconds = 200;
 
     #endregion
 
@@ -23,6 +31,11 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
     public void Dispose() {
         logger.Debug( "ファイル監視サービスを破棄する。" );
         watcher?.Dispose();
+        lock(_debounceLock) {
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = null;
+        }
         GC.SuppressFinalize( this );
         logger.Debug( "ファイル監視サービスの破棄が完了した。" );
     }
@@ -76,7 +89,7 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
         watcher.EnableRaisingEvents = true;
 
         logger.Debug( "ファイル監視が有効化された。" );
-        _ = NotifyAsync();
+        ScheduleNotify();
     }
 
     /// <inheritdoc />
@@ -102,20 +115,49 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
     /// </summary>
     /// <param name="sender">イベント発生元</param>
     /// <param name="e">イベント引数</param>
-    private async void OnFileSystemChanged( object sender, FileSystemEventArgs e ) => await NotifyAsync();
+    private void OnFileSystemChanged( object sender, FileSystemEventArgs e ) => ScheduleNotify();
+
+    /// <summary>
+    /// ファイルシステムイベントをデバウンスして通知する。
+    /// </summary>
+    private void ScheduleNotify() {
+        lock(_debounceLock) {
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = new CancellationTokenSource();
+            var token = _debounceCts.Token;
+
+            _ = Task.Run( async () => {
+                try {
+                    await Task.Delay( FileSystemDebounceMilliseconds, token );
+                    if(token.IsCancellationRequested) return;
+                    await NotifyAsync();
+                }
+                catch(OperationCanceledException) {
+                    // デバウンスのキャンセルは想定内
+                }
+            }, token );
+        }
+    }
 
     /// <summary>
     /// 変更通知イベントを発火する。
     /// </summary>
     private async Task NotifyAsync() {
         if(EntriesChanged is null) return;
-        logger.Trace( "ファイル変更イベントを通知する。" );
-        var entries = await GetEntriesAsync();
-        if(entries.IsFailed) {
-            logger.Warn( "ファイル変更イベントの通知前にエントリ取得が失敗した。" );
-            return;
+        await _notifySemaphore.WaitAsync();
+        try {
+            logger.Trace( "ファイル変更イベントを通知する。" );
+            var entries = await GetEntriesAsync();
+            if(entries.IsFailed) {
+                logger.Warn( "ファイル変更イベントの通知前にエントリ取得が失敗した。" );
+                return;
+            }
+            logger.Debug( $"ファイル変更イベントを発行する。Count={entries.Value.Count}" );
+            await EntriesChanged.Invoke( entries.Value );
         }
-        logger.Debug( $"ファイル変更イベントを発行する。Count={entries.Value.Count}" );
-        await EntriesChanged.Invoke( entries.Value );
+        finally {
+            _notifySemaphore.Release();
+        }
     }
 }

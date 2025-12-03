@@ -90,6 +90,9 @@ public sealed class DownloadViewModelTests : IDisposable {
             .Returns( appSettings );
 
         var fileEntryServiceMock = new Mock<IFileEntryService>();
+        fileEntryServiceMock
+            .Setup( service => service.GetEntriesAsync() )
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( Array.Empty<FileEntry>() ) );
         var loggingServiceMock = new Mock<ILoggingService>();
         var snackbarMessages = new List<string>();
         var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
@@ -234,6 +237,9 @@ public sealed class DownloadViewModelTests : IDisposable {
             .Returns( appSettings );
 
         var fileEntryServiceMock = new Mock<IFileEntryService>();
+        fileEntryServiceMock
+            .Setup( service => service.GetEntriesAsync() )
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( Array.Empty<FileEntry>() ) );
         var loggingServiceMock = new Mock<ILoggingService>();
         var snackbarMessages = new List<string>();
         var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
