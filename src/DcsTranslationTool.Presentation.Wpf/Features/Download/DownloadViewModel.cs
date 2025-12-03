@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -70,8 +69,6 @@ public class DownloadViewModel(
 
     #region Properties
 
-    private const string ManifestFileName = "manifest.json";
-    private const int StreamCopyBufferSize = 128 * 1024;
     private static readonly string[] ZipLikeExtensions = [".miz", ".trk"];
 
     /// <summary>
@@ -381,7 +378,12 @@ public class DownloadViewModel(
             return;
         }
 
+        _suppressEntriesChanged = true;
         IsApplying = true;
+        var entriesChangedHandler = _entriesChangedHandler;
+        if(entriesChangedHandler is not null) {
+            fileEntryService.EntriesChanged -= entriesChangedHandler;
+        }
         await UpdateApplyProgressAsync( 0.0 );
         NotifyOfPropertyChange( nameof( CanApply ) );
         NotifyOfPropertyChange( nameof( CanDownload ) );
@@ -451,6 +453,11 @@ public class DownloadViewModel(
         }
         finally {
             IsApplying = false;
+            _suppressEntriesChanged = false;
+            if(entriesChangedHandler is not null) {
+                fileEntryService.EntriesChanged += entriesChangedHandler;
+            }
+            await RefreshLocalEntriesAsync();
             NotifyOfPropertyChange( nameof( CanApply ) );
             NotifyOfPropertyChange( nameof( CanDownload ) );
             logger.Info( "適用処理を終了した。" );
@@ -576,33 +583,31 @@ public class DownloadViewModel(
             .ToList();
 
         if(repoOnlyEntries.Count > 0) {
-            logger.Warn( "!!! 意図しないApiServiceが使用されている !!!" );
             logger.Info( $"リポジトリのみのファイルを取得する。Count={repoOnlyEntries.Count}" );
-            var downloadResult = await apiService.DownloadFilesAsync(
-                new ApiDownloadFilesRequest( repoOnlyEntries.ConvertAll( e => e.Path ), null )
-            ).ConfigureAwait( false );
 
-            if(downloadResult.IsFailed) {
-                var reason = downloadResult.Errors.Count > 0 ? downloadResult.Errors[0].Message : null;
-                logger.Error( $"リポジトリからの取得に失敗した。Reason={reason}" );
-                await ShowSnackbarAsync( "リポジトリからの取得に失敗しました" );
+            var saveRootPath = appSettingsService.Settings.TranslateFileDir;
+            IReadOnlyList<string> paths = targetEntries.ConvertAll( e => e.Path );
+            var pathResult = await apiService.DownloadFilePathsAsync(
+                new ApiDownloadFilePathsRequest( paths, null )
+            );
+            if(pathResult.IsFailed) {
+                var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
+                logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
+                await ShowSnackbarAsync( "ダウンロードURLの取得に失敗しました" );
                 return false;
             }
 
-            var archive = downloadResult.Value;
-            if(!archive.IsNotModified) {
-                if(archive.Content.Length == 0) {
-                    logger.Warn( "取得した ZIP が空のため適用を中断する。" );
-                    await ShowSnackbarAsync( "取得ファイルが見つかりませんでした" );
-                    return false;
-                }
+            var downloadItems = pathResult.Value.Items.ToArray();
+            logger.Info( $"ダウンロードURLを取得した。{downloadItems.Length}件" );
 
-                var extracted = await ExtractDownloadArchiveAsync( archive, translateFullPath ).ConfigureAwait( false );
-                if(!extracted) {
-                    await ShowSnackbarAsync( "リポジトリファイルの保存に失敗しました" );
-                    return false;
-                }
+            if(downloadItems.Length == 0) {
+                logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
+                await ShowSnackbarAsync( "対象ファイルは最新です" );
+                return true;
             }
+
+            await DownloadFileInParallelAsync( downloadItems, saveRootPath, null );
+            logger.Info( "ダウンロード処理を終了した。" );
 
             foreach(var repoEntry in repoOnlyEntries) {
                 if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, repoEntry.Path, out var repoPath ) || !File.Exists( repoPath )) {
@@ -820,99 +825,6 @@ public class DownloadViewModel(
 
         var client = new HttpClient( handler, disposeHandler: true );
         return client;
-    }
-
-    /// <summary>ZIPアーカイブを指定ディレクトリへ展開する。</summary>
-    private async Task<bool> ExtractDownloadArchiveAsync( ApiDownloadFilesResult archive, string destinationRootFullPath ) {
-        logger.Debug( $"ZIPアーカイブを展開する。Destination={destinationRootFullPath}" );
-        ArgumentNullException.ThrowIfNull( archive );
-        ArgumentException.ThrowIfNullOrWhiteSpace( destinationRootFullPath );
-
-        var rootWithSeparator = destinationRootFullPath.EndsWith( Path.DirectorySeparatorChar )
-            ? destinationRootFullPath
-            : destinationRootFullPath + Path.DirectorySeparatorChar;
-
-        await using MemoryStream zipStream = new( archive.Content, writable: false );
-        using ZipArchive zip = new( zipStream, ZipArchiveMode.Read, leaveOpen: false );
-
-        var entries = zip.Entries.Where( entry => !string.IsNullOrEmpty( entry?.FullName ) ).ToList();
-        if(entries.Count == 0) {
-            logger.Warn( "ZIPアーカイブに展開対象のエントリが含まれていないため処理を中断する。" );
-            return false;
-        }
-
-        var hasFailure = false;
-        foreach(var entry in zip.Entries) {
-            var normalizedEntry = entry.FullName.Replace( '\\', '/' ).TrimStart( '/' );
-            if(string.IsNullOrWhiteSpace( normalizedEntry )) continue;
-
-            if(string.IsNullOrEmpty( entry.Name )) {
-                if(TryResolvePathWithinRoot( destinationRootFullPath, rootWithSeparator, normalizedEntry, out var directoryPath )) {
-                    Directory.CreateDirectory( directoryPath );
-                }
-                else {
-                    hasFailure = true;
-                    logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
-                }
-                continue;
-            }
-
-            if(string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase )) {
-                logger.Info( $"manifest.json を展開対象から除外する。Entry={entry.FullName}" );
-                continue;
-            }
-
-            if(!TryResolvePathWithinRoot( destinationRootFullPath, rootWithSeparator, normalizedEntry, out var destinationPath )) {
-                hasFailure = true;
-                logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
-                continue;
-            }
-
-            var shouldDelete = false;
-            try {
-                var directoryName = Path.GetDirectoryName( destinationPath );
-                if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
-
-                await using Stream entryStream = entry.Open();
-                await using FileStream destinationStream = new(
-                    destinationPath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    StreamCopyBufferSize,
-                    useAsync: true
-                );
-                var buffer = ArrayPool<byte>.Shared.Rent( StreamCopyBufferSize );
-                try {
-                    int read;
-                    while((read = await entryStream.ReadAsync( buffer.AsMemory( 0, buffer.Length ) ).ConfigureAwait( false )) > 0) {
-                        await destinationStream.WriteAsync( buffer.AsMemory( 0, read ) ).ConfigureAwait( false );
-                    }
-                }
-                finally {
-                    ArrayPool<byte>.Shared.Return( buffer );
-                }
-
-                logger.Info( $"ZIPエントリを展開した。Path={destinationPath}" );
-            }
-            catch(Exception ex) {
-                hasFailure = true;
-                shouldDelete = true;
-                logger.Error( $"ZIPエントリの展開に失敗した。Entry={entry.FullName}, Path={destinationPath}", ex );
-            }
-            finally {
-                if(shouldDelete && File.Exists( destinationPath )) {
-                    try {
-                        File.Delete( destinationPath );
-                    }
-                    catch(Exception deleteEx) {
-                        logger.Warn( $"ZIPエントリ展開失敗後のクリーンアップに失敗した。Path={destinationPath}", deleteEx );
-                    }
-                }
-            }
-        }
-
-        return !hasFailure;
     }
 
     /// <summary>ルートディレクトリ配下に収まるようにパスを解決する。</summary>
