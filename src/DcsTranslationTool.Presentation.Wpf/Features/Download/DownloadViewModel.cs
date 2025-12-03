@@ -1,12 +1,11 @@
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.IO;
 using System.IO.Compression;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
 
 using Caliburn.Micro;
 
@@ -60,6 +59,7 @@ public class DownloadViewModel(
     private double _downloadedProgress = 0.0;
     private bool _isApplying;
     private double _appliedProgress = 0.0;
+    private bool _suppressEntriesChanged;
 
     // イベント
     private Func<IReadOnlyList<FileEntry>, Task>? _entriesChangedHandler;
@@ -73,11 +73,6 @@ public class DownloadViewModel(
     private const string ManifestFileName = "manifest.json";
     private const int StreamCopyBufferSize = 128 * 1024;
     private static readonly string[] ZipLikeExtensions = [".miz", ".trk"];
-    /// <summary>manifest.jsonを逆シリアル化するときのオプションを提供する。</summary>
-    private static readonly JsonSerializerOptions ManifestSerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
 
     /// <summary>
     /// ローカル側のエントリ一覧
@@ -193,6 +188,10 @@ public class DownloadViewModel(
 
         _entriesChangedHandler = entries =>
         dispatcherService.InvokeAsync( () => {
+            if(_suppressEntriesChanged) {
+                logger.Info( "ダウンロード中のため EntriesChanged を無視する。" );
+                return Task.CompletedTask;
+            }
             logger.Info( $"EntriesChanged を受信した。件数={entries.Count}" );
             LocalEntries = entries;
             RefreshTabs();
@@ -302,6 +301,7 @@ public class DownloadViewModel(
             return;
         }
 
+        _suppressEntriesChanged = true;
         IsDownloading = true;
         await UpdateDownloadProgressAsync( 0.0 );
         NotifyOfPropertyChange( nameof( CanDownload ) );
@@ -331,33 +331,30 @@ public class DownloadViewModel(
             logger.Info( $"ダウンロード対象を特定した。件数={targetEntries.Count}" );
 
             IReadOnlyList<string> paths = targetEntries.ConvertAll( e => e.Path );
-            var result = await apiService.DownloadFilesAsync( new ApiDownloadFilesRequest( paths, null ) );
-            if(result.IsFailed) {
-                var reason = result.Errors.Count > 0 ? result.Errors[0].Message : null;
-                logger.Error( $"リポジトリからファイルの一括取得に失敗した。Reason={reason}" );
-                await ShowSnackbarAsync( "リポジトリからの一括取得に失敗しました" );
+            var pathResult = await apiService.DownloadFilePathsAsync(
+                new ApiDownloadFilePathsRequest( paths, null )
+            );
+            if(pathResult.IsFailed) {
+                var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
+                logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
+                await ShowSnackbarAsync( "ダウンロードURLの取得に失敗しました" );
                 return;
             }
 
-            var newFiles = result.Value;
+            var downloadItems = pathResult.Value.Items.ToArray();
+            logger.Info( $"ダウンロードURLを取得した。{downloadItems.Length}件" );
 
-            if(newFiles.IsNotModified) {
+            if(downloadItems.Length == 0) {
                 logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
                 await ShowSnackbarAsync( "対象ファイルは最新です" );
                 return;
             }
 
-            if(newFiles.Content.Length == 0) {
-                logger.Warn( "APIから空のZIPが返却されたため保存を中断する。" );
-                await ShowSnackbarAsync( "保存対象が見つかりませんでした" );
-                return;
-            }
-
-            var processed = await Task.Run( () => ProcessDownloadArchiveAsync( newFiles, saveRootPath ) );
-            if(!processed) return;
+            await DownloadFileInParallelAsync( downloadItems, saveRootPath, null );
         }
         finally {
             IsDownloading = false;
+            _suppressEntriesChanged = false;
             NotifyOfPropertyChange( nameof( CanDownload ) );
             NotifyOfPropertyChange( nameof( CanApply ) );
             logger.Info( "ダウンロード処理を終了した。" );
@@ -464,264 +461,71 @@ public class DownloadViewModel(
     #region Private Helpers
 
     /// <summary>
-    /// ダウンロードした ZIP アーカイブを検証して保存する。
+    /// ファイルのダウンロードを並列化して実行する。
     /// </summary>
-    /// <param name="newFiles">API から取得したアーカイブ。</param>
-    /// <param name="saveRootPath">保存先ルートディレクトリ。</param>
-    /// <returns>処理が成功した場合は true。</returns>
-    private async Task<bool> ProcessDownloadArchiveAsync( ApiDownloadFilesResult newFiles, string saveRootPath ) {
-        var rootFullPath = Path.GetFullPath( saveRootPath );
-        Directory.CreateDirectory( rootFullPath );
-        var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
-            ? rootFullPath
-            : rootFullPath + Path.DirectorySeparatorChar;
+    /// <param name="items"><see cref="ApiDownloadFilePathsItem"/>のコレクション。</param>
+    /// <param name="saveRootPath">保存するルートディレクトリ</param>
+    /// <param name="ct">Cancellation Token</param>
+    private async Task DownloadFileInParallelAsync(
+        ApiDownloadFilePathsItem[] items,
+        string saveRootPath,
+        CancellationToken? ct
+    ) {
+        int successCount = 0;
+        int failureCount = 0;
+        var maxConcurrency = Math.Clamp( Environment.ProcessorCount, 2, 6 );
+        using SemaphoreSlim semaphore = new( maxConcurrency );
+        using HttpClient httpClient = CreateHttpClient();
+        List<Task> tasks = [];
 
-        await using MemoryStream zipStream = new( newFiles.Content, writable: false );
-        using ZipArchive archive = new( zipStream, ZipArchiveMode.Read, leaveOpen: false );
+        foreach(var item in items) {
+            await semaphore.WaitAsync( ct ?? CancellationToken.None );
 
-        async Task<bool> FailManifestAsync() {
-            await ShowSnackbarAsync( "マニフェストの検証に失敗しました" );
-            return false;
-        }
-
-        var manifestEntry = archive.Entries.FirstOrDefault( entry => string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) );
-        if(manifestEntry is null) {
-            logger.Error( "ZIPアーカイブに manifest.json が含まれていない。" );
-            return await FailManifestAsync();
-        }
-
-        DownloadManifest? manifest;
-        try {
-            using StreamReader reader = new( manifestEntry.Open(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true );
-            string manifestJson = await reader.ReadToEndAsync().ConfigureAwait( false );
-            manifest = JsonSerializer.Deserialize<DownloadManifest>( manifestJson, ManifestSerializerOptions );
-        }
-        catch(Exception ex) {
-            logger.Error( "manifest.json の解析に失敗した。", ex );
-            return await FailManifestAsync();
-        }
-
-        if(manifest is null) {
-            logger.Error( "manifest.json の解析結果が null だった。" );
-            return await FailManifestAsync();
-        }
-
-        if(manifest.Version != 1) {
-            logger.Warn( $"マニフェストのバージョンが想定外だった。Version={manifest.Version}" );
-            return await FailManifestAsync();
-        }
-
-        if(string.IsNullOrWhiteSpace( manifest.GeneratedAt ) || !DateTimeOffset.TryParse( manifest.GeneratedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out _ )) {
-            logger.Warn( $"マニフェストの生成日時が不正だった。GeneratedAt={manifest.GeneratedAt}" );
-            return await FailManifestAsync();
-        }
-
-        if(manifest.Files is null || manifest.Files.Count == 0) {
-            logger.Warn( "マニフェストにファイル情報が含まれていなかった。" );
-            return await FailManifestAsync();
-        }
-
-        var manifestFiles = new Dictionary<string, DownloadManifestFile>( StringComparer.OrdinalIgnoreCase );
-        foreach(var file in manifest.Files) {
-            if(file is null) {
-                logger.Warn( "マニフェストに null のファイル情報が含まれていた。" );
-                return await FailManifestAsync();
-            }
-
-            if(string.IsNullOrWhiteSpace( file.Path )) {
-                logger.Warn( "マニフェストのファイルパスが空だった。" );
-                return await FailManifestAsync();
-            }
-
-            if(file.Size < 0) {
-                logger.Warn( $"マニフェストのファイルサイズが不正だった。Path={file.Path}, Size={file.Size}" );
-                return await FailManifestAsync();
-            }
-
-            var normalizedManifestPath = NormalizeArchivePath( file.Path );
-            if(string.IsNullOrWhiteSpace( normalizedManifestPath )) {
-                logger.Warn( $"マニフェストのファイルパスが不正だった。Path={file.Path}" );
-                return await FailManifestAsync();
-            }
-
-            if(!IsValidSha256( file.Sha256 )) {
-                logger.Warn( $"マニフェストのハッシュ値が不正だった。Path={file.Path}, Sha256={file.Sha256}" );
-                return await FailManifestAsync();
-            }
-
-            if(manifestFiles.ContainsKey( normalizedManifestPath )) {
-                logger.Warn( $"マニフェストに重複するファイルパスが含まれていた。Path={normalizedManifestPath}" );
-                return await FailManifestAsync();
-            }
-
-            manifestFiles.Add( normalizedManifestPath, file );
-        }
-
-        var fileEntries = archive.Entries
-            .Where( entry => !string.IsNullOrEmpty( entry?.Name ) && !string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase ) )
-            .ToList();
-        if(fileEntries.Count == 0) {
-            logger.Warn( "ZIPアーカイブに保存対象のファイルエントリが含まれていなかった。" );
-            return await FailManifestAsync();
-        }
-
-        var entryPathSet = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
-        var duplicatePaths = new List<string>();
-        foreach(var entry in fileEntries) {
-            var normalizedPath = NormalizeArchivePath( entry.FullName );
-            if(!entryPathSet.Add( normalizedPath )) duplicatePaths.Add( normalizedPath );
-        }
-
-        if(duplicatePaths.Count > 0) {
-            var duplicates = string.Join( ",", duplicatePaths );
-            logger.Error( $"ZIPアーカイブに重複するファイルエントリが含まれている。Duplicates={duplicates}" );
-            return await FailManifestAsync();
-        }
-
-        var missingManifestFiles = manifestFiles.Keys.Where( path => !entryPathSet.Contains( path ) ).ToList();
-        if(missingManifestFiles.Count > 0) {
-            var missing = string.Join( ",", missingManifestFiles );
-            logger.Error( $"マニフェストに記載されたファイルが ZIP に存在しない。Missing={missing}" );
-            return await FailManifestAsync();
-        }
-
-        var unexpectedEntries = entryPathSet.Where( path => !manifestFiles.ContainsKey( path ) ).ToList();
-        if(unexpectedEntries.Count > 0) {
-            var unexpected = string.Join( ",", unexpectedEntries );
-            logger.Error( $"マニフェストに記載されていないファイルが ZIP に含まれている。Unexpected={unexpected}" );
-            return await FailManifestAsync();
-        }
-
-        var totalFiles = manifestFiles.Count;
-        if(totalFiles == 0) {
-            logger.Warn( "マニフェストに保存対象のファイルが存在しなかった。" );
-            return await FailManifestAsync();
-        }
-
-        var processed = 0;
-        var success = 0;
-        var failed = 0;
-        await UpdateDownloadProgressAsync( 0 );
-
-        foreach(var entry in archive.Entries) {
-            var normalizedEntry = NormalizeArchivePath( entry.FullName );
-            if(string.IsNullOrWhiteSpace( normalizedEntry )) continue;
-
-            if(string.IsNullOrEmpty( entry.Name )) {
-                var directoryPath = Path.GetFullPath(
-                    Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
-                );
-                if(directoryPath.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
-                    Directory.CreateDirectory( directoryPath );
-                }
-                else {
-                    logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
-                }
-                continue;
-            }
-
-            if(string.Equals( entry.Name, ManifestFileName, StringComparison.OrdinalIgnoreCase )) {
-                logger.Info( $"manifest.json を保存対象から除外する。Entry={entry.FullName}" );
-                continue;
-            }
-
-            if(!manifestFiles.TryGetValue( normalizedEntry, out var manifestFile )) {
-                logger.Error( $"マニフェストに存在しないファイルを検出した。Entry={entry.FullName}" );
-                failed++;
-                processed++;
-                await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
-                continue;
-            }
-
-            var destinationPath = Path.GetFullPath(
-                Path.Combine( rootFullPath, normalizedEntry.Replace( '/', Path.DirectorySeparatorChar ) )
-            );
-            if(!destinationPath.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
-                logger.Warn( $"ZIPエントリが保存先の外を指しているためスキップする。Entry={entry.FullName}" );
-                failed++;
-                processed++;
-                await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
-                continue;
-            }
-
-            var shouldDelete = false;
-            try {
-                var directoryName = Path.GetDirectoryName( destinationPath );
-                if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
-
-                await using Stream entryStream = entry.Open();
-                await using FileStream destinationStream = new(
-                    destinationPath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    StreamCopyBufferSize,
-                    useAsync: true
-                );
-                using var hash = IncrementalHash.CreateHash( HashAlgorithmName.SHA256 );
-                var buffer = ArrayPool<byte>.Shared.Rent( StreamCopyBufferSize );
-                long totalBytes = 0;
+            tasks.Add( Task.Run( async () => {
                 try {
-                    int read;
-                    while((read = await entryStream.ReadAsync( buffer.AsMemory( 0, buffer.Length ) ).ConfigureAwait( false )) > 0) {
-                        hash.AppendData( buffer, 0, read );
-                        await destinationStream.WriteAsync( buffer.AsMemory( 0, read ) ).ConfigureAwait( false );
-                        totalBytes += read;
-                    }
+                    await DownloadFileAsync( httpClient, item.Url, Path.Combine( saveRootPath, item.Path ), ct );
+                    Interlocked.Increment( ref successCount );
+                }
+                catch {
+                    Interlocked.Increment( ref failureCount );
+                    throw;
                 }
                 finally {
-                    ArrayPool<byte>.Shared.Return( buffer );
+                    semaphore.Release();
                 }
-
-                if(totalBytes != manifestFile.Size) {
-                    failed++;
-                    shouldDelete = true;
-                    logger.Warn( $"マニフェストで定義されたサイズと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredSize={manifestFile.Size}, ActualSize={totalBytes}" );
-                }
-                else {
-                    var computedHash = Convert.ToHexString( hash.GetHashAndReset() );
-                    if(!string.Equals( computedHash, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase )) {
-                        failed++;
-                        shouldDelete = true;
-                        logger.Warn( $"マニフェストで定義されたハッシュと一致しないため保存を中止する。Entry={entry.FullName}, DeclaredHash={manifestFile.Sha256}, ActualHash={computedHash}" );
-                    }
-                    else {
-                        success++;
-                        logger.Info( $"ファイルを保存した。Path={destinationPath}" );
-                    }
-                }
-            }
-            catch(Exception ex) {
-                failed++;
-                shouldDelete = true;
-                logger.Error( $"ZIPエントリの展開に失敗した。Entry={entry.FullName}, Path={destinationPath}", ex );
-            }
-            finally {
-                processed++;
-                await UpdateDownloadProgressAsync( Math.Min( 100, (double)processed / totalFiles * 100 ) );
-                if(shouldDelete && File.Exists( destinationPath )) {
-                    try {
-                        File.Delete( destinationPath );
-                    }
-                    catch(Exception deleteEx) {
-                        logger.Warn( $"検証失敗によりファイル削除に失敗した。Path={destinationPath}", deleteEx );
-                    }
-                }
-            }
+            } ) );
         }
 
-        await UpdateDownloadProgressAsync( 100 );
-        if(failed > 0) {
-            logger.Warn( $"ZIP展開で一部のファイル保存に失敗した。Success={success}, Failed={failed}, Total={totalFiles}" );
-            await ShowSnackbarAsync( $"一部のファイルの保存に失敗しました ({failed}/{totalFiles})" );
+        try {
+            await Task.WhenAll( tasks );
         }
-        else {
-            logger.Info( $"ZIP展開が完了した。Success={success}, Total={totalFiles}" );
-            await ShowSnackbarAsync( "ダウンロード完了" );
+        finally {
+            logger.Info( $"ファイルのダウンロードが完了しました: 成功={successCount}/{items.Length} 件, 失敗={failureCount}/{items.Length} 件" );
         }
+    }
 
-        logger.Info( "ダウンロード処理が完了した。" );
-        return true;
+    private static readonly ConcurrentDictionary<string, IPAddress> LastSuccessfulAddressCache = new();
+
+    /// <summary>
+    /// ファイルをダウンロードし保存する。
+    /// </summary>
+    /// <param name="url">対象のURL。</param>
+    /// <param name="filePath">保存するファイルパス。</param>
+    /// <param name="ct">Cancellation Token</param>
+    private async Task DownloadFileAsync( HttpClient httpClient, string url, string filePath, CancellationToken? ct ) {
+        logger.Info( $"ファイルをダウンロードする。Url={url}, FilePath={filePath}" );
+        try {
+            var bytes = await httpClient.GetByteArrayAsync(url, ct ?? CancellationToken.None);
+            var directoryName = Path.GetDirectoryName( filePath );
+            if(!string.IsNullOrEmpty( directoryName ) && !Directory.Exists( directoryName )) Directory.CreateDirectory( directoryName );
+
+            await File.WriteAllBytesAsync( filePath, bytes, ct ?? CancellationToken.None );
+        }
+        catch(Exception ex) {
+            logger.Error( $"ファイルのダウンロードに失敗した。Url={url}, FilePath={filePath}", ex );
+            throw;
+        }
+        logger.Info( $"ファイルのダウンロードが完了した。Url={url}, FilePath={filePath}" );
     }
 
     /// <summary>
@@ -745,10 +549,12 @@ public class DownloadViewModel(
             .ToList();
 
         if(repoOnlyEntries.Count > 0) {
+            logger.Warn( "!!! 意図しないApiServiceが使用されている !!!" );
             logger.Info( $"リポジトリのみのファイルを取得する。Count={repoOnlyEntries.Count}" );
             var downloadResult = await apiService.DownloadFilesAsync(
                 new ApiDownloadFilesRequest( repoOnlyEntries.ConvertAll( e => e.Path ), null )
             ).ConfigureAwait( false );
+
             if(downloadResult.IsFailed) {
                 var reason = downloadResult.Errors.Count > 0 ? downloadResult.Errors[0].Message : null;
                 logger.Error( $"リポジトリからの取得に失敗した。Reason={reason}" );
@@ -935,6 +741,59 @@ public class DownloadViewModel(
             snackbarService.Show( message );
             return Task.CompletedTask;
         } );
+
+    ///// <summary>環境差異を吸収する HttpClient を生成する。</summary>
+    ///// <param name="handler">カスタムハンドラー。</param>
+    ///// <returns>初期化済みの HttpClient。</returns>
+    private static HttpClient CreateHttpClient() {
+        var handler = new SocketsHttpHandler
+        {
+            ConnectTimeout = TimeSpan.FromSeconds( 3 ),
+            ConnectCallback = async ( context, token ) => {
+                var host = context.DnsEndPoint!.Host;
+                var port = context.DnsEndPoint.Port;
+                var hostKey = host.ToLowerInvariant();
+
+                IPAddress[] v4 = [];
+                IPAddress[] v6 = [];
+                try {
+                    v4 = await Dns.GetHostAddressesAsync( host, AddressFamily.InterNetwork, token );
+                }
+                catch {
+                    // IPv4 解決不可は許容
+                }
+                try {
+                    v6 = await Dns.GetHostAddressesAsync( host, AddressFamily.InterNetworkV6, token );
+                }
+                catch {
+                    // IPv6 解決不可は許容
+                }
+
+                var candidates = new List<IPAddress>( v4.Length + v6.Length + 1 );
+                if(LastSuccessfulAddressCache.TryGetValue( hostKey, out var cached )) candidates.Add( cached );
+                candidates.AddRange( v4 );
+                candidates.AddRange( v6 );
+
+                foreach(var addr in candidates.Distinct()) {
+                    var socket = new Socket( addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp ) { NoDelay = true };
+                    try {
+                        await socket.ConnectAsync( addr, port, token );
+                        LastSuccessfulAddressCache[hostKey] = addr;
+                        return new NetworkStream( socket, ownsSocket: true );
+                    }
+                    catch {
+                        socket.Dispose();
+                    }
+                }
+
+                LastSuccessfulAddressCache.TryRemove( hostKey, out _ );
+                throw new SocketException( (int)SocketError.HostUnreachable );
+            }
+        };
+
+        var client = new HttpClient( handler, disposeHandler: true );
+        return client;
+    }
 
     /// <summary>ZIPアーカイブを指定ディレクトリへ展開する。</summary>
     private async Task<bool> ExtractDownloadArchiveAsync( ApiDownloadFilesResult archive, string destinationRootFullPath ) {
@@ -1208,48 +1067,6 @@ public class DownloadViewModel(
                     loggingService ) );
         }
     }
-
-    /// <summary>
-    /// ZIP 内のパスを正規化する。
-    /// </summary>
-    /// <param name="path">正規化対象のパス</param>
-    /// <returns>正規化後のパス</returns>
-    private static string NormalizeArchivePath( string path ) {
-        if(string.IsNullOrEmpty( path )) return string.Empty;
-        return path.Replace( '\\', '/' ).TrimStart( '/' );
-    }
-
-    /// <summary>
-    /// SHA256 ハッシュ文字列の妥当性を検証する。
-    /// </summary>
-    /// <param name="value">検証対象の文字列</param>
-    /// <returns>妥当であるかどうか</returns>
-    private static bool IsValidSha256( string value ) {
-        if(string.IsNullOrWhiteSpace( value ) || value.Length != 64) return false;
-        foreach(char c in value) {
-            var isHexDigit = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-            if(!isHexDigit) return false;
-        }
-        return true;
-    }
-
-    /// <summary>
-    /// ダウンロードマニフェスト情報を表現する。
-    /// </summary>
-    private sealed record DownloadManifest(
-        [property: JsonPropertyName( "version" )] int Version,
-        [property: JsonPropertyName( "generatedAt" )] string GeneratedAt,
-        [property: JsonPropertyName( "files" )] IReadOnlyList<DownloadManifestFile>? Files
-    );
-
-    /// <summary>
-    /// マニフェスト内のファイル情報を表現する。
-    /// </summary>
-    private sealed record DownloadManifestFile(
-        [property: JsonPropertyName( "path" )] string Path,
-        [property: JsonPropertyName( "size" )] long Size,
-        [property: JsonPropertyName( "sha256" )] string Sha256
-    );
 
     #endregion
 }

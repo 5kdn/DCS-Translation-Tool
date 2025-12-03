@@ -161,6 +161,83 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         }
     }
 
+    /// <summary>APIを呼び出して複数ファイルのダウンロードリンクを取得する</summary>
+    public async Task<Result<ApiDownloadFilePathsResult>> DownloadFilePathsAsync(
+        ApiDownloadFilePathsRequest request,
+        CancellationToken cancellationToken = default
+    ) {
+        ArgumentNullException.ThrowIfNull( request );
+
+        if(request.Paths is null || request.Paths.Count == 0)
+            return Result.Fail( "Paths には少なくとも1つの値が含まれている必要があります。" );
+
+        var sanitizedPaths = request.Paths
+            .Select(path => path?.Trim())
+            .Where(path => !string.IsNullOrWhiteSpace( path ))
+            .Select(path => path!)
+            .ToArray();
+
+        if(sanitizedPaths.Length == 0)
+            return Result.Fail( "Paths には少なくとも1つの空でない値が含まれている必要があります。" );
+
+        if(sanitizedPaths.Length > 500)
+            return Result.Fail( "Paths には500個以下のアイテムを含める必要があります。" );
+
+        try {
+            var payload = new DownloadFilePathsRequest( sanitizedPaths );
+            using var message = new HttpRequestMessage( HttpMethod.Post, "download-file-paths" )
+            {
+                Content = JsonContent.Create( payload, options: SerializerOptions ),
+            };
+
+            message.Headers.Accept.Clear();
+            message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
+            message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/problem+json" ) );
+            if(!string.IsNullOrWhiteSpace( request.ETag )) message.Headers.TryAddWithoutValidation( "If-None-Match", request.ETag );
+
+            using var response = await _httpClient
+                .SendAsync( message, HttpCompletionOption.ResponseHeadersRead, cancellationToken )
+                .ConfigureAwait(false);
+
+            if(response.StatusCode == HttpStatusCode.NotModified) {
+                var cached = new ApiDownloadFilePathsResult( Array.Empty<ApiDownloadFilePathsItem>(), response.Headers.ETag?.Tag );
+                return Result.Ok( cached );
+            }
+
+            if(!response.IsSuccessStatusCode) {
+                var reason = response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}";
+                if(response.Content is not null) {
+                    var body = await response.Content.ReadAsStringAsync( cancellationToken ).ConfigureAwait(false);
+                    if(!string.IsNullOrWhiteSpace( body )) reason = $"{reason} - {body}";
+                }
+
+                return Result.Fail( reason );
+            }
+
+            var payloadResponse = await response.Content
+                .ReadFromJsonAsync<DownloadFilePathsResponse>( SerializerOptions, cancellationToken )
+                .ConfigureAwait(false);
+
+            if(payloadResponse is null)
+                return Result.Fail( "Response body was null." );
+
+            var items = payloadResponse.Files?
+                .Where(file => file is not null && !string.IsNullOrWhiteSpace( file.Url ) && !string.IsNullOrWhiteSpace( file.Path ))
+                .Select(file => new ApiDownloadFilePathsItem( file.Url!, file.Path! ))
+                .ToArray()
+                ?? [];
+
+            var etag = response.Headers.ETag?.Tag ?? payloadResponse.ETag;
+            var result = new ApiDownloadFilePathsResult( items, etag );
+
+            return Result.Ok( result );
+        }
+        catch(Exception ex) {
+            return Result.Fail( new ExceptionalError( ex ) );
+        }
+
+    }
+
     /// <summary>APIを呼び出してPull Requestを作成する</summary>
     public async Task<Result<ApiCreatePullRequestOutcome>> CreatePullRequestAsync(
         ApiCreatePullRequestRequest request,
@@ -202,7 +279,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                 .Where(entry => entry is not null)
                 .Select(entry => entry!)
                 .ToArray()
-                ?? Array.Empty<ApiCreatePullRequestEntry>();
+                ?? [];
 
             var outcome = new ApiCreatePullRequestOutcome(result.Success ?? false, result.Message, entries);
             return Result.Ok( outcome );
@@ -310,6 +387,32 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
     /// <param name="Paths">ダウンロード対象パス一覧。</param>
     private sealed record DownloadFilesRequest(
         [property: JsonPropertyName( "paths" )] IReadOnlyList<string> Paths
+    );
+
+    /// <summary>複数パスのダウンロードリンク取得要求ペイロード。</summary>
+    /// <param name="Paths">リンク生成対象パス一覧。</param>
+    private sealed record DownloadFilePathsRequest(
+        [property: JsonPropertyName( "paths" )] IReadOnlyList<string> Paths
+    );
+
+    /// <summary>複数パスのダウンロードリンク取得応答ペイロード。</summary>
+    /// <param name="Files">生成されたリンク一覧。</param>
+    /// <param name="ETag">応答のETag。</param>
+    /// <param name="GeneratedAt">生成時刻。</param>
+    /// <param name="Version">スキーマのバージョン。</param>
+    private sealed record DownloadFilePathsResponse(
+        [property: JsonPropertyName( "files" )] List<DownloadFilePathsResponseFile>? Files,
+        [property: JsonPropertyName( "etag" )] string? ETag,
+        [property: JsonPropertyName( "generatedAt" )] string? GeneratedAt,
+        [property: JsonPropertyName( "version" )] double? Version
+    );
+
+    /// <summary>ダウンロードリンク応答内の1ファイルを表現する。</summary>
+    /// <param name="Url">生成されたダウンロードURL。</param>
+    /// <param name="Path">リポジトリ上のパス。</param>
+    private sealed record DownloadFilePathsResponseFile(
+        [property: JsonPropertyName( "url" )] string? Url,
+        [property: JsonPropertyName( "path" )] string? Path
     );
 
     /// <summary>PR作成要求ペイロード。</summary>

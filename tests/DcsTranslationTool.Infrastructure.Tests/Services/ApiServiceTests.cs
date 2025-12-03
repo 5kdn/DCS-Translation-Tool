@@ -267,6 +267,103 @@ public class ApiServiceTests {
         Assert.Equal( "Paths には少なくとも1つの値が含まれている必要があります。", result.Errors.Single().Message );
     }
 
+    [Fact]
+    public async Task DownloadFilePathsAsyncは304レスポンスをキャッシュヒットとして扱う() {
+        // Arrange
+        string[] paths = [" path/one ", "path/two", string.Empty];
+        var client = CreateClient(async (request, token) => {
+            Assert.Equal( HttpMethod.Post, request.Method );
+            Assert.Equal( "/download-file-paths", request.RequestUri?.AbsolutePath );
+            Assert.Contains( request.Headers.Accept, media => media.MediaType == "application/json" );
+            Assert.Contains( request.Headers.Accept, media => media.MediaType == "application/problem+json" );
+            Assert.True( request.Headers.TryGetValues( "If-None-Match", out var etags ) );
+            Assert.Contains( "\"etag-value\"", etags );
+
+            var body = await request.Content!.ReadAsStringAsync( token ).ConfigureAwait(false);
+            using var document = JsonDocument.Parse( body );
+            var pathValues = document.RootElement
+                .GetProperty( "paths" )
+                .EnumerateArray()
+                .Select( element => element.GetString() )
+                .ToArray();
+
+            Assert.Equal( expected, pathValues );
+
+            var response = new HttpResponseMessage( HttpStatusCode.NotModified );
+            response.Headers.ETag = new EntityTagHeaderValue( "\"etag-value\"" );
+
+            return response;
+        });
+        var sut = new ApiService( client );
+
+        var request = new ApiDownloadFilePathsRequest( paths, "\"etag-value\"" );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        var value = result.Value;
+        Assert.Empty( value.Items );
+        Assert.Equal( "\"etag-value\"", value.ETag );
+    }
+
+    [Fact]
+    public async Task DownloadFilePathsAsyncはURLとパスを正しくマッピングする() {
+        // Arrange
+        const string responsePayload =
+            """
+            {
+              "files": [
+                { "url": "https://example.test/raw/file1", "path": "path/one" },
+                { "url": "https://example.test/raw/file2", "path": "path/two" },
+                { "url": "", "path": "ignore" }
+              ],
+              "etag": "\"body-etag\""
+            }
+            """;
+
+        var client = CreateClient(async (request, token) => {
+            Assert.Equal( HttpMethod.Post, request.Method );
+            Assert.Equal( "/download-file-paths", request.RequestUri?.AbsolutePath );
+
+            var body = await request.Content!.ReadAsStringAsync( token ).ConfigureAwait(false);
+            using var document = JsonDocument.Parse( body );
+            var pathValues = document.RootElement
+                .GetProperty( "paths" )
+                .EnumerateArray()
+                .Select( element => element.GetString() )
+                .ToArray();
+
+            Assert.Equal( expected, pathValues );
+
+            var response = new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( responsePayload, Encoding.UTF8, "application/json" ),
+            };
+            response.Headers.ETag = new EntityTagHeaderValue( "\"etag-header\"" );
+
+            return response;
+        });
+        var sut = new ApiService( client );
+
+        var request = new ApiDownloadFilePathsRequest( ["path/one", "path/two"], null );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        var value = result.Value;
+        Assert.Equal( "\"etag-header\"", value.ETag );
+        var items = value.Items.ToArray();
+        Assert.Equal( 2, items.Length );
+        Assert.Equal( "https://example.test/raw/file1", items[0].Url );
+        Assert.Equal( "path/one", items[0].Path );
+        Assert.Equal( "https://example.test/raw/file2", items[1].Url );
+        Assert.Equal( "path/two", items[1].Path );
+    }
+
     private static HttpClient CreateClient( Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder ) {
         var handler = new StubHttpMessageHandler( responder );
         return new HttpClient( handler )
