@@ -30,7 +30,7 @@
                       Margin="{StaticResource MediumBottomMargin}"
                       IsExpanded="True" >
                 <StackPanel Background="{StaticResource MaterialDesign.Brush.Background}">
-                    <ListView ItemsSource="{Binding Upsert}">
+                    <ListView ItemsSource="{Binding UpsertFiles}">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding LocalPath}"
