@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.3.0...v1.3.1) (2025-12-04)
+
+
+### Bug Fixes
+
+* CreatePullRequest ダイアログの変更するファイルリストが表示されないバグを修正した ([#20](https://github.com/5kdn/DCS-Translation-Tool/issues/20)) ([0b43963](https://github.com/5kdn/DCS-Translation-Tool/commit/0b43963066ff3faa33897152a26bb6d411a49e36))
+
 ## [1.3.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.2.0...v1.3.0) (2025-12-03)
 
 
