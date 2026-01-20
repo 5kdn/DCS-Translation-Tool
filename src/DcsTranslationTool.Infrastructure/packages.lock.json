@@ -51,11 +51,12 @@
       },
       "Microsoft.Kiota.Serialization.Text": {
         "type": "Direct",
-        "requested": "[1.21.0, )",
-        "resolved": "1.21.0",
-        "contentHash": "hRiTsOhftozKfw90tOQka0c35p92SlEx8fvs0h73qEgDNS3CnrKlccwueaa8+FYCHT24ntTpW2BwfFxG/nFbCg==",
+        "requested": "[1.21.2, )",
+        "resolved": "1.21.2",
+        "contentHash": "/cJcDWf7xWYV1jrogItaWCXNk5ytcnP0lWlD9tEH21PyoczHHI4jWOkjyc/lWy6esKabPQm/UqXIqWScXSDMfw==",
         "dependencies": {
-          "Microsoft.Kiota.Abstractions": "1.21.0"
+          "Microsoft.IO.RecyclableMemoryStream": "3.0.1",
+          "Microsoft.Kiota.Abstractions": "1.21.2"
         }
       },
       "Newtonsoft.Json": {
