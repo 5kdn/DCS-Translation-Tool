@@ -31,20 +31,26 @@
         "resolved": "2.1.1",
         "contentHash": "XRzK7ZF+O6FzdfWrlFTi1Rgj2080ZDsd46vzOjadHUB0Cz5kOvDG8vI7caa5YFrsHQpcfn0DxtjS4E46N4FZsA=="
       },
+      "Microsoft.IO.RecyclableMemoryStream": {
+        "type": "Transitive",
+        "resolved": "3.0.1",
+        "contentHash": "s/s20YTVY9r9TPfTrN5g8zPF1YhwxyqO6PxUkrYTGI2B+OGPe9AdajWZrLhFqXIvqIW23fnUE4+ztrUWNU1+9g=="
+      },
       "Microsoft.Kiota.Abstractions": {
         "type": "Transitive",
-        "resolved": "1.21.0",
-        "contentHash": "RPQIHERQopj0e4Y0/oPcs2eT7oqb7CwGX5ZBhSoObEp8IwCGwLkruJBdZcylrsC2LWIhyYdLPnDT2NfJhzprzg==",
+        "resolved": "1.21.2",
+        "contentHash": "YTiWl3qZkJiQuNzQ4jizghHoDLqp8Ushyjkalt34KXyGA6AfT2yUvb3FRJQZRWwMottSGDaZBMn9WyD6Q2wygQ==",
         "dependencies": {
-          "Std.UriTemplate": "2.0.5"
+          "Std.UriTemplate": "2.0.8"
         }
       },
       "Microsoft.Kiota.Serialization.Form": {
         "type": "Transitive",
-        "resolved": "1.21.0",
-        "contentHash": "Uk/nneGdh8xkWw4xCx0+TbMkRg3sL5oxgvKobjnymhty+CaP4NMMFx8xJws8w+KK6P8WcvGE3cQh3g1mgzn10Q==",
+        "resolved": "1.21.2",
+        "contentHash": "Qplm7DeoVxKQw45qQiLmkeq7iKP5mml/MbhpR6X5E9Hn0Kgvedqe3BstTlrYbPWF5l/K3H/3Yg6f0WOrhrj1mQ==",
         "dependencies": {
-          "Microsoft.Kiota.Abstractions": "1.21.0"
+          "Microsoft.IO.RecyclableMemoryStream": "3.0.1",
+          "Microsoft.Kiota.Abstractions": "1.21.2"
         }
       },
       "Microsoft.Kiota.Serialization.Json": {
@@ -88,8 +94,8 @@
       },
       "Std.UriTemplate": {
         "type": "Transitive",
-        "resolved": "2.0.5",
-        "contentHash": "PtqPdWNBObRcDHjyjbgOz2XoCJQaiA+HNDPQve/O7yGCkospfHDCuH9ULVx1msImwHHG+uhpDjiZX7bpLN/cnw=="
+        "resolved": "2.0.8",
+        "contentHash": "IAR4gJlLVD4r/FsU/rDb1+9sbB3/tCFVZz5IzlbM2yHoiUisBi5Ek/KXRUF7RcqNARka79EoaOz9INnXvQ/O6w=="
       },
       "System.Text.Encoding.CodePages": {
         "type": "Transitive",
@@ -127,8 +133,8 @@
           "DcsTranslationTool.Domain": "[1.0.0, )",
           "DcsTranslationTool.Shared": "[1.0.0, )",
           "FluentResults": "[4.0.0, )",
-          "Microsoft.Kiota.Abstractions": "[1.21.0, )",
-          "Microsoft.Kiota.Serialization.Form": "[1.21.0, )",
+          "Microsoft.Kiota.Abstractions": "[1.21.2, )",
+          "Microsoft.Kiota.Serialization.Form": "[1.21.2, )",
           "Microsoft.Kiota.Serialization.Json": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Multipart": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.0, )",
