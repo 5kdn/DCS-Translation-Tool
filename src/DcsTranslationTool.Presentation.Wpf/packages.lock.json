@@ -98,8 +98,8 @@
       },
       "NLog": {
         "type": "Transitive",
-        "resolved": "6.0.6",
-        "contentHash": "eUd/LDIwPtufj5OxtzFYiwuoKpzaS87iqO9P9D05avLCk4jIoOlqMwRH0o/43LmzM+CmgVAdDrCOq/rOK0sDKw=="
+        "resolved": "6.0.7",
+        "contentHash": "16kwDY6+/TCBToyXekpcl5mxprUWuXqltdOK26w44E0rTQTiRCjXv1VVLDtSbgMCR1RirVvr+V/9T+76cwuqnw=="
       },
       "Std.UriTemplate": {
         "type": "Transitive",
@@ -155,7 +155,7 @@
           "Microsoft.Kiota.Serialization.Json": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Multipart": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.0, )",
-          "NLog": "[6.0.6, )",
+          "NLog": "[6.0.7, )",
           "Newtonsoft.Json": "[13.0.4, )",
           "UTF.Unknown": "[2.6.0, )"
         }
