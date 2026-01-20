@@ -19,6 +19,9 @@ updates:
   labels:
     - "dependencies"
     - "CI / GitHub Actions"
+  commit-message:
+    prefix: "chore"
+    include: "scope"
 
 # ─────────────────────────────────────────────────────────
 # 2) NuGet パッケージを監視
@@ -37,3 +40,8 @@ updates:
   labels:
     - "dependencies"
     - "Dependencies / NuGet"
+  rebase-strategy: "auto"
+  commit-message:
+    prefix: "fix"
+    prefix-development: "chore"
+    include: "scope"
