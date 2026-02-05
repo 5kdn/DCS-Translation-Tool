@@ -14,9 +14,9 @@
       },
       "Microsoft.Kiota.Abstractions": {
         "type": "Direct",
-        "requested": "[1.21.2, )",
-        "resolved": "1.21.2",
-        "contentHash": "YTiWl3qZkJiQuNzQ4jizghHoDLqp8Ushyjkalt34KXyGA6AfT2yUvb3FRJQZRWwMottSGDaZBMn9WyD6Q2wygQ==",
+        "requested": "[1.21.3, )",
+        "resolved": "1.21.3",
+        "contentHash": "K3hlPEtkqQuIrxRUnprcjKxcHQDO+KsI3eTaknVwM+aUQcb0rNS2toJiZv7yOu5bX74FkKGpnPTt/ZNhm4VJrw==",
         "dependencies": {
           "Std.UriTemplate": "2.0.8"
         }
