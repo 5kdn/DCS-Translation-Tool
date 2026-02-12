@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
@@ -37,7 +38,7 @@ public class FileServiceTests : IDisposable {
         var sut = new FileService(logger.Object);
         var path = Path.Combine(_tempDir, "data.json");
         var expected = new TestData { Id = 1, Name = "Test" };
-        var json = Newtonsoft.Json.JsonConvert.SerializeObject(expected);
+        var json = JsonSerializer.Serialize( expected );
         File.WriteAllText( path, json, Encoding.UTF8 );
 
         // Act
@@ -113,7 +114,7 @@ public class FileServiceTests : IDisposable {
         Assert.True( File.Exists( path ) );
 
         var content = File.ReadAllText(path, Encoding.UTF8);
-        var deserialized = Newtonsoft.Json.JsonConvert.DeserializeObject<TestData>(content);
+        var deserialized = JsonSerializer.Deserialize<TestData>( content );
 
         Assert.NotNull( deserialized );
         Assert.Equal( data.Id, deserialized!.Id );

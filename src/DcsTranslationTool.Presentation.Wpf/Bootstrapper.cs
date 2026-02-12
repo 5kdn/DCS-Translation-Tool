@@ -45,6 +45,13 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IDialogService, DialogService>();
         container.Singleton<IDialogProvider, DialogProvider>();
         container.Singleton<IDispatcherService, DispatcherService>();
+        container.Singleton<IEntryApplyService, EntryApplyService>();
+        container.Singleton<IRepoOnlySyncService, RepoOnlySyncService>();
+        container.Singleton<IApplyWorkflowService, ApplyWorkflowService>();
+        container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
+        container.Singleton<IFileEntryWatcherLifecycle, FileEntryWatcherLifecycle>();
+        container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
+        container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
         container.Singleton<ISnackbarService, SnackbarService>();
 
         // ViewModels

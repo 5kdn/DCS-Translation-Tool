@@ -256,16 +256,30 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
         var zipServiceMock = new Mock<IZipService>( MockBehavior.Strict );
+        var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
+        var pathSafetyGuard = new PathSafetyGuard();
+        var applyWorkflowService = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var downloadWorkflowService = new DownloadWorkflowService(
+            loggingServiceMock.Object,
+            applyWorkflowService.Object
+        );
+        var fileEntryWatcherLifecycle = new FileEntryWatcherLifecycle(
+            appSettingsServiceMock.Object,
+            fileEntryServiceMock.Object,
+            loggingServiceMock.Object
+        );
 
         var viewModel = new DownloadViewModel(
             apiServiceMock.Object,
             appSettingsServiceMock.Object,
+            downloadWorkflowService,
             dispatcherServiceMock.Object,
             fileEntryServiceMock.Object,
+            fileEntryWatcherLifecycle,
+            fileEntryTreeService,
             loggingServiceMock.Object,
             snackbarServiceMock.Object,
-            systemServiceMock.Object,
-            zipServiceMock.Object
+            systemServiceMock.Object
         );
 
         await viewModel.Fetch();
@@ -588,16 +602,30 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
         var zipServiceMock = new Mock<IZipService>( MockBehavior.Strict );
+        var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
+        var pathSafetyGuard = new PathSafetyGuard();
+        var applyWorkflowService = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var downloadWorkflowService = new DownloadWorkflowService(
+            loggingServiceMock.Object,
+            applyWorkflowService.Object
+        );
+        var fileEntryWatcherLifecycle = new FileEntryWatcherLifecycle(
+            appSettingsServiceMock.Object,
+            fileEntryServiceMock.Object,
+            loggingServiceMock.Object
+        );
 
         var viewModel = new DownloadViewModel(
             apiServiceMock.Object,
             appSettingsServiceMock.Object,
+            downloadWorkflowService,
             dispatcherServiceMock.Object,
             fileEntryServiceMock.Object,
+            fileEntryWatcherLifecycle,
+            fileEntryTreeService,
             loggingServiceMock.Object,
             snackbarServiceMock.Object,
-            systemServiceMock.Object,
-            zipServiceMock.Object
+            systemServiceMock.Object
         );
 
         await viewModel.Fetch();

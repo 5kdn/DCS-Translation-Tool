@@ -87,6 +87,13 @@ public sealed class BootstrapperContainerTests {
 
             Container.Singleton<IDialogProvider, DialogProvider>();
             Container.Singleton<IDispatcherService, DispatcherService>();
+            Container.Singleton<IEntryApplyService, EntryApplyService>();
+            Container.Singleton<IRepoOnlySyncService, RepoOnlySyncService>();
+            Container.Singleton<IApplyWorkflowService, ApplyWorkflowService>();
+            Container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
+            Container.Singleton<IFileEntryWatcherLifecycle, FileEntryWatcherLifecycle>();
+            Container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
+            Container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
             Container.Singleton<ISnackbarService, SnackbarService>();
 
             var navigationServiceMock = new Mock<INavigationService>();
@@ -117,6 +124,13 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<ZipService>( Get<IZipService>() );
             Assert.IsType<DialogProvider>( Get<IDialogProvider>() );
             Assert.IsType<DispatcherService>( Get<IDispatcherService>() );
+            Assert.IsType<EntryApplyService>( Get<IEntryApplyService>() );
+            Assert.IsType<RepoOnlySyncService>( Get<IRepoOnlySyncService>() );
+            Assert.IsType<ApplyWorkflowService>( Get<IApplyWorkflowService>() );
+            Assert.IsType<DownloadWorkflowService>( Get<IDownloadWorkflowService>() );
+            Assert.IsType<FileEntryWatcherLifecycle>( Get<IFileEntryWatcherLifecycle>() );
+            Assert.IsType<FileEntryTreeService>( Get<IFileEntryTreeService>() );
+            Assert.IsType<PathSafetyGuard>( Get<IPathSafetyGuard>() );
             Assert.IsType<SnackbarService>( Get<ISnackbarService>() );
             Assert.IsType<WindowManager>( Get<IWindowManager>() );
             Assert.IsType<EventAggregator>( Get<IEventAggregator>() );

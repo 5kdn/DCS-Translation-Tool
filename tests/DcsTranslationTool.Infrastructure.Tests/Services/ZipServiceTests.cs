@@ -1,5 +1,6 @@
 using System.IO.Compression;
 
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
@@ -63,6 +64,7 @@ public class ZipServiceTests : IDisposable {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Contains( "zip ファイルパスが null または空です", result.Errors[0].Message );
+        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors[0].Metadata["kind"] );
     }
 
     [Fact]

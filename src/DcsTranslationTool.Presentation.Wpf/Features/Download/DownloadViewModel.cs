@@ -1,15 +1,11 @@
-using System.Buffers;
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Net.Sockets;
 
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -17,7 +13,6 @@ using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
-using DcsTranslationTool.Shared.Helpers;
 using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Download;
@@ -28,12 +23,14 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.Download;
 public class DownloadViewModel(
     IApiService apiService,
     IAppSettingsService appSettingsService,
+    IDownloadWorkflowService downloadWorkflowService,
     IDispatcherService dispatcherService,
     IFileEntryService fileEntryService,
+    IFileEntryWatcherLifecycle fileEntryWatcherLifecycle,
+    IFileEntryTreeService fileEntryTreeService,
     ILoggingService logger,
     ISnackbarService snackbarService,
-    ISystemService systemService,
-    IZipService zipService
+    ISystemService systemService
 ) : Screen, IActivate {
 
     #region Fields
@@ -59,17 +56,27 @@ public class DownloadViewModel(
     private bool _isApplying;
     private double _appliedProgress = 0.0;
     private bool _suppressEntriesChanged;
+    private DownloadWorkflowUiAdapter? _uiAdapter;
 
     // イベント
     private Func<IReadOnlyList<FileEntry>, Task>? _entriesChangedHandler;
     private EventHandler? _filtersChangedHandler;
 
+    /// <summary>
+    /// Download 画面向けの UI 更新アダプタを取得する。
+    /// </summary>
+    private DownloadWorkflowUiAdapter UiAdapter =>
+        _uiAdapter ??= new(
+            dispatcherService,
+            snackbarService,
+            value => DownloadedProgress = value,
+            value => AppliedProgress = value
+        );
+
 
     #endregion
 
     #region Properties
-
-    private static readonly string[] ZipLikeExtensions = [".miz", ".trk"];
 
     /// <summary>
     /// ローカル側のエントリ一覧
@@ -177,7 +184,6 @@ public class DownloadViewModel(
     /// </summary>
     /// <param name="cancellationToken">キャンセル トークン</param>
     /// <returns>非同期タスク</returns>
-    /// <exception cref="ObjectDisposedException">監視開始に失敗した場合</exception>
     public async Task ActivateAsync( CancellationToken cancellationToken ) {
         logger.Info( "DownloadViewModel をアクティブ化する。" );
         // 既存購読を解除してから再購読する
@@ -200,8 +206,7 @@ public class DownloadViewModel(
         _filtersChangedHandler = ( _, _ ) => ApplyFilter();
         Filter.FiltersChanged += _filtersChangedHandler;
 
-        fileEntryService.Watch( appSettingsService.Settings.TranslateFileDir );
-        logger.Info( $"ファイル監視を開始した。Directory={appSettingsService.Settings.TranslateFileDir}" );
+        fileEntryWatcherLifecycle.StartWatching();
 
         // 起動時取得は待たずに開始する
         await Fetch();
@@ -230,7 +235,7 @@ public class DownloadViewModel(
             logger.Info( "フィルタ変更イベントの購読を解除した。" );
         }
 
-        fileEntryService.Dispose();
+        fileEntryWatcherLifecycle.StopWatching();
         snackbarService.Clear();
         logger.Info( "リソースを解放した。" );
 
@@ -253,9 +258,10 @@ public class DownloadViewModel(
             var repoResult = await apiService.GetTreeAsync();
             if(repoResult.IsFailed) {
                 var reason = repoResult.Errors.Count > 0 ? repoResult.Errors[0].Message : null;
+                var message = ResultNotificationPolicy.GetTreeFetchFailureMessage( repoResult.GetFirstErrorKind() );
                 logger.Error( $"リポジトリのファイル一覧取得が失敗した。Reason={reason}" );
                 await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "リポジトリファイル一覧の取得に失敗しました" );
+                    snackbarService.Show( message );
                     return Task.CompletedTask;
                 } );
                 return;
@@ -295,24 +301,14 @@ public class DownloadViewModel(
         var saveRootPath = appSettingsService.Settings.TranslateFileDir;
         if(string.IsNullOrWhiteSpace( saveRootPath )) {
             logger.Warn( "保存先ディレクトリが設定されていないため保存を中断する。" );
-            await ShowSnackbarAsync( "保存先フォルダーが設定されていません" );
+            await UiAdapter.ShowSnackbarAsync( "保存先フォルダーが設定されていません" );
             return;
         }
 
-        _suppressEntriesChanged = true;
-        IsDownloading = true;
-        var entriesChangedHandler = _entriesChangedHandler;
-        if(entriesChangedHandler is not null) {
-            fileEntryService.EntriesChanged -= entriesChangedHandler;
-        }
-        await UpdateDownloadProgressAsync( 0.0 );
-        NotifyOfPropertyChange( nameof( CanDownload ) );
-        NotifyOfPropertyChange( nameof( CanApply ) );
-
-        try {
+        await ExecuteWithEntriesChangedSuppressedAsync( isDownload: true, async () => {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
                 logger.Warn( "タブが選択されていないためダウンロードを中断する。" );
-                await ShowSnackbarAsync( "タブが選択されていません" );
+                await UiAdapter.ShowSnackbarAsync( "タブが選択されていません" );
                 return;
             }
 
@@ -320,14 +316,14 @@ public class DownloadViewModel(
             var checkedEntries = tab.GetCheckedEntries();
             if(checkedEntries is null) {
                 logger.Warn( "チェックされたエントリが存在しない。" );
-                await ShowSnackbarAsync( "ダウンロード対象が有りません" );
+                await UiAdapter.ShowSnackbarAsync( "ダウンロード対象が有りません" );
                 return;
             }
 
             var targetEntries = checkedEntries.Where( e => !e.IsDirectory ).ToList();
             if(targetEntries.Count == 0) {
                 logger.Warn( "ダウンロード対象のファイルが存在しない。" );
-                await ShowSnackbarAsync( "ダウンロード対象が有りません" );
+                await UiAdapter.ShowSnackbarAsync( "ダウンロード対象が有りません" );
                 return;
             }
             logger.Info( $"ダウンロード対象を特定した。件数={targetEntries.Count}" );
@@ -338,8 +334,9 @@ public class DownloadViewModel(
             );
             if(pathResult.IsFailed) {
                 var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
+                var message = ResultNotificationPolicy.GetDownloadPathFailureMessage( pathResult.GetFirstErrorKind() );
                 logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
-                await ShowSnackbarAsync( "ダウンロードURLの取得に失敗しました" );
+                await UiAdapter.ShowSnackbarAsync( message );
                 return;
             }
 
@@ -348,23 +345,12 @@ public class DownloadViewModel(
 
             if(downloadItems.Length == 0) {
                 logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
-                await ShowSnackbarAsync( "対象ファイルは最新です" );
+                await UiAdapter.ShowSnackbarAsync( "対象ファイルは最新です" );
                 return;
             }
 
-            await DownloadFileInParallelAsync( downloadItems, saveRootPath, null );
-        }
-        finally {
-            IsDownloading = false;
-            _suppressEntriesChanged = false;
-            if(entriesChangedHandler is not null) {
-                fileEntryService.EntriesChanged += entriesChangedHandler;
-            }
-            await RefreshLocalEntriesAsync();
-            NotifyOfPropertyChange( nameof( CanDownload ) );
-            NotifyOfPropertyChange( nameof( CanApply ) );
-            logger.Info( "ダウンロード処理を終了した。" );
-        }
+            await downloadWorkflowService.DownloadFilesAsync( downloadItems, saveRootPath, UiAdapter.UpdateDownloadProgressAsync );
+        } );
     }
 
     /// <summary>
@@ -378,20 +364,10 @@ public class DownloadViewModel(
             return;
         }
 
-        _suppressEntriesChanged = true;
-        IsApplying = true;
-        var entriesChangedHandler = _entriesChangedHandler;
-        if(entriesChangedHandler is not null) {
-            fileEntryService.EntriesChanged -= entriesChangedHandler;
-        }
-        await UpdateApplyProgressAsync( 0.0 );
-        NotifyOfPropertyChange( nameof( CanApply ) );
-        NotifyOfPropertyChange( nameof( CanDownload ) );
-
-        try {
+        await ExecuteWithEntriesChangedSuppressedAsync( isDownload: false, async () => {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
                 logger.Warn( "タブが選択されていないため適用処理を中断する。" );
-                await ShowSnackbarAsync( "タブが選択されていません" );
+                await UiAdapter.ShowSnackbarAsync( "タブが選択されていません" );
                 return;
             }
 
@@ -400,7 +376,7 @@ public class DownloadViewModel(
 
             if(targetEntries.Count == 0) {
                 logger.Warn( "適用対象のファイルが存在しない。" );
-                await ShowSnackbarAsync( "対象が有りません" );
+                await UiAdapter.ShowSnackbarAsync( "対象が有りません" );
                 return;
             }
             logger.Info( $"適用対象を特定した。件数={targetEntries.Count}" );
@@ -415,14 +391,14 @@ public class DownloadViewModel(
 
             if(string.IsNullOrWhiteSpace( rootPath )) {
                 logger.Warn( "適用先ディレクトリが設定されていないため処理を中断する。" );
-                await ShowSnackbarAsync( "適用先ディレクトリを設定してください" );
+                await UiAdapter.ShowSnackbarAsync( "適用先ディレクトリを設定してください" );
                 return;
             }
 
             var rootFullPath = Path.GetFullPath( rootPath );
             if(!Directory.Exists( rootFullPath )) {
                 logger.Warn( $"適用先ディレクトリが存在しない。Directory={rootFullPath}" );
-                await ShowSnackbarAsync( "適用先ディレクトリが存在しません" );
+                await UiAdapter.ShowSnackbarAsync( "適用先ディレクトリが存在しません" );
                 return;
             }
             var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
@@ -432,7 +408,7 @@ public class DownloadViewModel(
             var translateRoot = appSettingsService.Settings.TranslateFileDir;
             if(string.IsNullOrWhiteSpace( translateRoot )) {
                 logger.Warn( "翻訳ディレクトリが未設定のため処理を中断する。" );
-                await ShowSnackbarAsync( "翻訳ディレクトリを設定してください" );
+                await UiAdapter.ShowSnackbarAsync( "翻訳ディレクトリを設定してください" );
                 return;
             }
 
@@ -442,26 +418,17 @@ public class DownloadViewModel(
                 ? translateFullPath
                 : translateFullPath + Path.DirectorySeparatorChar;
 
-            var applyCompleted = await Task.Run( () => ProcessApplyAsync(
+            var applyCompleted = await downloadWorkflowService.ApplyAsync(
                 targetEntries,
                 rootFullPath,
                 rootWithSeparator,
                 translateFullPath,
-                translateRootWithSeparator
-            ) );
+                translateRootWithSeparator,
+                UiAdapter.ShowSnackbarAsync,
+                UiAdapter.UpdateApplyProgressAsync
+            );
             if(!applyCompleted) return;
-        }
-        finally {
-            IsApplying = false;
-            _suppressEntriesChanged = false;
-            if(entriesChangedHandler is not null) {
-                fileEntryService.EntriesChanged += entriesChangedHandler;
-            }
-            await RefreshLocalEntriesAsync();
-            NotifyOfPropertyChange( nameof( CanApply ) );
-            NotifyOfPropertyChange( nameof( CanDownload ) );
-            logger.Info( "適用処理を終了した。" );
-        }
+        } );
     }
 
     private async Task RefreshLocalEntriesAsync() {
@@ -495,376 +462,52 @@ public class DownloadViewModel(
     #region Private Helpers
 
     /// <summary>
-    /// ファイルのダウンロードを並列化して実行する。
+    /// EntriesChanged を抑止してワークフロー処理を実行する。
     /// </summary>
-    /// <param name="items"><see cref="ApiDownloadFilePathsItem"/>のコレクション。</param>
-    /// <param name="saveRootPath">保存するルートディレクトリ</param>
-    /// <param name="ct">Cancellation Token</param>
-    private async Task DownloadFileInParallelAsync(
-        ApiDownloadFilePathsItem[] items,
-        string saveRootPath,
-        CancellationToken? ct
-    ) {
-        int successCount = 0;
-        int failureCount = 0;
-        var maxConcurrency = Math.Clamp( Environment.ProcessorCount, 2, 6 );
-        using SemaphoreSlim semaphore = new( maxConcurrency );
-        using HttpClient httpClient = CreateHttpClient();
-        List<Task> tasks = [];
-
-        foreach(var item in items) {
-            await semaphore.WaitAsync( ct ?? CancellationToken.None );
-
-            tasks.Add( Task.Run( async () => {
-                try {
-                    await DownloadFileAsync( httpClient, item.Url, Path.Combine( saveRootPath, item.Path ), ct );
-                    Interlocked.Increment( ref successCount );
-                }
-                catch {
-                    Interlocked.Increment( ref failureCount );
-                    throw;
-                }
-                finally {
-                    semaphore.Release();
-                }
-            } ) );
+    /// <param name="isDownload">ダウンロード処理かどうか。</param>
+    /// <param name="action">実行処理。</param>
+    /// <returns>非同期タスク。</returns>
+    private async Task ExecuteWithEntriesChangedSuppressedAsync( bool isDownload, Func<Task> action ) {
+        _suppressEntriesChanged = true;
+        var entriesChangedHandler = _entriesChangedHandler;
+        if(entriesChangedHandler is not null) {
+            fileEntryService.EntriesChanged -= entriesChangedHandler;
         }
 
+        if(isDownload) {
+            IsDownloading = true;
+            await UiAdapter.UpdateDownloadProgressAsync( 0 );
+        }
+        else {
+            IsApplying = true;
+            await UiAdapter.UpdateApplyProgressAsync( 0 );
+        }
+
+        NotifyOfPropertyChange( nameof( CanDownload ) );
+        NotifyOfPropertyChange( nameof( CanApply ) );
+
         try {
-            await Task.WhenAll( tasks );
+            await action();
         }
         finally {
-            logger.Info( $"ファイルのダウンロードが完了しました: 成功={successCount}/{items.Length} 件, 失敗={failureCount}/{items.Length} 件" );
+            if(isDownload) {
+                IsDownloading = false;
+            }
+            else {
+                IsApplying = false;
+            }
+
+            _suppressEntriesChanged = false;
+            if(entriesChangedHandler is not null) {
+                fileEntryService.EntriesChanged += entriesChangedHandler;
+            }
+
+            await RefreshLocalEntriesAsync();
+            NotifyOfPropertyChange( nameof( CanDownload ) );
+            NotifyOfPropertyChange( nameof( CanApply ) );
+            logger.Info( $"{(isDownload ? "ダウンロード" : "適用")}処理を終了した。" );
         }
     }
-
-    private static readonly ConcurrentDictionary<string, IPAddress> LastSuccessfulAddressCache = new();
-
-    /// <summary>
-    /// ファイルをダウンロードし保存する。
-    /// </summary>
-    /// <param name="url">対象のURL。</param>
-    /// <param name="filePath">保存するファイルパス。</param>
-    /// <param name="ct">Cancellation Token</param>
-    private async Task DownloadFileAsync( HttpClient httpClient, string url, string filePath, CancellationToken? ct ) {
-        logger.Info( $"ファイルをダウンロードする。Url={url}, FilePath={filePath}" );
-        try {
-            var bytes = await httpClient.GetByteArrayAsync(url, ct ?? CancellationToken.None);
-            var directoryName = Path.GetDirectoryName( filePath );
-            if(!string.IsNullOrEmpty( directoryName ) && !Directory.Exists( directoryName )) Directory.CreateDirectory( directoryName );
-
-            await File.WriteAllBytesAsync( filePath, bytes, ct ?? CancellationToken.None );
-        }
-        catch(Exception ex) {
-            logger.Error( $"ファイルのダウンロードに失敗した。Url={url}, FilePath={filePath}", ex );
-            throw;
-        }
-        logger.Info( $"ファイルのダウンロードが完了した。Url={url}, FilePath={filePath}" );
-    }
-
-    /// <summary>
-    /// 翻訳ファイルを対象の miz/trk へ適用する。
-    /// </summary>
-    /// <param name="targetEntries">適用対象のファイル一覧。</param>
-    /// <param name="rootFullPath">圧縮ファイル配置ルートの絶対パス。</param>
-    /// <param name="rootWithSeparator">区切り文字付きのルート絶対パス。</param>
-    /// <param name="translateFullPath">翻訳ディレクトリの絶対パス。</param>
-    /// <param name="translateRootWithSeparator">区切り文字付き翻訳ルート。</param>
-    /// <returns>処理が完了した場合は true。</returns>
-    private async Task<bool> ProcessApplyAsync(
-        List<IFileEntryViewModel> targetEntries,
-        string rootFullPath,
-        string rootWithSeparator,
-        string translateFullPath,
-        string translateRootWithSeparator
-    ) {
-        var repoOnlyEntries = targetEntries
-            .Where( entry => entry.ChangeType == FileChangeType.RepoOnly )
-            .ToList();
-
-        if(repoOnlyEntries.Count > 0) {
-            logger.Info( $"リポジトリのみのファイルを取得する。Count={repoOnlyEntries.Count}" );
-
-            var saveRootPath = appSettingsService.Settings.TranslateFileDir;
-            IReadOnlyList<string> paths = targetEntries.ConvertAll( e => e.Path );
-            var pathResult = await apiService.DownloadFilePathsAsync(
-                new ApiDownloadFilePathsRequest( paths, null )
-            );
-            if(pathResult.IsFailed) {
-                var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
-                logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
-                await ShowSnackbarAsync( "ダウンロードURLの取得に失敗しました" );
-                return false;
-            }
-
-            var downloadItems = pathResult.Value.Items.ToArray();
-            logger.Info( $"ダウンロードURLを取得した。{downloadItems.Length}件" );
-
-            if(downloadItems.Length == 0) {
-                logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
-                await ShowSnackbarAsync( "対象ファイルは最新です" );
-                return true;
-            }
-
-            await DownloadFileInParallelAsync( downloadItems, saveRootPath, null );
-            logger.Info( "ダウンロード処理を終了した。" );
-
-            foreach(var repoEntry in repoOnlyEntries) {
-                if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, repoEntry.Path, out var repoPath ) || !File.Exists( repoPath )) {
-                    logger.Warn( $"取得後もファイルが存在しない。Path={repoEntry.Path}, Resolved={repoPath}" );
-                    await ShowSnackbarAsync( $"取得失敗: {repoEntry.Path}" );
-                    return false;
-                }
-            }
-        }
-
-        var progressed = 0;
-        var totalApplied = targetEntries.Count;
-        var success = 0;
-        var failed = 0;
-
-        if(totalApplied == 0) {
-            await UpdateApplyProgressAsync( 100 );
-            await ShowSnackbarAsync( "適用完了 成功:0 件 失敗:0 件" );
-            logger.Info( "適用処理が完了した。成功=0, 失敗=0" );
-            return true;
-        }
-
-        foreach(var entry in targetEntries) {
-            try {
-                string? snackbarMessage = null;
-
-                if(!TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, entry.Path, out var sourceFilePath )) {
-                    failed++;
-                    snackbarMessage = $"不正な翻訳ファイル: {entry.Path}";
-                    logger.Warn( $"翻訳ディレクトリ外のファイルが指定されたためスキップする。Path={entry.Path}" );
-                }
-                else if(!File.Exists( sourceFilePath )) {
-                    failed++;
-                    snackbarMessage = $"翻訳ファイルが見つかりません: {entry.Path}";
-                    logger.Warn( $"翻訳ファイルが存在しないため適用できない。Path={sourceFilePath}" );
-                }
-                else {
-                    var parts = entry.Path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
-                    var archiveIndex = Array.FindIndex( parts, IsZipLikeEntrySegment );
-                    var rootSkipCount = GetRootSegmentSkipCount( parts );
-
-                    if(archiveIndex == -1) {
-                        var relativeSegments = parts.Skip( rootSkipCount ).ToArray();
-                        if(relativeSegments.Length == 0) {
-                            failed++;
-                            snackbarMessage = $"不正なパス構造: {entry.Path}";
-                            logger.Warn( $"ZIP対象拡張子を含まないエントリの相対パスが空のため適用できない。Path={entry.Path}" );
-                        }
-                        else {
-                            var relativePath = string.Join( '/', relativeSegments );
-                            if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, relativePath, out var destinationPath )) {
-                                failed++;
-                                snackbarMessage = $"不正な適用先: {entry.Path}";
-                                logger.Warn( $"ZIP対象拡張子を含まないエントリがルート外を指しているため拒否した。Entry={entry.Path}, Relative={relativePath}" );
-                            }
-                            else {
-                                try {
-                                    var directoryName = Path.GetDirectoryName( destinationPath );
-                                    if(!string.IsNullOrEmpty( directoryName )) Directory.CreateDirectory( directoryName );
-                                    File.Copy( sourceFilePath, destinationPath, overwrite: true );
-                                    logger.Info( $"ZIP対象拡張子を含まないエントリを直接保存した。Destination={destinationPath}" );
-                                    success++;
-                                }
-                                catch(Exception copyEx) {
-                                    failed++;
-                                    snackbarMessage = $"適用失敗: {entry.Path}";
-                                    logger.Error( $"ZIP対象拡張子を含まないエントリの保存に失敗した。Entry={entry.Path}, Destination={destinationPath}", copyEx );
-                                }
-                            }
-                        }
-                    }
-                    else {
-                        var archiveSegments = parts.Take( archiveIndex + 1 ).Skip( rootSkipCount ).ToArray();
-                        if(archiveSegments.Length == 0) {
-                            failed++;
-                            snackbarMessage = $"不正なパス構造: {entry.Path}";
-                            logger.Warn( $"パス構造が不正のため適用に失敗した。Path={entry.Path}" );
-                        }
-                        else {
-                            var archiveRelativePath = string.Join( '/', archiveSegments );
-                            if(!TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, archiveRelativePath, out var archivePath )) {
-                                failed++;
-                                snackbarMessage = $"不正な適用先: {entry.Path}";
-                                logger.Warn( $"適用先がルート外を指しているため拒否した。Entry={entry.Path}, ArchiveRelative={archiveRelativePath}" );
-                            }
-                            else if(!File.Exists( archivePath )) {
-                                failed++;
-                                snackbarMessage = $"圧縮ファイルが存在しません: {entry.Path}";
-                                logger.Warn( $"適用先の圧縮ファイルが存在しない。ArchivePath={archivePath}" );
-                            }
-                            else {
-                                var entryPathSegments = parts.Skip( archiveIndex + 1 ).ToArray();
-                                if(entryPathSegments.Length == 0) {
-                                    failed++;
-                                    snackbarMessage = $"圧縮ファイル内パスが不正です: {entry.Path}";
-                                    logger.Warn( $"miz/trk 内のパスが空のため適用できない。Path={entry.Path}" );
-                                }
-                                else {
-                                    var entryPath = string.Join( '/', entryPathSegments );
-                                    var addResult = zipService.AddEntry( archivePath, entryPath, sourceFilePath );
-                                    if(addResult.IsFailed) {
-                                        failed++;
-                                        snackbarMessage = $"適用失敗: {entry.Path}";
-                                        var reason = string.Join( ", ", addResult.Errors.Select( e => e.Message ) );
-                                        logger.Warn( $"圧縮ファイルへの適用に失敗した。ArchivePath={archivePath}, EntryPath={entryPath}, Reason={reason}" );
-                                    }
-                                    else {
-                                        logger.Info( $"圧縮ファイルへ適用した。ArchivePath={archivePath}, EntryPath={entryPath}" );
-                                        success++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if(snackbarMessage is not null) {
-                    await ShowSnackbarAsync( snackbarMessage );
-                }
-            }
-            catch(Exception ex) {
-                failed++;
-                logger.Error( $"適用処理で例外が発生した。Path={entry.Path}", ex );
-                await ShowSnackbarAsync( $"適用失敗: {entry.Path}" );
-            }
-
-            progressed++;
-            await UpdateApplyProgressAsync( Math.Min( 100, (double)progressed / totalApplied * 100 ) );
-        }
-
-        await UpdateApplyProgressAsync( 100 );
-        await ShowSnackbarAsync( $"適用完了 成功:{success} 件 失敗:{failed} 件" );
-        logger.Info( $"適用処理が完了した。成功={success}, 失敗={failed}" );
-        return true;
-    }
-
-    /// <summary>
-    /// ダウンロード進捗を更新する。
-    /// </summary>
-    /// <param name="value">進捗率。</param>
-    private Task UpdateDownloadProgressAsync( double value ) =>
-        dispatcherService.InvokeAsync( () => {
-            DownloadedProgress = value;
-            return Task.CompletedTask;
-        } );
-
-    /// <summary>
-    /// 適用進捗を更新する。
-    /// </summary>
-    /// <param name="value">進捗率。</param>
-    private Task UpdateApplyProgressAsync( double value ) =>
-        dispatcherService.InvokeAsync( () => {
-            AppliedProgress = value;
-            return Task.CompletedTask;
-        } );
-
-    /// <summary>
-    /// スナックバーにメッセージを表示する。
-    /// </summary>
-    /// <param name="message">表示メッセージ。</param>
-    private Task ShowSnackbarAsync( string message ) =>
-        dispatcherService.InvokeAsync( () => {
-            snackbarService.Show( message );
-            return Task.CompletedTask;
-        } );
-
-    ///// <summary>環境差異を吸収する HttpClient を生成する。</summary>
-    ///// <param name="handler">カスタムハンドラー。</param>
-    ///// <returns>初期化済みの HttpClient。</returns>
-    private static HttpClient CreateHttpClient() {
-        var handler = new SocketsHttpHandler
-        {
-            ConnectTimeout = TimeSpan.FromSeconds( 3 ),
-            ConnectCallback = async ( context, token ) => {
-                var host = context.DnsEndPoint!.Host;
-                var port = context.DnsEndPoint.Port;
-                var hostKey = host.ToLowerInvariant();
-
-                IPAddress[] v4 = [];
-                IPAddress[] v6 = [];
-                try {
-                    v4 = await Dns.GetHostAddressesAsync( host, AddressFamily.InterNetwork, token );
-                }
-                catch {
-                    // IPv4 解決不可は許容
-                }
-                try {
-                    v6 = await Dns.GetHostAddressesAsync( host, AddressFamily.InterNetworkV6, token );
-                }
-                catch {
-                    // IPv6 解決不可は許容
-                }
-
-                var candidates = new List<IPAddress>( v4.Length + v6.Length + 1 );
-                if(LastSuccessfulAddressCache.TryGetValue( hostKey, out var cached )) candidates.Add( cached );
-                candidates.AddRange( v4 );
-                candidates.AddRange( v6 );
-
-                foreach(var addr in candidates.Distinct()) {
-                    var socket = new Socket( addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp ) { NoDelay = true };
-                    try {
-                        await socket.ConnectAsync( addr, port, token );
-                        LastSuccessfulAddressCache[hostKey] = addr;
-                        return new NetworkStream( socket, ownsSocket: true );
-                    }
-                    catch {
-                        socket.Dispose();
-                    }
-                }
-
-                LastSuccessfulAddressCache.TryRemove( hostKey, out _ );
-                throw new SocketException( (int)SocketError.HostUnreachable );
-            }
-        };
-
-        var client = new HttpClient( handler, disposeHandler: true );
-        return client;
-    }
-
-    /// <summary>ルートディレクトリ配下に収まるようにパスを解決する。</summary>
-    private static bool TryResolvePathWithinRoot( string rootFullPath, string rootWithSeparator, string relativePath, out string resolvedPath ) {
-        resolvedPath = string.Empty;
-        if(string.IsNullOrWhiteSpace( relativePath )) return false;
-
-        var candidate = Path.GetFullPath(
-            Path.Combine( rootFullPath, relativePath.Replace( '/', Path.DirectorySeparatorChar ) )
-        );
-
-        if(!candidate.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase ))
-            return false;
-
-        resolvedPath = candidate;
-        return true;
-    }
-
-    /// <summary>パス先頭のルートセグメントを何個スキップするかを取得する。</summary>
-    private static int GetRootSegmentSkipCount( string[] segments ) {
-        if(segments.Length == 0) return 0;
-
-        if(string.Equals( segments[0], "DCSWorld", StringComparison.OrdinalIgnoreCase )) {
-            if(segments.Length >= 3 && string.Equals( segments[1], "Mods", StringComparison.OrdinalIgnoreCase )) {
-                return 3;
-            }
-        }
-
-        if(string.Equals( segments[0], "UserMissions", StringComparison.OrdinalIgnoreCase )) {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    /// <summary>ZIPとして扱う拡張子を含むかを判定する。</summary>
-    /// <param name="segment">判定対象のパスセグメント。</param>
-    /// <returns>ZIPとして扱う拡張子なら true。</returns>
-    private static bool IsZipLikeEntrySegment( string segment ) =>
-        ZipLikeExtensions.Any( ext => segment.EndsWith( ext, StringComparison.OrdinalIgnoreCase ) );
 
     /// <summary>
     /// 現在のタブでチェックありかを判定する
@@ -883,25 +526,7 @@ public class DownloadViewModel(
         var tabIndex = SelectedTabIndex;
         logger.Info( $"タブを再構築する。LocalCount={LocalEntries.Count}, RepoCount={RepoEntries.Count}, SelectedIndex={tabIndex}" );
 
-        var entries = FileEntryComparisonHelper.Merge(LocalEntries, RepoEntries);
-
-        IFileEntryViewModel rootVm = new FileEntryViewModel(new FileEntry(string.Empty, string.Empty, true), ChangeTypeMode.Download, logger);
-        foreach(var entry in entries) AddFileEntryToFileEntryViewModel( rootVm, entry, logger );
-
-        var tabs = Enum.GetValues<CategoryType>().Select(tabType =>
-        {
-            IFileEntryViewModel? target = rootVm;
-            foreach (var name in tabType.GetRepoDirRoot())
-            {
-                target = target?.Children.FirstOrDefault(c => c?.Name == name);
-                if (target is null) break;
-            }
-            return new TabItemViewModel(
-                tabType,
-                logger,
-                target ?? new FileEntryViewModel(new FileEntry("null", string.Empty, false), ChangeTypeMode.Download, logger)
-            );
-        }).ToList();
+        var tabs = fileEntryTreeService.BuildTabs( LocalEntries, RepoEntries, ChangeTypeMode.Download );
 
         foreach(var t in Tabs) t.Root.CheckStateChanged -= OnRootCheckStateChanged;
         Tabs.Clear();
@@ -947,64 +572,10 @@ public class DownloadViewModel(
         var types = Filter.GetActiveTypes().ToHashSet();
         var activeTypes = string.Join( ",", types.Select( t => t?.ToString() ?? "null" ) );
         logger.Info( $"フィルタを適用する。ActiveTypes={activeTypes}" );
-        foreach(var tab in Tabs) {
-            ApplyFilterRecursive( tab.Root, types );
-        }
+        fileEntryTreeService.ApplyFilter( Tabs, types );
         NotifyOfPropertyChange( nameof( CanDownload ) );
         NotifyOfPropertyChange( nameof( CanApply ) );
         logger.Info( "フィルタ適用が完了した。" );
-    }
-
-    /// <summary>
-    /// 指定ノードにフィルタを再帰適用する。
-    /// </summary>
-    /// <param name="node">対象ノード</param>
-    /// <param name="types">可視とする種別集合</param>
-    /// <returns>可視かどうか</returns>
-    private static bool ApplyFilterRecursive( IFileEntryViewModel node, HashSet<FileChangeType?> types ) {
-        var visible = types.Contains(node.ChangeType);
-        if(node.IsDirectory) {
-            var childVisible = false;
-            foreach(var child in node.Children) {
-                if(ApplyFilterRecursive( child, types )) childVisible = true;
-            }
-            visible |= childVisible;
-        }
-        node.IsVisible = visible;
-        return visible;
-    }
-
-    /// <summary>
-    /// <see cref="FileEntry"/> を <see cref="FileEntryViewModel"/> ツリーに追加する
-    /// </summary>
-    /// <param name="root">ルート</param>
-    /// <param name="entry">エントリ</param>
-    private static void AddFileEntryToFileEntryViewModel( IFileEntryViewModel root, FileEntry entry, ILoggingService loggingService ) {
-        string[] parts = entry.Path.Split("/", StringSplitOptions.RemoveEmptyEntries);
-        if(parts.Length == 0) return;
-
-        IFileEntryViewModel current = root;
-        var absolutePath = string.Empty;
-
-        // ディレクトリを順次作成する
-        foreach(var part in parts[..^1]) {
-            absolutePath += absolutePath.Length == 0 ? part : "/" + part;
-            var next = current.Children.FirstOrDefault(c => c?.Name == part && c.IsDirectory);
-            if(next is null) {
-                next = new FileEntryViewModel( new FileEntry( part, absolutePath, true ), ChangeTypeMode.Download, loggingService );
-                current.Children.Add( next );
-            }
-            current = next;
-        }
-
-        var last = parts[^1];
-        if(!current.Children.Any( c => c?.Name == last )) {
-            current.Children.Add(
-                new FileEntryViewModel(
-                    new FileEntry( last, entry.Path, entry.IsDirectory, entry.LocalSha, entry.RepoSha ),
-                    ChangeTypeMode.Download,
-                    loggingService ) );
-        }
     }
 
     #endregion

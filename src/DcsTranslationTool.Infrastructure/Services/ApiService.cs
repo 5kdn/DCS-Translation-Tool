@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Shared.Models;
 
 using FluentResults;
@@ -30,11 +31,11 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         try {
             using var response = await _httpClient.GetAsync("health", cancellationToken).ConfigureAwait(false);
             if(!response.IsSuccessStatusCode)
-                return Result.Fail( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}" );
+                return Result.Fail( ResultErrorFactory.External( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}", "API_HTTP_ERROR" ) );
 
             var payload = await response.Content.ReadFromJsonAsync<HealthResponse>(SerializerOptions, cancellationToken).ConfigureAwait(false);
             if(payload is null)
-                return Result.Fail( "Response body was null." );
+                return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
 
             var status = payload.Status switch
             {
@@ -45,7 +46,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             return Result.Ok( new ApiHealth( status, payload.Timestamp ) );
         }
         catch(Exception ex) {
-            return Result.Fail( new ExceptionalError( ex ) );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_HEALTH_EXCEPTION" ) );
         }
     }
 
@@ -54,7 +55,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         try {
             using var resp = await _httpClient.GetAsync("tree", cancellationToken).ConfigureAwait(false);
             if(!resp.IsSuccessStatusCode)
-                return Result.Fail( $"HTTP {(int)resp.StatusCode}: {resp.ReasonPhrase}" );
+                return Result.Fail( ResultErrorFactory.External( $"HTTP {(int)resp.StatusCode}: {resp.ReasonPhrase}", "API_HTTP_ERROR" ) );
 
             var payload = await resp.Content.ReadFromJsonAsync<TreeResponse>(SerializerOptions, cancellationToken).ConfigureAwait(false);
             if(payload?.Data is not { Count: > 0 } data)
@@ -70,7 +71,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             return Result.Ok<IReadOnlyList<FileEntry>>( entries );
         }
         catch(Exception ex) {
-            return Result.Fail( new ExceptionalError( ex ) );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_TREE_EXCEPTION" ) );
         }
     }
 
@@ -82,7 +83,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         ArgumentNullException.ThrowIfNull( request );
 
         if(request.Paths is null || request.Paths.Count == 0)
-            return Result.Fail( "Paths には少なくとも1つの値が含まれている必要があります。" );
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの値が含まれている必要があります。", "API_PATHS_REQUIRED" ) );
 
         var sanitizedPaths = request.Paths
             .Select(path => path?.Trim())
@@ -91,10 +92,10 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             .ToArray();
 
         if(sanitizedPaths.Length == 0)
-            return Result.Fail( "Paths には少なくとも1つの空でない値が含まれている必要があります。" );
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの空でない値が含まれている必要があります。", "API_PATHS_EMPTY" ) );
 
         if(sanitizedPaths.Length > 500)
-            return Result.Fail( "Paths には500個以下のアイテムを含める必要があります。" );
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には500個以下のアイテムを含める必要があります。", "API_PATHS_LIMIT" ) );
 
         try {
             var payload = new DownloadFilesRequest( sanitizedPaths );
@@ -134,7 +135,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                     if(!string.IsNullOrWhiteSpace( body )) reason = $"{reason} - {body}";
                 }
 
-                return Result.Fail( reason );
+                return Result.Fail( ResultErrorFactory.External( reason, "API_HTTP_ERROR" ) );
             }
 
             var content = await response.Content.ReadAsByteArrayAsync( cancellationToken ).ConfigureAwait(false);
@@ -157,7 +158,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             return Result.Ok( result );
         }
         catch(Exception ex) {
-            return Result.Fail( new ExceptionalError( ex ) );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_DOWNLOAD_FILES_EXCEPTION" ) );
         }
     }
 
@@ -169,7 +170,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
         ArgumentNullException.ThrowIfNull( request );
 
         if(request.Paths is null || request.Paths.Count == 0)
-            return Result.Fail( "Paths には少なくとも1つの値が含まれている必要があります。" );
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの値が含まれている必要があります。", "API_PATHS_REQUIRED" ) );
 
         var sanitizedPaths = request.Paths
             .Select(path => path?.Trim())
@@ -178,10 +179,10 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             .ToArray();
 
         if(sanitizedPaths.Length == 0)
-            return Result.Fail( "Paths には少なくとも1つの空でない値が含まれている必要があります。" );
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの空でない値が含まれている必要があります。", "API_PATHS_EMPTY" ) );
 
         if(sanitizedPaths.Length > 500)
-            return Result.Fail( "Paths には500個以下のアイテムを含める必要があります。" );
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には500個以下のアイテムを含める必要があります。", "API_PATHS_LIMIT" ) );
 
         try {
             var payload = new DownloadFilePathsRequest( sanitizedPaths );
@@ -211,7 +212,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                     if(!string.IsNullOrWhiteSpace( body )) reason = $"{reason} - {body}";
                 }
 
-                return Result.Fail( reason );
+                return Result.Fail( ResultErrorFactory.External( reason, "API_HTTP_ERROR" ) );
             }
 
             var payloadResponse = await response.Content
@@ -219,7 +220,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                 .ConfigureAwait(false);
 
             if(payloadResponse is null)
-                return Result.Fail( "Response body was null." );
+                return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
 
             var items = payloadResponse.Files?
                 .Where(file => file is not null && !string.IsNullOrWhiteSpace( file.Url ) && !string.IsNullOrWhiteSpace( file.Path ))
@@ -233,7 +234,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             return Result.Ok( result );
         }
         catch(Exception ex) {
-            return Result.Fail( new ExceptionalError( ex ) );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_DOWNLOAD_PATHS_EXCEPTION" ) );
         }
 
     }
@@ -266,13 +267,13 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                 .ConfigureAwait(false);
 
             if(!response.IsSuccessStatusCode)
-                return Result.Fail( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}" );
+                return Result.Fail( ResultErrorFactory.External( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}", "API_HTTP_ERROR" ) );
 
             var result = await response.Content
                 .ReadFromJsonAsync<CreatePrResponse>(SerializerOptions, cancellationToken)
                 .ConfigureAwait(false);
 
-            if(result is null) return Result.Fail( "Response body was null." );
+            if(result is null) return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
 
             var entries = result.Data?
                 .Select(ToCreatePrEntry)
@@ -285,7 +286,7 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             return Result.Ok( outcome );
         }
         catch(Exception ex) {
-            return Result.Fail( new ExceptionalError( ex ) );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_CREATE_PR_EXCEPTION" ) );
         }
     }
 
