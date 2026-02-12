@@ -5,7 +5,11 @@ using System.Net.Http;
 using System.Net.Sockets;
 
 using DcsTranslationTool.Application.Contracts;
+using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
+using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 
 namespace DcsTranslationTool.Presentation.Wpf.Services;
@@ -14,10 +18,139 @@ namespace DcsTranslationTool.Presentation.Wpf.Services;
 /// ダウンロードと適用処理の実行を提供する。
 /// </summary>
 public sealed class DownloadWorkflowService(
+    IApiService apiService,
     ILoggingService logger,
     IApplyWorkflowService applyWorkflowService
 ) : IDownloadWorkflowService {
     private static readonly ConcurrentDictionary<string, IPAddress> LastSuccessfulAddressCache = new();
+
+    /// <inheritdoc/>
+    public async Task<DownloadWorkflowResult> ExecuteDownloadAsync(
+        DownloadExecutionRequest request,
+        Func<double, Task> progressCallback,
+        CancellationToken cancellationToken = default
+    ) {
+        if(string.IsNullOrWhiteSpace( request.SaveRootPath )) {
+            logger.Warn( "保存先ディレクトリが設定されていないため保存を中断する。" );
+            return FailureDownloadResult( "保存先フォルダーが設定されていません" );
+        }
+
+        if(request.SelectedTab is null) {
+            logger.Warn( "タブが選択されていないためダウンロードを中断する。" );
+            return FailureDownloadResult( "タブが選択されていません" );
+        }
+
+        var checkedEntries = request.SelectedTab.GetCheckedEntries();
+        var targetEntries = checkedEntries.Where( entry => !entry.IsDirectory ).ToList();
+        if(targetEntries.Count == 0) {
+            logger.Warn( "ダウンロード対象のファイルが存在しない。" );
+            return FailureDownloadResult( "ダウンロード対象が有りません" );
+        }
+        logger.Info( $"ダウンロード対象を特定した。件数={targetEntries.Count}" );
+
+        IReadOnlyList<string> paths = targetEntries.ConvertAll( entry => entry.Path );
+        var pathResult = await apiService.DownloadFilePathsAsync(
+            new ApiDownloadFilePathsRequest( paths, null ),
+            cancellationToken
+        );
+        if(pathResult.IsFailed) {
+            var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
+            var message = ResultNotificationPolicy.GetDownloadPathFailureMessage( pathResult.GetFirstErrorKind() );
+            logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
+            return FailureDownloadResult( message );
+        }
+
+        var downloadItems = pathResult.Value.Items.ToArray();
+        logger.Info( $"ダウンロードURLを取得した。{downloadItems.Length}件" );
+
+        if(downloadItems.Length == 0) {
+            logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
+            return SuccessDownloadResult( "対象ファイルは最新です" );
+        }
+
+        await this.DownloadFilesAsync(
+            downloadItems,
+            request.SaveRootPath,
+            progressCallback,
+            cancellationToken
+        );
+
+        return SuccessDownloadResult();
+    }
+
+    /// <inheritdoc/>
+    public async Task<ApplyWorkflowResult> ExecuteApplyAsync(
+        ApplyExecutionRequest request,
+        Func<string, Task> showSnackbarAsync,
+        Func<double, Task> progressCallback,
+        CancellationToken cancellationToken = default
+    ) {
+        if(request.SelectedTab is null) {
+            logger.Warn( "タブが選択されていないため適用処理を中断する。" );
+            return FailureApplyResult( "タブが選択されていません" );
+        }
+
+        var targetEntries = request.SelectedTab
+            .GetCheckedViewModels()
+            .Where( entry => !entry.IsDirectory )
+            .Where( entry => entry.ChangeType is FileChangeType.Modified or FileChangeType.LocalOnly or FileChangeType.RepoOnly )
+            .ToList();
+
+        if(targetEntries.Count == 0) {
+            logger.Warn( "適用対象のファイルが存在しない。" );
+            return FailureApplyResult( "対象が有りません" );
+        }
+        logger.Info( $"適用対象を特定した。件数={targetEntries.Count}" );
+
+        string? rootPath = request.SelectedTab.TabType switch
+        {
+            CategoryType.Aircraft => request.SourceAircraftDir,
+            CategoryType.DlcCampaigns => request.SourceDlcCampaignDir,
+            CategoryType.UserMissions => request.SourceUserMissionDir,
+            _ => throw new InvalidOperationException( $"未対応のタブ種別: {request.SelectedTab.TabType}" ),
+        };
+
+        if(string.IsNullOrWhiteSpace( rootPath )) {
+            logger.Warn( "適用先ディレクトリが設定されていないため処理を中断する。" );
+            return FailureApplyResult( "適用先ディレクトリを設定してください" );
+        }
+
+        var rootFullPath = Path.GetFullPath( rootPath );
+        if(!Directory.Exists( rootFullPath )) {
+            logger.Warn( $"適用先ディレクトリが存在しない。Directory={rootFullPath}" );
+            return FailureApplyResult( "適用先ディレクトリが存在しません" );
+        }
+
+        var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
+            ? rootFullPath
+            : rootFullPath + Path.DirectorySeparatorChar;
+
+        if(string.IsNullOrWhiteSpace( request.TranslateRootPath )) {
+            logger.Warn( "翻訳ディレクトリが未設定のため処理を中断する。" );
+            return FailureApplyResult( "翻訳ディレクトリを設定してください" );
+        }
+
+        var translateFullPath = Path.GetFullPath( request.TranslateRootPath );
+        Directory.CreateDirectory( translateFullPath );
+        var translateRootWithSeparator = translateFullPath.EndsWith( Path.DirectorySeparatorChar )
+            ? translateFullPath
+            : translateFullPath + Path.DirectorySeparatorChar;
+
+        var applyCompleted = await this.ApplyAsync(
+            targetEntries,
+            rootFullPath,
+            rootWithSeparator,
+            translateFullPath,
+            translateRootWithSeparator,
+            showSnackbarAsync,
+            progressCallback,
+            cancellationToken
+        );
+
+        return applyCompleted
+            ? SuccessApplyResult()
+            : new ApplyWorkflowResult( false, [] );
+    }
 
     /// <inheritdoc/>
     public async Task DownloadFilesAsync(
@@ -171,4 +304,46 @@ public sealed class DownloadWorkflowService(
 
         return new HttpClient( handler, disposeHandler: true );
     }
+
+    /// <summary>
+    /// ダウンロード失敗結果を生成する。
+    /// </summary>
+    /// <param name="message">通知メッセージ。</param>
+    /// <returns>失敗結果。</returns>
+    private static DownloadWorkflowResult FailureDownloadResult( string message ) =>
+        new(
+            false,
+            [new WorkflowEvent( WorkflowEventKind.Notification, Message: message )]
+        );
+
+    /// <summary>
+    /// ダウンロード成功結果を生成する。
+    /// </summary>
+    /// <param name="message">通知メッセージ。</param>
+    /// <returns>成功結果。</returns>
+    private static DownloadWorkflowResult SuccessDownloadResult( string? message = null ) =>
+        string.IsNullOrWhiteSpace( message )
+            ? new DownloadWorkflowResult( true, [] )
+            : new DownloadWorkflowResult(
+                true,
+                [new WorkflowEvent( WorkflowEventKind.Notification, Message: message )]
+            );
+
+    /// <summary>
+    /// 適用失敗結果を生成する。
+    /// </summary>
+    /// <param name="message">通知メッセージ。</param>
+    /// <returns>失敗結果。</returns>
+    private static ApplyWorkflowResult FailureApplyResult( string message ) =>
+        new(
+            false,
+            [new WorkflowEvent( WorkflowEventKind.Notification, Message: message )]
+        );
+
+    /// <summary>
+    /// 適用成功結果を生成する。
+    /// </summary>
+    /// <returns>成功結果。</returns>
+    private static ApplyWorkflowResult SuccessApplyResult() =>
+        new( true, [] );
 }

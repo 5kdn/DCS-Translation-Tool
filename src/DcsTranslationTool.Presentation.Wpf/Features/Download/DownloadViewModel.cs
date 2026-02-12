@@ -1,14 +1,10 @@
-using System.IO;
-
-using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Application.Results;
-using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.Common;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
+using DcsTranslationTool.Presentation.Wpf.ViewModels;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Download;
 
@@ -124,50 +120,15 @@ public class DownloadViewModel(
         }
 
         await ExecuteWithEntriesChangedSuppressedAsync( isDownload: true, async () => {
-            if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
-                Logger.Warn( "タブが選択されていないためダウンロードを中断する。" );
-                await UiAdapter.ShowSnackbarAsync( "タブが選択されていません" );
-                return;
-            }
-
-            var tab = Tabs[SelectedTabIndex];
-            var checkedEntries = tab.GetCheckedEntries();
-            if(checkedEntries is null) {
-                Logger.Warn( "チェックされたエントリが存在しない。" );
-                await UiAdapter.ShowSnackbarAsync( "ダウンロード対象が有りません" );
-                return;
-            }
-
-            var targetEntries = checkedEntries.Where( e => !e.IsDirectory ).ToList();
-            if(targetEntries.Count == 0) {
-                Logger.Warn( "ダウンロード対象のファイルが存在しない。" );
-                await UiAdapter.ShowSnackbarAsync( "ダウンロード対象が有りません" );
-                return;
-            }
-            Logger.Info( $"ダウンロード対象を特定した。件数={targetEntries.Count}" );
-
-            IReadOnlyList<string> paths = targetEntries.ConvertAll( e => e.Path );
-            var pathResult = await ApiService.DownloadFilePathsAsync(
-                new ApiDownloadFilePathsRequest( paths, null )
+            var request = new DownloadExecutionRequest(
+                GetSelectedTab(),
+                saveRootPath
             );
-            if(pathResult.IsFailed) {
-                var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
-                var message = ResultNotificationPolicy.GetDownloadPathFailureMessage( pathResult.GetFirstErrorKind() );
-                Logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
-                await UiAdapter.ShowSnackbarAsync( message );
-                return;
-            }
-
-            var downloadItems = pathResult.Value.Items.ToArray();
-            Logger.Info( $"ダウンロードURLを取得した。{downloadItems.Length}件" );
-
-            if(downloadItems.Length == 0) {
-                Logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
-                await UiAdapter.ShowSnackbarAsync( "対象ファイルは最新です" );
-                return;
-            }
-
-            await downloadWorkflowService.DownloadFilesAsync( downloadItems, saveRootPath, UiAdapter.UpdateDownloadProgressAsync );
+            var result = await downloadWorkflowService.ExecuteDownloadAsync(
+                request,
+                UiAdapter.UpdateDownloadProgressAsync
+            );
+            await HandleWorkflowEventsAsync( result.Events );
         } );
     }
 
@@ -183,69 +144,19 @@ public class DownloadViewModel(
         }
 
         await ExecuteWithEntriesChangedSuppressedAsync( isDownload: false, async () => {
-            if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
-                Logger.Warn( "タブが選択されていないため適用処理を中断する。" );
-                await UiAdapter.ShowSnackbarAsync( "タブが選択されていません" );
-                return;
-            }
-
-            var tab = Tabs[SelectedTabIndex];
-            var targetEntries = GetTargetFileNodes().Where( e => !e.IsDirectory ).ToList();
-
-            if(targetEntries.Count == 0) {
-                Logger.Warn( "適用対象のファイルが存在しない。" );
-                await UiAdapter.ShowSnackbarAsync( "対象が有りません" );
-                return;
-            }
-            Logger.Info( $"適用対象を特定した。件数={targetEntries.Count}" );
-
-            string rootPath = tab.TabType switch
-            {
-                CategoryType.Aircraft => appSettingsService.Settings.SourceAircraftDir,
-                CategoryType.DlcCampaigns => appSettingsService.Settings.SourceDlcCampaignDir,
-                CategoryType.UserMissions => appSettingsService.Settings.SourceUserMissionDir,
-                _ => throw new InvalidOperationException( $"未対応のタブ種別: {tab.TabType}" ),
-            };
-
-            if(string.IsNullOrWhiteSpace( rootPath )) {
-                Logger.Warn( "適用先ディレクトリが設定されていないため処理を中断する。" );
-                await UiAdapter.ShowSnackbarAsync( "適用先ディレクトリを設定してください" );
-                return;
-            }
-
-            var rootFullPath = Path.GetFullPath( rootPath );
-            if(!Directory.Exists( rootFullPath )) {
-                Logger.Warn( $"適用先ディレクトリが存在しない。Directory={rootFullPath}" );
-                await UiAdapter.ShowSnackbarAsync( "適用先ディレクトリが存在しません" );
-                return;
-            }
-            var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
-                ? rootFullPath
-                : rootFullPath + Path.DirectorySeparatorChar;
-
-            var translateRoot = appSettingsService.Settings.TranslateFileDir;
-            if(string.IsNullOrWhiteSpace( translateRoot )) {
-                Logger.Warn( "翻訳ディレクトリが未設定のため処理を中断する。" );
-                await UiAdapter.ShowSnackbarAsync( "翻訳ディレクトリを設定してください" );
-                return;
-            }
-
-            var translateFullPath = Path.GetFullPath( translateRoot );
-            Directory.CreateDirectory( translateFullPath );
-            var translateRootWithSeparator = translateFullPath.EndsWith( Path.DirectorySeparatorChar )
-                ? translateFullPath
-                : translateFullPath + Path.DirectorySeparatorChar;
-
-            var applyCompleted = await downloadWorkflowService.ApplyAsync(
-                targetEntries,
-                rootFullPath,
-                rootWithSeparator,
-                translateFullPath,
-                translateRootWithSeparator,
+            var request = new ApplyExecutionRequest(
+                GetSelectedTab(),
+                appSettingsService.Settings.SourceAircraftDir,
+                appSettingsService.Settings.SourceDlcCampaignDir,
+                appSettingsService.Settings.SourceUserMissionDir,
+                appSettingsService.Settings.TranslateFileDir
+            );
+            var result = await downloadWorkflowService.ExecuteApplyAsync(
+                request,
                 UiAdapter.ShowSnackbarAsync,
                 UiAdapter.UpdateApplyProgressAsync
             );
-            if(!applyCompleted) return;
+            await HandleWorkflowEventsAsync( result.Events );
         } );
     }
 
@@ -301,14 +212,33 @@ public class DownloadViewModel(
     }
 
     /// <summary>
-    /// 適用対象ノード列挙を取得する
+    /// 選択中タブを取得する。
     /// </summary>
-    /// <returns>対象ノード列挙</returns>
-    private IEnumerable<IFileEntryViewModel> GetTargetFileNodes() {
-        var tab = Tabs[SelectedTabIndex];
-        return tab
-            .GetCheckedViewModels()
-            .Where( e => e.ChangeType is FileChangeType.Modified or FileChangeType.LocalOnly or FileChangeType.RepoOnly );
+    /// <returns>選択中タブ。未選択時は <see langword="null"/>。</returns>
+    private TabItemViewModel? GetSelectedTab() =>
+        Tabs.Count > 0 && SelectedTabIndex >= 0 && SelectedTabIndex < Tabs.Count
+            ? Tabs[SelectedTabIndex]
+            : null;
+
+    /// <summary>
+    /// ワークフローイベントを UI へ反映する。
+    /// </summary>
+    /// <param name="events">反映対象イベント。</param>
+    /// <returns>非同期タスク。</returns>
+    private async Task HandleWorkflowEventsAsync( IReadOnlyList<WorkflowEvent> events ) {
+        foreach(var workflowEvent in events) {
+            switch(workflowEvent.Kind) {
+                case WorkflowEventKind.Notification when !string.IsNullOrWhiteSpace( workflowEvent.Message ):
+                    await UiAdapter.ShowSnackbarAsync( workflowEvent.Message );
+                    break;
+                case WorkflowEventKind.DownloadProgress when workflowEvent.Progress.HasValue:
+                    await UiAdapter.UpdateDownloadProgressAsync( workflowEvent.Progress.Value );
+                    break;
+                case WorkflowEventKind.ApplyProgress when workflowEvent.Progress.HasValue:
+                    await UiAdapter.UpdateApplyProgressAsync( workflowEvent.Progress.Value );
+                    break;
+            }
+        }
     }
 
     /// <inheritdoc />

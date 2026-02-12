@@ -1,3 +1,4 @@
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
@@ -9,9 +10,10 @@ namespace DcsTranslationTool.Presentation.Wpf.Tests.Services;
 public sealed class DownloadWorkflowServiceTests {
     [Fact]
     public async Task ApplyAsyncはApplyWorkflowServiceへ委譲する() {
+        var apiService = new Mock<IApiService>( MockBehavior.Strict );
         var logger = new Mock<ILoggingService>();
         var applyWorkflowService = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
-        var sut = new DownloadWorkflowService( logger.Object, applyWorkflowService.Object );
+        var sut = new DownloadWorkflowService( apiService.Object, logger.Object, applyWorkflowService.Object );
 
         var targetEntries = Array.Empty<IFileEntryViewModel>();
         applyWorkflowService
