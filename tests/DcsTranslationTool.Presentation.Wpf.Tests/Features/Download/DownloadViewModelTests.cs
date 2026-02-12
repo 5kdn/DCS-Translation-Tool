@@ -654,9 +654,9 @@ public sealed class DownloadViewModelTests : IDisposable {
         apiServiceMock.VerifyAll();
     }
 
-    /// <summary>Applyは適用ワークフローをUIスレッド外で実行することを確認する。</summary>
+    /// <summary>Applyは適用ワークフローを実行することを確認する。</summary>
     [StaFact]
-    public async Task Applyを呼び出すと適用ワークフローをUIスレッド外で実行する() {
+    public async Task Applyを呼び出すと適用ワークフローを実行する() {
         var sourceRoot = Path.Combine( _tempDir, "AircraftSource" );
         Directory.CreateDirectory( sourceRoot );
 
@@ -707,33 +707,30 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
         var downloadWorkflowServiceMock = new Mock<IDownloadWorkflowService>( MockBehavior.Strict );
-        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var fileEntryWatcherLifecycleMock = new Mock<IFileEntryWatcherLifecycle>( MockBehavior.Strict );
+        var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
 
-        var uiThreadId = Thread.CurrentThread.ManagedThreadId;
-        var applyThreadId = uiThreadId;
-
-        applyWorkflowServiceMock
+        downloadWorkflowServiceMock
             .Setup( service => service.ApplyAsync(
                 It.IsAny<IReadOnlyList<IFileEntryViewModel>>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<IProgress<WorkflowEvent>?>()
+                It.IsAny<Func<string, Task>>(),
+                It.IsAny<Func<double, Task>>(),
+                It.IsAny<CancellationToken>()
             ) )
-            .ReturnsAsync( () => {
-                applyThreadId = Thread.CurrentThread.ManagedThreadId;
-                return new ApplyWorkflowResult( true, [] );
-            } );
+            .ReturnsAsync( true );
 
         var viewModel = new DownloadViewModel(
             apiServiceMock.Object,
             appSettingsServiceMock.Object,
             downloadWorkflowServiceMock.Object,
-            applyWorkflowServiceMock.Object,
             dispatcherServiceMock.Object,
             fileEntryServiceMock.Object,
+            fileEntryWatcherLifecycleMock.Object,
+            fileEntryTreeService,
             loggingServiceMock.Object,
             snackbarServiceMock.Object,
             systemServiceMock.Object
@@ -753,8 +750,7 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         await viewModel.Apply();
 
-        Assert.NotEqual( uiThreadId, applyThreadId );
-        applyWorkflowServiceMock.VerifyAll();
+        downloadWorkflowServiceMock.VerifyAll();
         apiServiceMock.VerifyAll();
     }
 
