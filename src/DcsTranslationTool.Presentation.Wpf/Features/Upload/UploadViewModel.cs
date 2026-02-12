@@ -1,21 +1,14 @@
-using System.Collections.ObjectModel;
 using System.IO;
-
-using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Domain.Models;
+using DcsTranslationTool.Presentation.Wpf.Features.Common;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
-using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
-using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
-using DcsTranslationTool.Presentation.Wpf.ViewModels;
-using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Upload;
 
@@ -33,213 +26,33 @@ public sealed class UploadViewModel(
     ILoggingService logger,
     ISnackbarService snackbarService,
     ISystemService systemService
-) : Screen, IActivate {
+) : FileEntryTabsViewModelBase(
+    apiService,
+    dispatcherService,
+    fileEntryService,
+    fileEntryWatcherLifecycle,
+    fileEntryTreeService,
+    logger,
+    snackbarService
+) {
+    /// <inheritdoc />
+    protected override string ViewModelName => nameof( UploadViewModel );
 
-    #region Fields
-
-    /// <summary>ローカル側のエントリ一覧</summary>
-    private IReadOnlyList<FileEntry> _localEntries = [];
-
-    /// <summary>リポジトリ側のエントリ一覧</summary>
-    private IReadOnlyList<FileEntry> _repoEntries = [];
-
-    ///<summary>全てのタブ情報を取得する。</summary>
-    private ObservableCollection<TabItemViewModel> _tabs = [];
-
-    ///<summary>現在選択されているタブ。</summary>
-    private int _selectedTabIndex;
-
-    /// <summary>ファイルのフィルタ状態を取得するプロパティ。</summary>
-    private IFilterViewModel _filter  = new FilterViewModel( logger );
-
-    /// <summary>Fetch状態の取得</summary>
-    private bool _isFetching = false;
-
-    // イベント
-    private Func<IReadOnlyList<FileEntry>, Task>? _entriesChangedHandler;
-    private EventHandler? _filtersChangedHandler;
-
-    #endregion
+    /// <inheritdoc />
+    protected override ChangeTypeMode TreeMode => ChangeTypeMode.Upload;
 
     #region Properties
 
     /// <summary>
-    /// ローカル側のエントリ一覧
-    /// </summary>
-    public IReadOnlyList<FileEntry> LocalEntries {
-        get => _localEntries;
-        private set => Set( ref _localEntries, value );
-    }
-
-    /// <summary>
-    /// リポジトリ側のエントリ一覧
-    /// </summary>
-    public IReadOnlyList<FileEntry> RepoEntries {
-        get => _repoEntries;
-        private set => Set( ref _repoEntries, value );
-    }
-
-    /// <summary>
-    /// 全てのタブ情報を取得する
-    /// </summary>
-    public ObservableCollection<TabItemViewModel> Tabs {
-        get => _tabs;
-        set => Set( ref _tabs, value );
-    }
-
-    /// <summary>
-    /// 選択中のタブインデックス
-    /// </summary>
-    public int SelectedTabIndex {
-        get => _selectedTabIndex;
-        set => Set( ref _selectedTabIndex, value );
-    }
-
-    /// <summary>
-    /// ファイルのフィルタ状態
-    /// </summary>
-    public IFilterViewModel Filter {
-        get => _filter;
-        set => Set( ref _filter, value );
-    }
-
-    public bool IsFetching {
-        get => _isFetching;
-        set {
-            if(!Set( ref _isFetching, value )) return;
-            NotifyOfPropertyChange( nameof( IsTreeInteractionEnabled ) );
-            NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
-        }
-    }
-
-    #endregion
-
-    #region Action Guards
-
-    /// <summary>
     /// CreatePullRequestDialog を表示可能か
     /// </summary>
-    public bool CanShowCreatePullRequestDialog => !_isFetching && HasChecked();
-
-    /// <summary>
-    /// ツリー操作が許可されているか。
-    /// </summary>
-    public bool IsTreeInteractionEnabled => !IsFetching;
-
-    #endregion
-
-    #region Lifecycle
-
-    /// <summary>
-    /// 画面アクティブ時に初期化を行う。
-    /// </summary>
-    /// <param name="cancellationToken">キャンセル トークン</param>
-    /// <returns>非同期タスク</returns>
-    public async Task ActivateAsync( CancellationToken cancellationToken ) {
-        logger.Info( "UploadViewModel をアクティブ化する。" );
-        // 既存購読を解除してから再購読する
-        _ = OnDeactivateAsync( close: false, cancellationToken );
-
-        _entriesChangedHandler = entries =>
-        dispatcherService.InvokeAsync( () => {
-            logger.Info( $"EntriesChanged を受信した。件数={entries.Count}" );
-            LocalEntries = entries;
-            RefreshTabs();
-            return Task.CompletedTask;
-        } );
-        fileEntryService.EntriesChanged += _entriesChangedHandler!;
-
-        _filtersChangedHandler = ( _, _ ) => ApplyFilter();
-        Filter.FiltersChanged += _filtersChangedHandler;
-
-        fileEntryWatcherLifecycle.StartWatching();
-
-        // 起動時取得は待たずに開始する
-        await Fetch();
-
-        await OnActivatedAsync( cancellationToken );
-        logger.Info( "UploadViewModel のアクティブ化が完了した。" );
-    }
-
-    /// <summary>
-    /// 画面非アクティブ時に購読解除とクリーンアップを行う。
-    /// </summary>
-    /// <param name="close">閉じるかどうか</param>
-    /// <param name="cancellationToken">キャンセル トークン</param>
-    /// <returns>非同期タスク</returns>
-    protected override async Task OnDeactivateAsync( bool close, CancellationToken cancellationToken ) {
-        logger.Info( $"UploadViewModel を非アクティブ化する。Close={close}" );
-        if(_entriesChangedHandler is not null) {
-            fileEntryService.EntriesChanged -= _entriesChangedHandler;
-            _entriesChangedHandler = null;
-            logger.Info( "ファイルエントリの購読を解除した。" );
-        }
-
-        if(_filtersChangedHandler is not null) {
-            Filter.FiltersChanged -= _filtersChangedHandler;
-            _filtersChangedHandler = null;
-            logger.Info( "フィルタ変更イベントの購読を解除した。" );
-        }
-
-        fileEntryWatcherLifecycle.StopWatching();
-        snackbarService.Clear();
-        logger.Info( "リソースを解放した。" );
-
-        await base.OnDeactivateAsync( close, cancellationToken );
-    }
-
-    #endregion
-
-    #region Actions
-
-    /// <summary>
-    /// リポジトリからツリーを取得する
-    /// </summary>
-    /// <returns>非同期タスク</returns>
-    /// <exception cref="InvalidOperationException">取得失敗時</exception>
-    public async Task Fetch() {
-        logger.Info( "ファイル一覧の取得を開始する。" );
-        IsFetching = true;
-        try {
-            var repoResult = await apiService.GetTreeAsync();
-            if(repoResult.IsFailed) {
-                var reason = repoResult.Errors.Count > 0 ? repoResult.Errors[0].Message : null;
-                var message = ResultNotificationPolicy.GetTreeFetchFailureMessage( repoResult.GetFirstErrorKind() );
-                logger.Warn(
-                    $"リポジトリのファイル一覧取得が失敗した。Reason={reason}" );
-                await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( message );
-                    return Task.CompletedTask;
-                } );
-                return;
-            }
-            RepoEntries = [.. repoResult.Value];
-            logger.Info( $"ファイル一覧を取得した。件数={RepoEntries.Count}" );
-            RefreshTabs();
-            await dispatcherService.InvokeAsync( () => {
-                snackbarService.Show( "ファイル一覧の取得が完了しました" );
-                return Task.CompletedTask;
-            } );
-        }
-        catch(Exception ex) {
-            logger.Error( ex.Message, ex );
-            logger.Warn( "ファイル一覧取得処理で例外が発生した。" );
-            await dispatcherService.InvokeAsync( () => {
-                snackbarService.Show( "取得処理で例外が発生しました" );
-                return Task.CompletedTask;
-            } );
-        }
-        finally {
-            IsFetching = false;
-            logger.Info( "ファイル一覧取得処理を終了した。" );
-        }
-    }
+    public bool CanShowCreatePullRequestDialog => !IsFetching && HasCheckedEntries();
 
     /// <summary>
     /// 翻訳ファイルの管理ディレクトリをエクスプローラーで開く。
     /// </summary>
     public void OpenDirectory() {
-        logger.Info( $"翻訳ファイルディレクトリを開く。Directory={appSettingsService.Settings.TranslateFileDir}" );
+        Logger.Info( $"翻訳ファイルディレクトリを開く。Directory={appSettingsService.Settings.TranslateFileDir}" );
         systemService.OpenDirectory( appSettingsService.Settings.TranslateFileDir );
     }
 
@@ -247,18 +60,18 @@ public sealed class UploadViewModel(
     /// CreatePullRequestDialog を表示する。
     /// </summary>
     public async Task ShowCreatePullRequestDialog() {
-        logger.Info( "Pull Request ダイアログ表示を開始する。" );
+        Logger.Info( "Pull Request ダイアログ表示を開始する。" );
         var dialogParameters = new CreatePullRequestDialogParameters()
         {
             Category = Tabs[SelectedTabIndex].Title,
             SubCategory = GetSubCategory(),
             CommitFiles = GetCommitFiles,
         };
-        logger.Info( $"ダイアログ引数を構築した。Category={dialogParameters.Category}, SubCategory={dialogParameters.SubCategory}, FileCount={dialogParameters.CommitFiles.Count()}" );
+        Logger.Info( $"ダイアログ引数を構築した。Category={dialogParameters.Category}, SubCategory={dialogParameters.SubCategory}, FileCount={dialogParameters.CommitFiles.Count()}" );
 
         // 削除するファイルが含まれる場合確認ダイアログを表示し、Yesでない場合即座に中止する。
         if(dialogParameters.CommitFiles.Any( cf => cf.Operation == CommitOperationType.Delete )) {
-            logger.Warn( "削除予定のファイルが含まれているため確認ダイアログを表示する。" );
+            Logger.Warn( "削除予定のファイルが含まれているため確認ダイアログを表示する。" );
             var confirmed = await dialogService.ContinueCancelDialogShowAsync(
                 new ConfirmationDialogParameters
                 {
@@ -269,21 +82,21 @@ public sealed class UploadViewModel(
                 } );
 
             if(!confirmed) {
-                logger.Warn( "削除確認でキャンセルが選択されたため処理を終了する。" );
+                Logger.Warn( "削除確認でキャンセルが選択されたため処理を終了する。" );
                 return;
             }
         }
 
 
         async Task ShowAsync( string message, string? action = null, System.Action? handler = null ) =>
-            await dispatcherService.InvokeAsync( () => {
-                snackbarService.Show( message, action, handler );
+            await DispatcherService.InvokeAsync( () => {
+                SnackbarService.Show( message, action, handler );
                 return Task.CompletedTask;
             } );
 
         try {
             var result = await dialogService.CreatePullRequestDialogShowAsync( dialogParameters );
-            logger.Info( $"Pull Request ダイアログが完了した。IsOk={result.IsOk}" );
+            Logger.Info( $"Pull Request ダイアログが完了した。IsOk={result.IsOk}" );
 
             var (message, actionContent, actionHandler) = result switch
             {
@@ -307,12 +120,12 @@ public sealed class UploadViewModel(
             await ShowAsync( message, actionContent, actionHandler );
         }
         catch(OperationCanceledException) {
-            logger.Warn( "Pull Request ダイアログがキャンセルされた。" );
+            Logger.Warn( "Pull Request ダイアログがキャンセルされた。" );
             await ShowAsync( "Pull Request の作成をキャンセルしました" );
         }
         catch(Exception ex) {
-            logger.Error( ex.Message, ex );
-            logger.Warn( "Pull Request ダイアログ処理で例外が発生した。" );
+            Logger.Error( ex.Message, ex );
+            Logger.Warn( "Pull Request ダイアログ処理で例外が発生した。" );
             await ShowAsync( $"Pull Request ダイアログで例外が発生しました: {ex.Message}" );
         }
     }
@@ -321,69 +134,15 @@ public sealed class UploadViewModel(
 
     #region Private Helpers
 
-    /// <summary>
-    /// 現在のタブでチェックありかを判定する。
-    /// </summary>
-    /// <returns>チェックが1つ以上なら <see langword="true"/></returns>
-    private bool HasChecked() =>
-        Tabs.Count > 0 &&
-        SelectedTabIndex >= 0 &&
-        SelectedTabIndex < Tabs.Count &&
-        Tabs[SelectedTabIndex].Root.CheckState != false;
-
-    /// <summary>
-    /// リポジトリとローカルのエントリをマージしてタブを再構築する。
-    /// </summary>
-    private void RefreshTabs() {
-        var tabIndex = SelectedTabIndex;
-        logger.Info( $"タブを再構築する。LocalCount={LocalEntries.Count}, RepoCount={RepoEntries.Count}, SelectedIndex={tabIndex}" );
-
-        var tabs = fileEntryTreeService.BuildTabs( LocalEntries, RepoEntries, ChangeTypeMode.Upload );
-
-        foreach(var t in Tabs) t.Root.CheckStateChanged -= OnRootCheckStateChanged;
-        Tabs.Clear();
-        foreach(var t in tabs) Tabs.Add( t );
-        foreach(var t in Tabs) t.Root.CheckStateChanged += OnRootCheckStateChanged;
-
-        SelectedTabIndex = Tabs.Count == 0 ? 0 : Math.Clamp( tabIndex, 0, Tabs.Count - 1 );
-
-        ApplyFilter();
-        logger.Info( $"タブの再構築が完了した。TabCount={Tabs.Count}, SelectedIndex={SelectedTabIndex}" );
-    }
-
-    /// <summary>
-    /// ルートノードのチェック状態変化時にガードを更新する。
-    /// </summary>
-    /// <param name="sender">送信元</param>
-    /// <param name="e">チェック状態</param>
-    private void OnRootCheckStateChanged( object? sender, bool? e ) {
-        _ = sender;
-        _ = e;
-        NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
-        logger.Info( $"ルートチェック状態が変化した。SelectedIndex={SelectedTabIndex}, NewState={e}" );
-    }
-
-    /// <summary>
-    /// 現在のフィルタ条件を適用する。
-    /// </summary>
-    private void ApplyFilter() {
-        var types = Filter.GetActiveTypes().ToHashSet();
-        var activeTypes = string.Join( ",", types.Select( t => t?.ToString() ?? "null" ) );
-        logger.Info( $"フィルタを適用する。ActiveTypes={activeTypes}" );
-        fileEntryTreeService.ApplyFilter( Tabs, types );
-        NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
-        logger.Info( "フィルタ適用が完了した。" );
-    }
-
     private string GetSubCategory() {
-        var cur = Tabs[_selectedTabIndex].Root;
+        var cur = Tabs[SelectedTabIndex].Root;
         List<FileChangeType?> typeFilter = [FileChangeType.LocalOnly, FileChangeType.Modified];
 
         if(cur.Children.Count( c => typeFilter.Contains( c.ChangeType ) && c.CheckState != false ) != 1) throw new Exception();
         cur = cur.Children.First( c => typeFilter.Contains( c.ChangeType ) && c.CheckState != false );
 
         var name = cur.Name;
-        logger.Info( $"サブカテゴリーを算出した。Name={name}" );
+        Logger.Info( $"サブカテゴリーを算出した。Name={name}" );
         return name;
     }
 
@@ -403,10 +162,23 @@ public sealed class UploadViewModel(
                 RepoPath = entry.Path,
             } )
             .ToList();
-            logger.Info( $"コミット対象ファイルを収集した。件数={files.Count}" );
+            Logger.Info( $"コミット対象ファイルを収集した。件数={files.Count}" );
             return files;
         }
     }
+
+    /// <inheritdoc />
+    protected override void NotifyGuardProperties() =>
+        NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
+
+    /// <inheritdoc />
+    protected override void OnSelectedTabIndexChanged() =>
+        NotifyGuardProperties();
+
+    /// <inheritdoc />
+    protected override void OnIsFetchingChanged() =>
+        NotifyGuardProperties();
+
     #endregion
 
 }
