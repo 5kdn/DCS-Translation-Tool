@@ -8,6 +8,34 @@ namespace DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 /// </summary>
 public interface IDownloadWorkflowService {
     /// <summary>
+    /// ダウンロードユースケースを実行する。
+    /// </summary>
+    /// <param name="request">ダウンロード入力。</param>
+    /// <param name="progressCallback">進捗通知コールバック。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>実行結果。</returns>
+    Task<DownloadWorkflowResult> ExecuteDownloadAsync(
+        DownloadExecutionRequest request,
+        Func<double, Task> progressCallback,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
+    /// 適用ユースケースを実行する。
+    /// </summary>
+    /// <param name="request">適用入力。</param>
+    /// <param name="showSnackbarAsync">通知コールバック。</param>
+    /// <param name="progressCallback">進捗通知コールバック。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>実行結果。</returns>
+    Task<ApplyWorkflowResult> ExecuteApplyAsync(
+        ApplyExecutionRequest request,
+        Func<string, Task> showSnackbarAsync,
+        Func<double, Task> progressCallback,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// ダウンロードURL一覧からファイルを保存する。
     /// </summary>
     /// <param name="items">ダウンロード対象一覧。</param>

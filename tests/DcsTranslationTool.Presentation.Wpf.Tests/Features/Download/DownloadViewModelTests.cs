@@ -261,6 +261,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var pathSafetyGuard = new PathSafetyGuard();
         var applyWorkflowService = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
         var downloadWorkflowService = new DownloadWorkflowService(
+            apiServiceMock.Object,
             loggingServiceMock.Object,
             applyWorkflowService.Object
         );
@@ -303,6 +304,96 @@ public sealed class DownloadViewModelTests : IDisposable {
         var expectedFilePath = Path.Combine( _tempDir, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "Example.lua" );
         Assert.False( File.Exists( expectedFilePath ) );
 
+        apiServiceMock.VerifyAll();
+    }
+
+    /// <summary>保存先未設定時はダウンロード処理を開始せずチェック状態を維持することを確認する。</summary>
+    [StaFact]
+    public async Task Downloadを呼び出すと保存先未設定の場合は処理を中断してチェック状態を維持する() {
+        var appSettings = new AppSettings { TranslateFileDir = string.Empty };
+        const string repoEntryPath = "DCSWorld/Mods/aircraft/A10C/L10N/Example.lua";
+
+        var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "deadbeef" );
+        var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        apiServiceMock
+            .Setup( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( treeResult );
+
+        var dispatcherServiceMock = new Mock<IDispatcherService>();
+        dispatcherServiceMock
+            .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
+            .Returns<Func<Task>>( func => func() );
+
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( appSettings );
+
+        var fileEntryServiceMock = new Mock<IFileEntryService>( MockBehavior.Strict );
+        var loggingServiceMock = new Mock<ILoggingService>();
+        var snackbarMessages = new List<string>();
+        var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
+        var snackbarServiceMock = new Mock<ISnackbarService>();
+        snackbarServiceMock
+            .SetupGet( service => service.MessageQueue )
+            .Returns( snackbarMessageQueueMock.Object );
+        snackbarServiceMock
+            .Setup( service => service.Show(
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Action?>(),
+                It.IsAny<object?>(),
+                It.IsAny<TimeSpan?>()
+            ) )
+            .Callback<string, string?, Action?, object?, TimeSpan?>(
+                ( message, _, _, _, _ ) => snackbarMessages.Add( message )
+            );
+
+        var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
+        var downloadWorkflowServiceMock = new Mock<IDownloadWorkflowService>( MockBehavior.Strict );
+        var fileEntryWatcherLifecycleMock = new Mock<IFileEntryWatcherLifecycle>( MockBehavior.Strict );
+        var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
+
+        var viewModel = new DownloadViewModel(
+            apiServiceMock.Object,
+            appSettingsServiceMock.Object,
+            downloadWorkflowServiceMock.Object,
+            dispatcherServiceMock.Object,
+            fileEntryServiceMock.Object,
+            fileEntryWatcherLifecycleMock.Object,
+            fileEntryTreeService,
+            loggingServiceMock.Object,
+            snackbarServiceMock.Object,
+            systemServiceMock.Object
+        );
+
+        await viewModel.Fetch();
+        var aircraftIndex = viewModel.Tabs
+            .Select( ( tab, index ) => ( tab, index ) )
+            .First( pair => pair.tab.TabType == CategoryType.Aircraft )
+            .index;
+        viewModel.SelectedTabIndex = aircraftIndex;
+
+        var aircraftRoot = viewModel.Tabs[aircraftIndex].Root;
+        var fileNode = FindNodeByPath( aircraftRoot, "A10C", "L10N", "Example.lua" );
+        Assert.NotNull( fileNode );
+        fileNode!.CheckState = true;
+        Assert.True( viewModel.CanDownload );
+
+        await viewModel.Download();
+
+        Assert.Contains( "保存先フォルダーが設定されていません", snackbarMessages );
+        var currentNode = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Example.lua" );
+        Assert.NotNull( currentNode );
+        Assert.True( currentNode!.CheckState );
+
+        downloadWorkflowServiceMock.Verify( service => service.ExecuteDownloadAsync(
+            It.IsAny<DownloadExecutionRequest>(),
+            It.IsAny<Func<double, Task>>(),
+            It.IsAny<CancellationToken>()
+        ), Times.Never );
         apiServiceMock.VerifyAll();
     }
 
@@ -607,6 +698,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var pathSafetyGuard = new PathSafetyGuard();
         var applyWorkflowService = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
         var downloadWorkflowService = new DownloadWorkflowService(
+            apiServiceMock.Object,
             loggingServiceMock.Object,
             applyWorkflowService.Object
         );
@@ -711,17 +803,13 @@ public sealed class DownloadViewModelTests : IDisposable {
         var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
 
         downloadWorkflowServiceMock
-            .Setup( service => service.ApplyAsync(
-                It.IsAny<IReadOnlyList<IFileEntryViewModel>>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<string>(),
+            .Setup( service => service.ExecuteApplyAsync(
+                It.IsAny<ApplyExecutionRequest>(),
                 It.IsAny<Func<string, Task>>(),
                 It.IsAny<Func<double, Task>>(),
                 It.IsAny<CancellationToken>()
             ) )
-            .ReturnsAsync( true );
+            .ReturnsAsync( new ApplyWorkflowResult( true, [] ) );
 
         var viewModel = new DownloadViewModel(
             apiServiceMock.Object,
