@@ -22,9 +22,6 @@ using Moq;
 
 using NLog.Config;
 
-using InfraLoggingService = DcsTranslationTool.Infrastructure.Interfaces.ILoggingService;
-using PresentationLoggingService = DcsTranslationTool.Presentation.Wpf.Services.ILoggingService;
-
 namespace DcsTranslationTool.Presentation.Wpf.Tests;
 
 public sealed class BootstrapperContainerTests {
@@ -69,10 +66,6 @@ public sealed class BootstrapperContainerTests {
             Container.Instance( Dispatcher.CurrentDispatcher );
 
             CompositionRegistration.Register( Container );
-
-            var infraLogging = (InfraLoggingService)Container.GetInstance( typeof( InfraLoggingService ), null )!;
-            var loggingAdapter = new LoggingServiceAdapter( infraLogging );
-            Container.Instance<PresentationLoggingService>( loggingAdapter );
             Container.Singleton<IApplicationInfoService, ApplicationInfoService>();
 
             AppSettingsService = (AppSettingsService)Container.GetInstance( typeof( IAppSettingsService ), null )!;
@@ -111,7 +104,7 @@ public sealed class BootstrapperContainerTests {
         internal AppSettingsService AppSettingsService { get; }
 
         public void AssertResolutions() {
-            Assert.IsType<LoggingServiceAdapter>( Get<PresentationLoggingService>() );
+            Assert.IsType<LoggingService>( Get<ILoggingService>() );
             Assert.IsType<AppSettingsService>( Get<IAppSettingsService>() );
             Assert.IsType<ApiService>( Get<IApiService>() );
             Assert.IsType<FileEntryService>( Get<IFileEntryService>() );
