@@ -1,5 +1,6 @@
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -204,7 +205,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "deadbeef" );
         var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
 
-        var downloadResult = Result.Fail<ApiDownloadFilePathsResult>( "network failure" );
+        var downloadResult = Result.Fail<ApiDownloadFilePathsResult>( ResultErrorFactory.Validation( "network failure", "TEST_VALIDATION" ) );
 
         var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
         apiServiceMock
@@ -298,7 +299,7 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         await viewModel.Download();
 
-        Assert.Contains( "ダウンロードURLの取得に失敗しました", snackbarMessages );
+        Assert.Contains( "ダウンロード対象が不正です", snackbarMessages );
         var expectedFilePath = Path.Combine( _tempDir, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "Example.lua" );
         Assert.False( File.Exists( expectedFilePath ) );
 
@@ -650,6 +651,110 @@ public sealed class DownloadViewModelTests : IDisposable {
         Assert.Equal( 0, viewModel.DownloadedProgress );
         Assert.True( viewModel.CanDownload );
 
+        apiServiceMock.VerifyAll();
+    }
+
+    /// <summary>Applyは適用ワークフローをUIスレッド外で実行することを確認する。</summary>
+    [StaFact]
+    public async Task Applyを呼び出すと適用ワークフローをUIスレッド外で実行する() {
+        var sourceRoot = Path.Combine( _tempDir, "AircraftSource" );
+        Directory.CreateDirectory( sourceRoot );
+
+        var appSettings = new AppSettings
+        {
+            TranslateFileDir = _tempDir,
+            SourceAircraftDir = sourceRoot
+        };
+
+        const string repoEntryPath = "DCSWorld/Mods/aircraft/A10C/L10N/Example.lua";
+        var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "abc12345" );
+        var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        apiServiceMock
+            .Setup( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( treeResult );
+
+        var dispatcherServiceMock = new Mock<IDispatcherService>();
+        dispatcherServiceMock
+            .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
+            .Returns<Func<Task>>( func => func() );
+
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( appSettings );
+
+        var fileEntryServiceMock = new Mock<IFileEntryService>();
+        fileEntryServiceMock
+            .Setup( service => service.GetEntriesAsync() )
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( Array.Empty<FileEntry>() ) );
+
+        var loggingServiceMock = new Mock<ILoggingService>();
+        var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
+        var snackbarServiceMock = new Mock<ISnackbarService>();
+        snackbarServiceMock
+            .SetupGet( service => service.MessageQueue )
+            .Returns( snackbarMessageQueueMock.Object );
+        snackbarServiceMock
+            .Setup( service => service.Show(
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Action?>(),
+                It.IsAny<object?>(),
+                It.IsAny<TimeSpan?>()
+            ) );
+
+        var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
+        var downloadWorkflowServiceMock = new Mock<IDownloadWorkflowService>( MockBehavior.Strict );
+        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+
+        var uiThreadId = Thread.CurrentThread.ManagedThreadId;
+        var applyThreadId = uiThreadId;
+
+        applyWorkflowServiceMock
+            .Setup( service => service.ApplyAsync(
+                It.IsAny<IReadOnlyList<IFileEntryViewModel>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<IProgress<WorkflowEvent>?>()
+            ) )
+            .ReturnsAsync( () => {
+                applyThreadId = Thread.CurrentThread.ManagedThreadId;
+                return new ApplyWorkflowResult( true, [] );
+            } );
+
+        var viewModel = new DownloadViewModel(
+            apiServiceMock.Object,
+            appSettingsServiceMock.Object,
+            downloadWorkflowServiceMock.Object,
+            applyWorkflowServiceMock.Object,
+            dispatcherServiceMock.Object,
+            fileEntryServiceMock.Object,
+            loggingServiceMock.Object,
+            snackbarServiceMock.Object,
+            systemServiceMock.Object
+        );
+
+        await viewModel.Fetch();
+        var aircraftIndex = viewModel.Tabs
+            .Select( ( tab, index ) => ( tab, index ) )
+            .First( pair => pair.tab.TabType == CategoryType.Aircraft )
+            .index;
+        viewModel.SelectedTabIndex = aircraftIndex;
+
+        var aircraftRoot = viewModel.Tabs[aircraftIndex].Root;
+        var fileNode = FindNodeByPath( aircraftRoot, "A10C", "L10N", "Example.lua" );
+        Assert.NotNull( fileNode );
+        fileNode!.CheckState = true;
+
+        await viewModel.Apply();
+
+        Assert.NotEqual( uiThreadId, applyThreadId );
+        applyWorkflowServiceMock.VerifyAll();
         apiServiceMock.VerifyAll();
     }
 

@@ -457,10 +457,6 @@ public class DownloadViewModel(
         systemService.OpenDirectory( appSettingsService.Settings.TranslateFileDir );
     }
 
-    #endregion
-
-    #region Private Helpers
-
     /// <summary>
     /// EntriesChanged を抑止してワークフロー処理を実行する。
     /// </summary>
