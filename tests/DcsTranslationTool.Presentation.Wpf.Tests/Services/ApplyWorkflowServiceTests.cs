@@ -1,13 +1,7 @@
 using DcsTranslationTool.Application.Contracts;
-using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
-using DcsTranslationTool.Presentation.Wpf.UI.Enums;
-using DcsTranslationTool.Presentation.Wpf.ViewModels;
-using DcsTranslationTool.Shared.Models;
-
-using FluentResults;
+using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 
 using Moq;
 
@@ -15,43 +9,93 @@ namespace DcsTranslationTool.Presentation.Wpf.Tests.Services;
 
 public sealed class ApplyWorkflowServiceTests {
     [Fact]
-    public async Task ApplyAsyncはURL取得失敗時に失敗結果を返す() {
-        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
-        var downloadWorkflowServiceMock = new Mock<IDownloadWorkflowService>( MockBehavior.Strict );
-        var loggerMock = new Mock<ILoggingService>();
-        var zipServiceMock = new Mock<IZipService>( MockBehavior.Strict );
-        var sut = new ApplyWorkflowService(
-            apiServiceMock.Object,
-            downloadWorkflowServiceMock.Object,
-            loggerMock.Object,
-            zipServiceMock.Object
-        );
+    public async Task ApplyAsyncはRepoOnly同期が失敗した場合に適用処理を実行しない() {
+        var repoOnlySyncService = new Mock<IRepoOnlySyncService>( MockBehavior.Strict );
+        var entryApplyService = new Mock<IEntryApplyService>( MockBehavior.Strict );
+        var sut = new ApplyWorkflowService( repoOnlySyncService.Object, entryApplyService.Object );
 
-        const string repoPath = "DCSWorld/Mods/aircraft/A10C/L10N/RepoOnly.lua";
-        var entry = new FileEntryViewModel(
-            new RepoFileEntry( "RepoOnly.lua", repoPath, false, "repo" ),
-            ChangeTypeMode.Download,
-            loggerMock.Object
-        );
-
-        apiServiceMock
-            .Setup( service => service.DownloadFilePathsAsync(
-                It.Is<ApiDownloadFilePathsRequest>( request => request.Paths.Count == 1 && request.Paths[0] == repoPath ),
+        var targetEntries = Array.Empty<IFileEntryViewModel>();
+        repoOnlySyncService
+            .Setup( service => service.EnsureRepoOnlyFilesAsync(
+                targetEntries,
+                "translate",
+                "translate\\",
+                It.IsAny<Func<IReadOnlyList<ApiDownloadFilePathsItem>, Task>>(),
+                It.IsAny<Func<string, Task>>(),
                 It.IsAny<CancellationToken>()
             ) )
-            .ReturnsAsync( Result.Fail<ApiDownloadFilePathsResult>( ResultErrorFactory.External( "failed", "TEST" ) ) );
+            .ReturnsAsync( false );
 
         var result = await sut.ApplyAsync(
-            [entry],
+            targetEntries,
             "root",
             "root\\",
             "translate",
             "translate\\",
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask,
             TestContext.Current.CancellationToken
         );
 
-        Assert.False( result.IsSuccess );
-        Assert.Contains( result.Events, e => e.Kind == WorkflowEventKind.Notification && e.Message == "ダウンロードURLの取得に失敗しました" );
-        apiServiceMock.VerifyAll();
+        Assert.False( result );
+        repoOnlySyncService.VerifyAll();
+        entryApplyService.Verify( service => service.ApplyEntriesAsync(
+            It.IsAny<IReadOnlyList<IFileEntryViewModel>>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<Func<string, Task>>(),
+            It.IsAny<Func<double, Task>>(),
+            It.IsAny<CancellationToken>()
+        ), Times.Never );
+    }
+
+    [Fact]
+    public async Task ApplyAsyncはRepoOnly同期成功時に適用処理を実行する() {
+        var repoOnlySyncService = new Mock<IRepoOnlySyncService>( MockBehavior.Strict );
+        var entryApplyService = new Mock<IEntryApplyService>( MockBehavior.Strict );
+        var sut = new ApplyWorkflowService( repoOnlySyncService.Object, entryApplyService.Object );
+
+        var targetEntries = Array.Empty<IFileEntryViewModel>();
+        repoOnlySyncService
+            .Setup( service => service.EnsureRepoOnlyFilesAsync(
+                targetEntries,
+                "translate",
+                "translate\\",
+                It.IsAny<Func<IReadOnlyList<ApiDownloadFilePathsItem>, Task>>(),
+                It.IsAny<Func<string, Task>>(),
+                It.IsAny<CancellationToken>()
+            ) )
+            .ReturnsAsync( true );
+        entryApplyService
+            .Setup( service => service.ApplyEntriesAsync(
+                targetEntries,
+                "root",
+                "root\\",
+                "translate",
+                "translate\\",
+                It.IsAny<Func<string, Task>>(),
+                It.IsAny<Func<double, Task>>(),
+                It.IsAny<CancellationToken>()
+            ) )
+            .ReturnsAsync( true );
+
+        var result = await sut.ApplyAsync(
+            targetEntries,
+            "root",
+            "root\\",
+            "translate",
+            "translate\\",
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True( result );
+        repoOnlySyncService.VerifyAll();
+        entryApplyService.VerifyAll();
     }
 }

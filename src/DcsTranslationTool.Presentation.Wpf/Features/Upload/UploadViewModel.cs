@@ -15,7 +15,6 @@ using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
-using DcsTranslationTool.Shared.Helpers;
 using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Upload;
@@ -29,6 +28,8 @@ public sealed class UploadViewModel(
     IDialogService dialogService,
     IDispatcherService dispatcherService,
     IFileEntryService fileEntryService,
+    IFileEntryWatcherLifecycle fileEntryWatcherLifecycle,
+    IFileEntryTreeService fileEntryTreeService,
     ILoggingService logger,
     ISnackbarService snackbarService,
     ISystemService systemService
@@ -134,7 +135,6 @@ public sealed class UploadViewModel(
     /// </summary>
     /// <param name="cancellationToken">キャンセル トークン</param>
     /// <returns>非同期タスク</returns>
-    /// <exception cref="ObjectDisposedException">監視開始に失敗した場合</exception>
     public async Task ActivateAsync( CancellationToken cancellationToken ) {
         logger.Info( "UploadViewModel をアクティブ化する。" );
         // 既存購読を解除してから再購読する
@@ -152,8 +152,7 @@ public sealed class UploadViewModel(
         _filtersChangedHandler = ( _, _ ) => ApplyFilter();
         Filter.FiltersChanged += _filtersChangedHandler;
 
-        fileEntryService.Watch( appSettingsService.Settings.TranslateFileDir );
-        logger.Info( $"ファイル監視を開始した。Directory={appSettingsService.Settings.TranslateFileDir}" );
+        fileEntryWatcherLifecycle.StartWatching();
 
         // 起動時取得は待たずに開始する
         await Fetch();
@@ -182,7 +181,7 @@ public sealed class UploadViewModel(
             logger.Info( "フィルタ変更イベントの購読を解除した。" );
         }
 
-        fileEntryService.Dispose();
+        fileEntryWatcherLifecycle.StopWatching();
         snackbarService.Clear();
         logger.Info( "リソースを解放した。" );
 
@@ -339,25 +338,7 @@ public sealed class UploadViewModel(
         var tabIndex = SelectedTabIndex;
         logger.Info( $"タブを再構築する。LocalCount={LocalEntries.Count}, RepoCount={RepoEntries.Count}, SelectedIndex={tabIndex}" );
 
-        var entries = FileEntryComparisonHelper.Merge(LocalEntries, RepoEntries);
-
-        IFileEntryViewModel rootVm = new FileEntryViewModel(new FileEntry(string.Empty, string.Empty, true), ChangeTypeMode.Upload, logger);
-        foreach(var entry in entries) AddFileEntryToFileEntryViewModel( rootVm, entry, logger );
-
-        var tabs = Enum.GetValues<CategoryType>().Select(tabType =>
-        {
-            IFileEntryViewModel? target = rootVm;
-            foreach (var name in tabType.GetRepoDirRoot())
-            {
-                target = target?.Children.FirstOrDefault(c => c?.Name == name);
-                if (target is null) break;
-            }
-            return new TabItemViewModel(
-                tabType,
-                logger,
-                target ?? new FileEntryViewModel(new FileEntry("null", string.Empty, false), ChangeTypeMode.Upload, logger)
-            );
-        }).ToList();
+        var tabs = fileEntryTreeService.BuildTabs( LocalEntries, RepoEntries, ChangeTypeMode.Upload );
 
         foreach(var t in Tabs) t.Root.CheckStateChanged -= OnRootCheckStateChanged;
         Tabs.Clear();
@@ -389,63 +370,9 @@ public sealed class UploadViewModel(
         var types = Filter.GetActiveTypes().ToHashSet();
         var activeTypes = string.Join( ",", types.Select( t => t?.ToString() ?? "null" ) );
         logger.Info( $"フィルタを適用する。ActiveTypes={activeTypes}" );
-        foreach(var tab in Tabs) {
-            ApplyFilterRecursive( tab.Root, types );
-        }
+        fileEntryTreeService.ApplyFilter( Tabs, types );
         NotifyOfPropertyChange( nameof( CanShowCreatePullRequestDialog ) );
         logger.Info( "フィルタ適用が完了した。" );
-    }
-
-    /// <summary>
-    /// 指定ノードにフィルタを再帰適用する。
-    /// </summary>
-    /// <param name="node">対象ノード</param>
-    /// <param name="types">可視とする種別集合</param>
-    /// <returns>可視かどうか</returns>
-    private static bool ApplyFilterRecursive( IFileEntryViewModel node, HashSet<FileChangeType?> types ) {
-        var visible = types.Contains(node.ChangeType);
-        if(node.IsDirectory) {
-            var childVisible = false;
-            foreach(var child in node.Children) {
-                if(ApplyFilterRecursive( child, types )) childVisible = true;
-            }
-            visible |= childVisible;
-        }
-        node.IsVisible = visible;
-        return visible;
-    }
-
-    /// <summary>
-    /// <see cref="FileEntry"/> を <see cref="FileEntryViewModel"/> ツリーに追加する
-    /// </summary>
-    /// <param name="root">ルート</param>
-    /// <param name="entry">エントリ</param>
-    private static void AddFileEntryToFileEntryViewModel( IFileEntryViewModel root, FileEntry entry, ILoggingService loggingService ) {
-        string[] parts = entry.Path.Split("/", StringSplitOptions.RemoveEmptyEntries);
-        if(parts.Length == 0) return;
-
-        IFileEntryViewModel current = root;
-        var absolutePath = string.Empty;
-
-        // ディレクトリを順次作成する
-        foreach(var part in parts[..^1]) {
-            absolutePath += absolutePath.Length == 0 ? part : "/" + part;
-            var next = current.Children.FirstOrDefault(c => c?.Name == part && c.IsDirectory);
-            if(next is null) {
-                next = new FileEntryViewModel( new FileEntry( part, absolutePath, true ), ChangeTypeMode.Upload, loggingService );
-                current.Children.Add( next );
-            }
-            current = next;
-        }
-
-        var last = parts[^1];
-        if(!current.Children.Any( c => c?.Name == last )) {
-            current.Children.Add(
-                new FileEntryViewModel(
-                    new FileEntry( last, entry.Path, entry.IsDirectory, entry.LocalSha, entry.RepoSha ),
-                    ChangeTypeMode.Upload,
-                    loggingService ) );
-        }
     }
 
     private string GetSubCategory() {

@@ -79,7 +79,7 @@ public class FileEntryServiceTests : IDisposable {
         Assert.True( result.IsFailed );
         var actualMessage = result.Errors[0].Message;
         Assert.StartsWith( "指定されたパスが存在しません: ", actualMessage );
-        Assert.Equal( ResultErrorKind.NotFound, result.GetFirstErrorKind() );
+        Assert.Equal( ResultErrorKind.NotFound.ToString(), result.Errors[0].Metadata["kind"] );
     }
 
     #endregion

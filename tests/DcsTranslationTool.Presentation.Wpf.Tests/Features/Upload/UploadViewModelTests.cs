@@ -65,7 +65,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ActivateAsync( CancellationToken.None );
 
         Assert.Contains( _tempDir, context.WatchedPaths );
-        context.FileEntryServiceMock.Verify( service => service.Dispose(), Times.AtLeastOnce );
+        Assert.Single( context.WatchedPaths );
 
         await context.RaiseEntriesChangedAsync( localEntries );
 
@@ -788,14 +788,15 @@ public sealed class UploadViewModelTests : IDisposable {
 
     #region ツリー構築ユーティリティ
 
-    /// <summary>AddFileEntryToFileEntryViewModelを呼び出すと多段ディレクトリ構造を正しく作成することを確認する。</summary>
+    /// <summary>FileEntryTreeServiceが多段ディレクトリ構造を正しく構築することを確認する。</summary>
     [StaFact]
-    public void AddFileEntryToFileEntryViewModelを呼び出すと多段ディレクトリ構造を正しく作成する() {
+    public void FileEntryTreeServiceを呼び出すと多段ディレクトリ構造を正しく作成する() {
         var logger = new Mock<ILoggingService>().Object;
-        var root = new FileEntryViewModel( new FileEntry( string.Empty, string.Empty, true ), ChangeTypeMode.Upload, logger );
+        var sut = new FileEntryTreeService( logger );
         var entry = new RepoFileEntry( "Example.lua", AircraftExamplePath, false, "repo-sha" );
-
-        InvokeAddFileEntry( root, entry, logger );
+        var tabs = sut.BuildTabs( Array.Empty<FileEntry>(), [entry], ChangeTypeMode.Upload );
+        var aircraftTab = tabs.First( tab => tab.TabType == CategoryType.Aircraft );
+        var root = aircraftTab.Root;
 
         var localizationNode = FindNodeByPath( root, AircraftLocalizationDirectoryPath );
         Assert.NotNull( localizationNode );
@@ -811,27 +812,21 @@ public sealed class UploadViewModelTests : IDisposable {
         Assert.Equal( AircraftExamplePath, fileNode.Path );
     }
 
-    /// <summary>AddFileEntryToFileEntryViewModelを呼び出すと既存ノードを重複作成しないことを確認する。</summary>
+    /// <summary>FileEntryTreeServiceが同一パスノードを重複作成しないことを確認する。</summary>
     [StaFact]
-    public void AddFileEntryToFileEntryViewModelを呼び出すと既存ノードを重複作成しない() {
+    public void FileEntryTreeServiceを呼び出すと既存ノードを重複作成しない() {
         var loggerMock = new Mock<ILoggingService>();
-        var root = new FileEntryViewModel( new FileEntry( string.Empty, string.Empty, true ), ChangeTypeMode.Upload, loggerMock.Object );
+        var sut = new FileEntryTreeService( loggerMock.Object );
         var repoEntry = new RepoFileEntry( "Example.lua", AircraftExamplePath, false, "repo-sha" );
         var localEntry = new LocalFileEntry( "Example.lua", AircraftExamplePath, false, "local-sha" );
+        var tabs = sut.BuildTabs( [localEntry], [repoEntry], ChangeTypeMode.Upload );
+        var aircraftTab = tabs.First( tab => tab.TabType == CategoryType.Aircraft );
+        var root = aircraftTab.Root;
 
-        InvokeAddFileEntry( root, repoEntry, loggerMock.Object );
-        var initialNodes = EnumerateNodes( root ).ToList();
-        var initialFileNode = FindNodeByPath( root, AircraftExamplePath );
-        var initialLocalizationNode = FindNodeByPath( root, AircraftLocalizationDirectoryPath );
-
-        InvokeAddFileEntry( root, localEntry, loggerMock.Object );
-        var finalNodes = EnumerateNodes( root ).ToList();
-        var finalFileNode = FindNodeByPath( root, AircraftExamplePath );
-        var finalLocalizationNode = FindNodeByPath( root, AircraftLocalizationDirectoryPath );
-
-        Assert.Equal( initialNodes.Count, finalNodes.Count );
-        Assert.Same( initialFileNode, finalFileNode );
-        Assert.Same( initialLocalizationNode, finalLocalizationNode );
+        var samePathNodes = EnumerateNodes( root )
+            .Where( node => string.Equals( node.Path, AircraftExamplePath, StringComparison.Ordinal ) )
+            .ToList();
+        Assert.Single( samePathNodes );
     }
 
     #endregion
@@ -1209,13 +1204,6 @@ public sealed class UploadViewModelTests : IDisposable {
         }
     }
 
-    /// <summary>AddFileEntryToFileEntryViewModelをリフレクション経由で呼び出す。</summary>
-    private static void InvokeAddFileEntry( IFileEntryViewModel root, FileEntry entry, ILoggingService logger ) {
-        var method = typeof( UploadViewModel ).GetMethod( "AddFileEntryToFileEntryViewModel", BindingFlags.Static | BindingFlags.NonPublic )
-            ?? throw new InvalidOperationException( "AddFileEntryToFileEntryViewModel が見つからない。" );
-        method.Invoke( null, [root, entry, logger] );
-    }
-
     /// <summary>テスト用に Aircraft タブをチェック済みにした UploadViewModel を生成する。</summary>
     private async Task<UploadViewModel> CreateCheckedUploadViewModelAsync(
         UploadViewModelTestContext context,
@@ -1405,12 +1393,20 @@ public sealed class UploadViewModelTests : IDisposable {
 
         public UploadViewModel CreateViewModel() {
             EnsureInitialized();
+            var fileEntryTreeService = new FileEntryTreeService( LoggingServiceMock.Object );
+            var fileEntryWatcherLifecycle = new FileEntryWatcherLifecycle(
+                AppSettingsServiceMock.Object,
+                FileEntryServiceMock.Object,
+                LoggingServiceMock.Object
+            );
             return new(
                 ApiServiceMock.Object,
                 AppSettingsServiceMock.Object,
                 DialogServiceMock.Object,
                 DispatcherServiceMock.Object,
                 FileEntryServiceMock.Object,
+                fileEntryWatcherLifecycle,
+                fileEntryTreeService,
                 LoggingServiceMock.Object,
                 SnackbarServiceMock.Object,
                 SystemServiceMock.Object );

@@ -13,7 +13,6 @@ using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
-using DcsTranslationTool.Shared.Helpers;
 using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Download;
@@ -25,9 +24,10 @@ public class DownloadViewModel(
     IApiService apiService,
     IAppSettingsService appSettingsService,
     IDownloadWorkflowService downloadWorkflowService,
-    IApplyWorkflowService applyWorkflowService,
     IDispatcherService dispatcherService,
     IFileEntryService fileEntryService,
+    IFileEntryWatcherLifecycle fileEntryWatcherLifecycle,
+    IFileEntryTreeService fileEntryTreeService,
     ILoggingService logger,
     ISnackbarService snackbarService,
     ISystemService systemService
@@ -56,10 +56,22 @@ public class DownloadViewModel(
     private bool _isApplying;
     private double _appliedProgress = 0.0;
     private bool _suppressEntriesChanged;
+    private DownloadWorkflowUiAdapter? _uiAdapter;
 
     // イベント
     private Func<IReadOnlyList<FileEntry>, Task>? _entriesChangedHandler;
     private EventHandler? _filtersChangedHandler;
+
+    /// <summary>
+    /// Download 画面向けの UI 更新アダプタを取得する。
+    /// </summary>
+    private DownloadWorkflowUiAdapter UiAdapter =>
+        _uiAdapter ??= new(
+            dispatcherService,
+            snackbarService,
+            value => DownloadedProgress = value,
+            value => AppliedProgress = value
+        );
 
 
     #endregion
@@ -172,7 +184,6 @@ public class DownloadViewModel(
     /// </summary>
     /// <param name="cancellationToken">キャンセル トークン</param>
     /// <returns>非同期タスク</returns>
-    /// <exception cref="ObjectDisposedException">監視開始に失敗した場合</exception>
     public async Task ActivateAsync( CancellationToken cancellationToken ) {
         logger.Info( "DownloadViewModel をアクティブ化する。" );
         // 既存購読を解除してから再購読する
@@ -195,8 +206,7 @@ public class DownloadViewModel(
         _filtersChangedHandler = ( _, _ ) => ApplyFilter();
         Filter.FiltersChanged += _filtersChangedHandler;
 
-        fileEntryService.Watch( appSettingsService.Settings.TranslateFileDir );
-        logger.Info( $"ファイル監視を開始した。Directory={appSettingsService.Settings.TranslateFileDir}" );
+        fileEntryWatcherLifecycle.StartWatching();
 
         // 起動時取得は待たずに開始する
         await Fetch();
@@ -225,7 +235,7 @@ public class DownloadViewModel(
             logger.Info( "フィルタ変更イベントの購読を解除した。" );
         }
 
-        fileEntryService.Dispose();
+        fileEntryWatcherLifecycle.StopWatching();
         snackbarService.Clear();
         logger.Info( "リソースを解放した。" );
 
@@ -291,24 +301,14 @@ public class DownloadViewModel(
         var saveRootPath = appSettingsService.Settings.TranslateFileDir;
         if(string.IsNullOrWhiteSpace( saveRootPath )) {
             logger.Warn( "保存先ディレクトリが設定されていないため保存を中断する。" );
-            await ShowSnackbarAsync( "保存先フォルダーが設定されていません" );
+            await UiAdapter.ShowSnackbarAsync( "保存先フォルダーが設定されていません" );
             return;
         }
 
-        _suppressEntriesChanged = true;
-        IsDownloading = true;
-        var entriesChangedHandler = _entriesChangedHandler;
-        if(entriesChangedHandler is not null) {
-            fileEntryService.EntriesChanged -= entriesChangedHandler;
-        }
-        await UpdateDownloadProgressAsync( 0.0 );
-        NotifyOfPropertyChange( nameof( CanDownload ) );
-        NotifyOfPropertyChange( nameof( CanApply ) );
-
-        try {
+        await ExecuteWithEntriesChangedSuppressedAsync( isDownload: true, async () => {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
                 logger.Warn( "タブが選択されていないためダウンロードを中断する。" );
-                await ShowSnackbarAsync( "タブが選択されていません" );
+                await UiAdapter.ShowSnackbarAsync( "タブが選択されていません" );
                 return;
             }
 
@@ -316,14 +316,14 @@ public class DownloadViewModel(
             var checkedEntries = tab.GetCheckedEntries();
             if(checkedEntries is null) {
                 logger.Warn( "チェックされたエントリが存在しない。" );
-                await ShowSnackbarAsync( "ダウンロード対象が有りません" );
+                await UiAdapter.ShowSnackbarAsync( "ダウンロード対象が有りません" );
                 return;
             }
 
             var targetEntries = checkedEntries.Where( e => !e.IsDirectory ).ToList();
             if(targetEntries.Count == 0) {
                 logger.Warn( "ダウンロード対象のファイルが存在しない。" );
-                await ShowSnackbarAsync( "ダウンロード対象が有りません" );
+                await UiAdapter.ShowSnackbarAsync( "ダウンロード対象が有りません" );
                 return;
             }
             logger.Info( $"ダウンロード対象を特定した。件数={targetEntries.Count}" );
@@ -336,7 +336,7 @@ public class DownloadViewModel(
                 var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
                 var message = ResultNotificationPolicy.GetDownloadPathFailureMessage( pathResult.GetFirstErrorKind() );
                 logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
-                await ShowSnackbarAsync( message );
+                await UiAdapter.ShowSnackbarAsync( message );
                 return;
             }
 
@@ -345,25 +345,12 @@ public class DownloadViewModel(
 
             if(downloadItems.Length == 0) {
                 logger.Info( "ダウンロード対象が最新のため保存をスキップする。" );
-                await ShowSnackbarAsync( "対象ファイルは最新です" );
+                await UiAdapter.ShowSnackbarAsync( "対象ファイルは最新です" );
                 return;
             }
 
-            var workflowProgress = CreateWorkflowProgress();
-            var workflowResult = await downloadWorkflowService.DownloadFilesAsync( downloadItems, saveRootPath, progress: workflowProgress );
-            await ApplyWorkflowEventsAsync( workflowResult.Events, skipProgressEvents: true );
-        }
-        finally {
-            IsDownloading = false;
-            _suppressEntriesChanged = false;
-            if(entriesChangedHandler is not null) {
-                fileEntryService.EntriesChanged += entriesChangedHandler;
-            }
-            await RefreshLocalEntriesAsync();
-            NotifyOfPropertyChange( nameof( CanDownload ) );
-            NotifyOfPropertyChange( nameof( CanApply ) );
-            logger.Info( "ダウンロード処理を終了した。" );
-        }
+            await downloadWorkflowService.DownloadFilesAsync( downloadItems, saveRootPath, UiAdapter.UpdateDownloadProgressAsync );
+        } );
     }
 
     /// <summary>
@@ -377,20 +364,10 @@ public class DownloadViewModel(
             return;
         }
 
-        _suppressEntriesChanged = true;
-        IsApplying = true;
-        var entriesChangedHandler = _entriesChangedHandler;
-        if(entriesChangedHandler is not null) {
-            fileEntryService.EntriesChanged -= entriesChangedHandler;
-        }
-        await UpdateApplyProgressAsync( 0.0 );
-        NotifyOfPropertyChange( nameof( CanApply ) );
-        NotifyOfPropertyChange( nameof( CanDownload ) );
-
-        try {
+        await ExecuteWithEntriesChangedSuppressedAsync( isDownload: false, async () => {
             if(Tabs.Count == 0 || SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
                 logger.Warn( "タブが選択されていないため適用処理を中断する。" );
-                await ShowSnackbarAsync( "タブが選択されていません" );
+                await UiAdapter.ShowSnackbarAsync( "タブが選択されていません" );
                 return;
             }
 
@@ -399,7 +376,7 @@ public class DownloadViewModel(
 
             if(targetEntries.Count == 0) {
                 logger.Warn( "適用対象のファイルが存在しない。" );
-                await ShowSnackbarAsync( "対象が有りません" );
+                await UiAdapter.ShowSnackbarAsync( "対象が有りません" );
                 return;
             }
             logger.Info( $"適用対象を特定した。件数={targetEntries.Count}" );
@@ -414,14 +391,14 @@ public class DownloadViewModel(
 
             if(string.IsNullOrWhiteSpace( rootPath )) {
                 logger.Warn( "適用先ディレクトリが設定されていないため処理を中断する。" );
-                await ShowSnackbarAsync( "適用先ディレクトリを設定してください" );
+                await UiAdapter.ShowSnackbarAsync( "適用先ディレクトリを設定してください" );
                 return;
             }
 
             var rootFullPath = Path.GetFullPath( rootPath );
             if(!Directory.Exists( rootFullPath )) {
                 logger.Warn( $"適用先ディレクトリが存在しない。Directory={rootFullPath}" );
-                await ShowSnackbarAsync( "適用先ディレクトリが存在しません" );
+                await UiAdapter.ShowSnackbarAsync( "適用先ディレクトリが存在しません" );
                 return;
             }
             var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
@@ -431,7 +408,7 @@ public class DownloadViewModel(
             var translateRoot = appSettingsService.Settings.TranslateFileDir;
             if(string.IsNullOrWhiteSpace( translateRoot )) {
                 logger.Warn( "翻訳ディレクトリが未設定のため処理を中断する。" );
-                await ShowSnackbarAsync( "翻訳ディレクトリを設定してください" );
+                await UiAdapter.ShowSnackbarAsync( "翻訳ディレクトリを設定してください" );
                 return;
             }
 
@@ -441,31 +418,17 @@ public class DownloadViewModel(
                 ? translateFullPath
                 : translateFullPath + Path.DirectorySeparatorChar;
 
-            var workflowProgress = CreateWorkflowProgress();
-            var applyResult = await Task.Run( () => applyWorkflowService.ApplyAsync(
+            var applyCompleted = await downloadWorkflowService.ApplyAsync(
                 targetEntries,
                 rootFullPath,
                 rootWithSeparator,
                 translateFullPath,
                 translateRootWithSeparator,
-                progress: workflowProgress
-            ) );
-            await ApplyWorkflowEventsAsync( applyResult.Events, skipProgressEvents: true );
-            if(!applyResult.IsSuccess) {
-                return;
-            }
-        }
-        finally {
-            IsApplying = false;
-            _suppressEntriesChanged = false;
-            if(entriesChangedHandler is not null) {
-                fileEntryService.EntriesChanged += entriesChangedHandler;
-            }
-            await RefreshLocalEntriesAsync();
-            NotifyOfPropertyChange( nameof( CanApply ) );
-            NotifyOfPropertyChange( nameof( CanDownload ) );
-            logger.Info( "適用処理を終了した。" );
-        }
+                UiAdapter.ShowSnackbarAsync,
+                UiAdapter.UpdateApplyProgressAsync
+            );
+            if(!applyCompleted) return;
+        } );
     }
 
     private async Task RefreshLocalEntriesAsync() {
@@ -495,96 +458,52 @@ public class DownloadViewModel(
     }
 
     /// <summary>
-    /// ワークフローイベントを UI へ反映する。
+    /// EntriesChanged を抑止してワークフロー処理を実行する。
     /// </summary>
-    /// <param name="events">反映対象イベント。</param>
-    /// <param name="skipProgressEvents">進捗イベントを除外するか。</param>
-    private async Task ApplyWorkflowEventsAsync( IReadOnlyList<WorkflowEvent> events, bool skipProgressEvents = false ) {
-        foreach(var workflowEvent in events) {
-            if(skipProgressEvents && workflowEvent.Kind is WorkflowEventKind.DownloadProgress or WorkflowEventKind.ApplyProgress) {
-                continue;
+    /// <param name="isDownload">ダウンロード処理かどうか。</param>
+    /// <param name="action">実行処理。</param>
+    /// <returns>非同期タスク。</returns>
+    private async Task ExecuteWithEntriesChangedSuppressedAsync( bool isDownload, Func<Task> action ) {
+        _suppressEntriesChanged = true;
+        var entriesChangedHandler = _entriesChangedHandler;
+        if(entriesChangedHandler is not null) {
+            fileEntryService.EntriesChanged -= entriesChangedHandler;
+        }
+
+        if(isDownload) {
+            IsDownloading = true;
+            await UiAdapter.UpdateDownloadProgressAsync( 0 );
+        }
+        else {
+            IsApplying = true;
+            await UiAdapter.UpdateApplyProgressAsync( 0 );
+        }
+
+        NotifyOfPropertyChange( nameof( CanDownload ) );
+        NotifyOfPropertyChange( nameof( CanApply ) );
+
+        try {
+            await action();
+        }
+        finally {
+            if(isDownload) {
+                IsDownloading = false;
+            }
+            else {
+                IsApplying = false;
             }
 
-            switch(workflowEvent.Kind) {
-                case WorkflowEventKind.Notification:
-                    if(!string.IsNullOrWhiteSpace( workflowEvent.Message )) {
-                        await ShowSnackbarAsync( workflowEvent.Message );
-                    }
-                    break;
-                case WorkflowEventKind.DownloadProgress:
-                    await UpdateDownloadProgressAsync( workflowEvent.Progress ?? 0 );
-                    break;
-                case WorkflowEventKind.ApplyProgress:
-                    await UpdateApplyProgressAsync( workflowEvent.Progress ?? 0 );
-                    break;
-                default:
-                    break;
+            _suppressEntriesChanged = false;
+            if(entriesChangedHandler is not null) {
+                fileEntryService.EntriesChanged += entriesChangedHandler;
             }
+
+            await RefreshLocalEntriesAsync();
+            NotifyOfPropertyChange( nameof( CanDownload ) );
+            NotifyOfPropertyChange( nameof( CanApply ) );
+            logger.Info( $"{(isDownload ? "ダウンロード" : "適用")}処理を終了した。" );
         }
     }
-
-    #endregion
-
-    #region Private Helpers
-
-    /// <summary>
-    /// ワークフロー進捗通知を生成する。
-    /// </summary>
-    private IProgress<WorkflowEvent> CreateWorkflowProgress() =>
-        new Progress<WorkflowEvent>( ApplyWorkflowEvent );
-
-    /// <summary>
-    /// 単一のワークフローイベントを反映する。
-    /// </summary>
-    /// <param name="workflowEvent">反映対象イベント。</param>
-    private void ApplyWorkflowEvent( WorkflowEvent workflowEvent ) {
-        switch(workflowEvent.Kind) {
-            case WorkflowEventKind.Notification:
-                if(!string.IsNullOrWhiteSpace( workflowEvent.Message )) {
-                    snackbarService.Show( workflowEvent.Message );
-                }
-                break;
-            case WorkflowEventKind.DownloadProgress:
-                DownloadedProgress = workflowEvent.Progress ?? 0;
-                break;
-            case WorkflowEventKind.ApplyProgress:
-                AppliedProgress = workflowEvent.Progress ?? 0;
-                break;
-            default:
-                break;
-        }
-    }
-
-    /// <summary>
-    /// ダウンロード進捗を更新する。
-    /// </summary>
-    /// <param name="value">進捗率。</param>
-    private Task UpdateDownloadProgressAsync( double value ) =>
-        dispatcherService.InvokeAsync( () => {
-            DownloadedProgress = value;
-            return Task.CompletedTask;
-        } );
-
-    /// <summary>
-    /// 適用進捗を更新する。
-    /// </summary>
-    /// <param name="value">進捗率。</param>
-    private Task UpdateApplyProgressAsync( double value ) =>
-        dispatcherService.InvokeAsync( () => {
-            AppliedProgress = value;
-            return Task.CompletedTask;
-        } );
-
-    /// <summary>
-    /// スナックバーにメッセージを表示する。
-    /// </summary>
-    /// <param name="message">表示メッセージ。</param>
-    private Task ShowSnackbarAsync( string message ) =>
-        dispatcherService.InvokeAsync( () => {
-            snackbarService.Show( message );
-            return Task.CompletedTask;
-        } );
-
 
     /// <summary>
     /// 現在のタブでチェックありかを判定する
@@ -603,25 +522,7 @@ public class DownloadViewModel(
         var tabIndex = SelectedTabIndex;
         logger.Info( $"タブを再構築する。LocalCount={LocalEntries.Count}, RepoCount={RepoEntries.Count}, SelectedIndex={tabIndex}" );
 
-        var entries = FileEntryComparisonHelper.Merge(LocalEntries, RepoEntries);
-
-        IFileEntryViewModel rootVm = new FileEntryViewModel(new FileEntry(string.Empty, string.Empty, true), ChangeTypeMode.Download, logger);
-        foreach(var entry in entries) AddFileEntryToFileEntryViewModel( rootVm, entry, logger );
-
-        var tabs = Enum.GetValues<CategoryType>().Select(tabType =>
-        {
-            IFileEntryViewModel? target = rootVm;
-            foreach (var name in tabType.GetRepoDirRoot())
-            {
-                target = target?.Children.FirstOrDefault(c => c?.Name == name);
-                if (target is null) break;
-            }
-            return new TabItemViewModel(
-                tabType,
-                logger,
-                target ?? new FileEntryViewModel(new FileEntry("null", string.Empty, false), ChangeTypeMode.Download, logger)
-            );
-        }).ToList();
+        var tabs = fileEntryTreeService.BuildTabs( LocalEntries, RepoEntries, ChangeTypeMode.Download );
 
         foreach(var t in Tabs) t.Root.CheckStateChanged -= OnRootCheckStateChanged;
         Tabs.Clear();
@@ -667,64 +568,10 @@ public class DownloadViewModel(
         var types = Filter.GetActiveTypes().ToHashSet();
         var activeTypes = string.Join( ",", types.Select( t => t?.ToString() ?? "null" ) );
         logger.Info( $"フィルタを適用する。ActiveTypes={activeTypes}" );
-        foreach(var tab in Tabs) {
-            ApplyFilterRecursive( tab.Root, types );
-        }
+        fileEntryTreeService.ApplyFilter( Tabs, types );
         NotifyOfPropertyChange( nameof( CanDownload ) );
         NotifyOfPropertyChange( nameof( CanApply ) );
         logger.Info( "フィルタ適用が完了した。" );
-    }
-
-    /// <summary>
-    /// 指定ノードにフィルタを再帰適用する。
-    /// </summary>
-    /// <param name="node">対象ノード</param>
-    /// <param name="types">可視とする種別集合</param>
-    /// <returns>可視かどうか</returns>
-    private static bool ApplyFilterRecursive( IFileEntryViewModel node, HashSet<FileChangeType?> types ) {
-        var visible = types.Contains(node.ChangeType);
-        if(node.IsDirectory) {
-            var childVisible = false;
-            foreach(var child in node.Children) {
-                if(ApplyFilterRecursive( child, types )) childVisible = true;
-            }
-            visible |= childVisible;
-        }
-        node.IsVisible = visible;
-        return visible;
-    }
-
-    /// <summary>
-    /// <see cref="FileEntry"/> を <see cref="FileEntryViewModel"/> ツリーに追加する
-    /// </summary>
-    /// <param name="root">ルート</param>
-    /// <param name="entry">エントリ</param>
-    private static void AddFileEntryToFileEntryViewModel( IFileEntryViewModel root, FileEntry entry, ILoggingService loggingService ) {
-        string[] parts = entry.Path.Split("/", StringSplitOptions.RemoveEmptyEntries);
-        if(parts.Length == 0) return;
-
-        IFileEntryViewModel current = root;
-        var absolutePath = string.Empty;
-
-        // ディレクトリを順次作成する
-        foreach(var part in parts[..^1]) {
-            absolutePath += absolutePath.Length == 0 ? part : "/" + part;
-            var next = current.Children.FirstOrDefault(c => c?.Name == part && c.IsDirectory);
-            if(next is null) {
-                next = new FileEntryViewModel( new FileEntry( part, absolutePath, true ), ChangeTypeMode.Download, loggingService );
-                current.Children.Add( next );
-            }
-            current = next;
-        }
-
-        var last = parts[^1];
-        if(!current.Children.Any( c => c?.Name == last )) {
-            current.Children.Add(
-                new FileEntryViewModel(
-                    new FileEntry( last, entry.Path, entry.IsDirectory, entry.LocalSha, entry.RepoSha ),
-                    ChangeTypeMode.Download,
-                    loggingService ) );
-        }
     }
 
     #endregion

@@ -27,10 +27,6 @@ public static class ResultErrorMetadataExtensions {
     /// <returns>分類。取得できない場合は null。</returns>
     public static ResultErrorKind? GetErrorKind( this IError error ) {
         ArgumentNullException.ThrowIfNull( error );
-        if(error is ResultError resultError) {
-            return resultError.Kind;
-        }
-
         if(!error.Metadata.TryGetValue( "kind", out var value ) || value is null) {
             return null;
         }

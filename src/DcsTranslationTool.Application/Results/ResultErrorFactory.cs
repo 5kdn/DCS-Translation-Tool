@@ -33,6 +33,13 @@ public static class ResultErrorFactory {
     /// <summary>
     /// Unexpected エラーを生成する。
     /// </summary>
-    public static IError Unexpected( Exception exception, string? code = null ) =>
-        new ResultError( ResultErrorKind.Unexpected, exception.Message, code, exception );
+    public static IError Unexpected( Exception exception, string? code = null ) {
+        var error = new ExceptionalError( exception );
+        error.Metadata["kind"] = ResultErrorKind.Unexpected.ToString();
+        if(!string.IsNullOrWhiteSpace( code )) {
+            error.Metadata["code"] = code;
+        }
+
+        return error;
+    }
 }

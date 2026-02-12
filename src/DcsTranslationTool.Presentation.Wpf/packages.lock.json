@@ -97,11 +97,6 @@
         "resolved": "1.1.135",
         "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
       },
-      "Newtonsoft.Json": {
-        "type": "Transitive",
-        "resolved": "13.0.4",
-        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
-      },
       "NLog": {
         "type": "Transitive",
         "resolved": "6.0.7",
@@ -162,7 +157,6 @@
           "Microsoft.Kiota.Serialization.Multipart": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.0, )",
           "NLog": "[6.0.7, )",
-          "Newtonsoft.Json": "[13.0.4, )",
           "UTF.Unknown": "[2.6.0, )"
         }
       },

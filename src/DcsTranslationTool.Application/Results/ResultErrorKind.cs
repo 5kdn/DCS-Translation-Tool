@@ -27,5 +27,5 @@ public enum ResultErrorKind {
     /// <summary>
     /// 予期しない失敗を示す。
     /// </summary>
-    Unexpected,
+    Unexpected
 }

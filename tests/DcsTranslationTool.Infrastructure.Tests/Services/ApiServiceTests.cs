@@ -266,7 +266,7 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Paths には少なくとも1つの値が含まれている必要があります。", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.Validation, result.GetFirstErrorKind() );
+        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
     }
 
     [Fact]

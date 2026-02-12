@@ -1,9 +1,9 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Interfaces;
-
-using Newtonsoft.Json;
 
 namespace DcsTranslationTool.Infrastructure.Services;
 
@@ -12,6 +12,13 @@ namespace DcsTranslationTool.Infrastructure.Services;
 /// </summary>
 /// <param name="logger">ロギングサービス。</param>
 public class FileService( ILoggingService logger ) : IFileService {
+    private static readonly JsonSerializerOptions JsonSerializerOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = false
+    };
+
     /// <inheritdoc/>
     public T? Read<T>( string folderPath, string fileName ) {
         ArgumentException.ThrowIfNullOrWhiteSpace( folderPath );
@@ -30,7 +37,7 @@ public class FileService( ILoggingService logger ) : IFileService {
             return default;
         }
 
-        var result = JsonConvert.DeserializeObject<T>( json );
+        var result = JsonSerializer.Deserialize<T>( json, JsonSerializerOptions );
         logger.Info( $"ファイルの読み込みに成功した。Path={path}" );
         return result;
     }
@@ -42,7 +49,7 @@ public class FileService( ILoggingService logger ) : IFileService {
 
         if(!Directory.Exists( folderPath )) Directory.CreateDirectory( folderPath );
 
-        var fileContent = JsonConvert.SerializeObject(content);
+        var fileContent = JsonSerializer.Serialize( content, JsonSerializerOptions );
         var targetPath = Path.Combine( folderPath, fileName );
         logger.Debug( $"ファイルを保存する。Path={targetPath}" );
         File.WriteAllText( targetPath, fileContent, Encoding.UTF8 );

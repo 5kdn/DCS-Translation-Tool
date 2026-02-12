@@ -6,119 +6,121 @@ using System.Net.Sockets;
 
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 
 namespace DcsTranslationTool.Presentation.Wpf.Services;
 
 /// <summary>
-/// ダウンロード処理を提供する。
+/// ダウンロードと適用処理の実行を提供する。
 /// </summary>
 public sealed class DownloadWorkflowService(
-    ILoggingService logger
+    ILoggingService logger,
+    IApplyWorkflowService applyWorkflowService
 ) : IDownloadWorkflowService {
     private static readonly ConcurrentDictionary<string, IPAddress> LastSuccessfulAddressCache = new();
 
     /// <inheritdoc/>
-    public async Task<DownloadWorkflowResult> DownloadFilesAsync(
+    public async Task DownloadFilesAsync(
         IReadOnlyList<ApiDownloadFilePathsItem> items,
         string saveRootPath,
-        CancellationToken cancellationToken = default,
-        IProgress<WorkflowEvent>? progress = null
+        Func<double, Task> progressCallback,
+        CancellationToken cancellationToken = default
     ) {
         if(items.Count == 0) {
-            return new DownloadWorkflowResult( true, [] );
+            return;
         }
 
         var successCount = 0;
         var failureCount = 0;
         var progressed = 0;
-        var progressEvents = new ConcurrentQueue<(int Sequence, WorkflowEvent Event)>();
-
         var maxConcurrency = Math.Clamp( Environment.ProcessorCount, 2, 6 );
         using var semaphore = new SemaphoreSlim( maxConcurrency );
         using var httpClient = CreateHttpClient();
         List<Task> tasks = [];
-        var isCancellationRequested = false;
 
         foreach(var item in items) {
-            try {
-                await semaphore.WaitAsync( cancellationToken );
-            }
-            catch(OperationCanceledException) when(cancellationToken.IsCancellationRequested) {
-                isCancellationRequested = true;
-                break;
-            }
+            await semaphore.WaitAsync( cancellationToken );
 
             tasks.Add( Task.Run( async () => {
-                var canceled = false;
                 try {
                     var filePath = Path.Combine( saveRootPath, item.Path );
-                    await DownloadFileAsync( httpClient, item.Url, filePath, cancellationToken );
+                    await this.DownloadFileAsync( httpClient, item.Url, filePath, cancellationToken );
                     Interlocked.Increment( ref successCount );
                 }
-                catch(OperationCanceledException) when(cancellationToken.IsCancellationRequested) {
-                    canceled = true;
+                catch {
+                    Interlocked.Increment( ref failureCount );
                     throw;
                 }
-                catch(Exception ex) {
-                    Interlocked.Increment( ref failureCount );
-                    logger.Error( $"ファイルのダウンロードに失敗した。Path={item.Path}", ex );
-                }
                 finally {
-                    if(!canceled) {
-                        var current = Interlocked.Increment( ref progressed );
-                        var progressEvent = new WorkflowEvent(
-                            WorkflowEventKind.DownloadProgress,
-                            Progress: Math.Min( 100, (double)current / items.Count * 100 ) );
-                        progressEvents.Enqueue( (current, progressEvent) );
-                        progress?.Report( progressEvent );
-                    }
+                    var current = Interlocked.Increment( ref progressed );
+                    await progressCallback( Math.Min( 100, (double)current / items.Count * 100 ) );
                     semaphore.Release();
                 }
-            } ) );
+            }, cancellationToken ) );
         }
 
         try {
             await Task.WhenAll( tasks );
         }
-        catch(OperationCanceledException) when(cancellationToken.IsCancellationRequested) {
-            isCancellationRequested = true;
+        finally {
+            logger.Info( $"ファイルのダウンロードが完了した。成功={successCount}/{items.Count} 件, 失敗={failureCount}/{items.Count} 件" );
         }
+    }
 
-        if(isCancellationRequested) {
-            cancellationToken.ThrowIfCancellationRequested();
-        }
-
-        logger.Info( $"ファイルのダウンロードが完了した。成功={successCount}/{items.Count} 件, 失敗={failureCount}/{items.Count} 件" );
-
-        var events = progressEvents
-            .OrderBy( e => e.Sequence )
-            .Select( e => e.Event )
-            .ToList();
-
-        if(failureCount > 0) {
-            events.Add( new WorkflowEvent( WorkflowEventKind.Notification, $"一部のファイルの保存に失敗しました ({failureCount}/{items.Count})" ) );
-        }
-
-        return new DownloadWorkflowResult( failureCount == 0, events );
+    /// <inheritdoc/>
+    public async Task<bool> ApplyAsync(
+        IReadOnlyList<IFileEntryViewModel> targetEntries,
+        string rootFullPath,
+        string rootWithSeparator,
+        string translateFullPath,
+        string translateRootWithSeparator,
+        Func<string, Task> showSnackbarAsync,
+        Func<double, Task> progressCallback,
+        CancellationToken cancellationToken = default
+    ) {
+        return await applyWorkflowService.ApplyAsync(
+            targetEntries,
+            rootFullPath,
+            rootWithSeparator,
+            translateFullPath,
+            translateRootWithSeparator,
+            items => this.DownloadFilesAsync( items, translateFullPath, _ => Task.CompletedTask, cancellationToken ),
+            showSnackbarAsync,
+            progressCallback,
+            cancellationToken
+        );
     }
 
     /// <summary>
     /// 単一ファイルを保存する。
     /// </summary>
+    /// <param name="httpClient">HTTP クライアント。</param>
+    /// <param name="url">ダウンロードURL。</param>
+    /// <param name="filePath">保存先パス。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
     private async Task DownloadFileAsync( HttpClient httpClient, string url, string filePath, CancellationToken cancellationToken ) {
         logger.Info( $"ファイルをダウンロードする。Url={url}, FilePath={filePath}" );
-        var bytes = await httpClient.GetByteArrayAsync( url, cancellationToken );
-        var directoryName = Path.GetDirectoryName( filePath );
-        if(!string.IsNullOrEmpty( directoryName ) && !Directory.Exists( directoryName )) {
-            Directory.CreateDirectory( directoryName );
-        }
+        try {
+            var bytes = await httpClient.GetByteArrayAsync( url, cancellationToken );
+            var directoryName = Path.GetDirectoryName( filePath );
+            if(!string.IsNullOrEmpty( directoryName ) && !Directory.Exists( directoryName )) {
+                Directory.CreateDirectory( directoryName );
+            }
 
-        await File.WriteAllBytesAsync( filePath, bytes, cancellationToken );
+            await File.WriteAllBytesAsync( filePath, bytes, cancellationToken );
+        }
+        catch(Exception ex) {
+            logger.Error( $"ファイルのダウンロードに失敗した。Url={url}, FilePath={filePath}", ex );
+            throw;
+        }
+        logger.Info( $"ファイルのダウンロードが完了した。Url={url}, FilePath={filePath}" );
     }
 
     /// <summary>
     /// 環境差異を吸収する HttpClient を生成する。
     /// </summary>
+    /// <returns>初期化済みの HttpClient。</returns>
     private static HttpClient CreateHttpClient() {
         var handler = new SocketsHttpHandler
         {

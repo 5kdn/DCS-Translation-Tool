@@ -58,12 +58,6 @@
           "Microsoft.Kiota.Abstractions": "1.21.0"
         }
       },
-      "Newtonsoft.Json": {
-        "type": "Direct",
-        "requested": "[13.0.4, )",
-        "resolved": "13.0.4",
-        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
-      },
       "NLog": {
         "type": "Direct",
         "requested": "[6.0.7, )",

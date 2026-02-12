@@ -1,6 +1,6 @@
-using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 
 using Moq;
 
@@ -8,32 +8,38 @@ namespace DcsTranslationTool.Presentation.Wpf.Tests.Services;
 
 public sealed class DownloadWorkflowServiceTests {
     [Fact]
-    public async Task DownloadFilesAsyncは対象が空の場合に成功を返す() {
-        var loggerMock = new Mock<ILoggingService>();
-        var sut = new DownloadWorkflowService( loggerMock.Object );
+    public async Task ApplyAsyncはApplyWorkflowServiceへ委譲する() {
+        var logger = new Mock<ILoggingService>();
+        var applyWorkflowService = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var sut = new DownloadWorkflowService( logger.Object, applyWorkflowService.Object );
 
-        var result = await sut.DownloadFilesAsync(
-            [],
+        var targetEntries = Array.Empty<IFileEntryViewModel>();
+        applyWorkflowService
+            .Setup( service => service.ApplyAsync(
+                targetEntries,
+                "root",
+                "root\\",
+                "translate",
+                "translate\\",
+                It.IsAny<Func<IReadOnlyList<DcsTranslationTool.Application.Contracts.ApiDownloadFilePathsItem>, Task>>(),
+                It.IsAny<Func<string, Task>>(),
+                It.IsAny<Func<double, Task>>(),
+                It.IsAny<CancellationToken>()
+            ) )
+            .ReturnsAsync( true );
+
+        var result = await sut.ApplyAsync(
+            targetEntries,
+            "root",
+            "root\\",
             "translate",
+            "translate\\",
+            _ => Task.CompletedTask,
+            _ => Task.CompletedTask,
             TestContext.Current.CancellationToken
         );
 
-        Assert.True( result.IsSuccess );
-        Assert.Empty( result.Events );
-    }
-
-    [Fact]
-    public async Task DownloadFilesAsyncはキャンセル時にOperationCanceledExceptionを送出する() {
-        var loggerMock = new Mock<ILoggingService>();
-        var sut = new DownloadWorkflowService( loggerMock.Object );
-
-        using var cancellationTokenSource = new CancellationTokenSource();
-        await cancellationTokenSource.CancelAsync();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>( async () => await sut.DownloadFilesAsync(
-            [new ApiDownloadFilePathsItem( "https://example.invalid/file.lua", "DCSWorld/Mods/aircraft/A10C/L10N/file.lua" )],
-            "translate",
-            cancellationTokenSource.Token
-        ) );
+        Assert.True( result );
+        applyWorkflowService.VerifyAll();
     }
 }
