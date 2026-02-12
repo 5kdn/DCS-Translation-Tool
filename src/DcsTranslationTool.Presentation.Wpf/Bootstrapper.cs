@@ -45,6 +45,8 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IDialogService, DialogService>();
         container.Singleton<IDialogProvider, DialogProvider>();
         container.Singleton<IDispatcherService, DispatcherService>();
+        container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
+        container.Singleton<IApplyWorkflowService, ApplyWorkflowService>();
         container.Singleton<ISnackbarService, SnackbarService>();
 
         // ViewModels

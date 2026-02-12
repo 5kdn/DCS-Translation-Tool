@@ -87,6 +87,8 @@ public sealed class BootstrapperContainerTests {
 
             Container.Singleton<IDialogProvider, DialogProvider>();
             Container.Singleton<IDispatcherService, DispatcherService>();
+            Container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
+            Container.Singleton<IApplyWorkflowService, ApplyWorkflowService>();
             Container.Singleton<ISnackbarService, SnackbarService>();
 
             var navigationServiceMock = new Mock<INavigationService>();
@@ -117,6 +119,8 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<ZipService>( Get<IZipService>() );
             Assert.IsType<DialogProvider>( Get<IDialogProvider>() );
             Assert.IsType<DispatcherService>( Get<IDispatcherService>() );
+            Assert.IsType<DownloadWorkflowService>( Get<IDownloadWorkflowService>() );
+            Assert.IsType<ApplyWorkflowService>( Get<IApplyWorkflowService>() );
             Assert.IsType<SnackbarService>( Get<ISnackbarService>() );
             Assert.IsType<WindowManager>( Get<IWindowManager>() );
             Assert.IsType<EventAggregator>( Get<IEventAggregator>() );
