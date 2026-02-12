@@ -13,8 +13,6 @@ using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.Shell;
 
-using InfraLoggingService = DcsTranslationTool.Infrastructure.Interfaces.ILoggingService;
-
 namespace DcsTranslationTool.Presentation.Wpf;
 
 public class Bootstrapper : BootstrapperBase {
@@ -36,9 +34,7 @@ public class Bootstrapper : BootstrapperBase {
 
         // Presentation層で実装していないサービス群
         CompositionRegistration.Register( container );
-        var infraLoggingService = container.GetInstance<InfraLoggingService>();
-        loggingService = new LoggingServiceAdapter( infraLoggingService );
-        container.Instance<ILoggingService>( loggingService );
+        loggingService = container.GetInstance<ILoggingService>();
         container.Singleton<IApplicationInfoService, ApplicationInfoService>();
         appSettingsService = container.GetInstance<IAppSettingsService>();
 
