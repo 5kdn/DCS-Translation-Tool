@@ -267,6 +267,98 @@ public class ApiServiceTests {
         Assert.True( result.IsFailed );
         Assert.Equal( "Paths には少なくとも1つの値が含まれている必要があります。", result.Errors.Single().Message );
         Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( "API_PATHS_REQUIRED", result.Errors.Single().Metadata["code"] );
+    }
+
+    [Fact]
+    public async Task DownloadFilePathsAsyncは空白のみパス時に失敗を返す() {
+        // Arrange
+        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var request = new ApiDownloadFilePathsRequest( ["   ", string.Empty], null );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( "Paths には少なくとも1つの空でない値が含まれている必要があります。", result.Errors.Single().Message );
+        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( "API_PATHS_EMPTY", result.Errors.Single().Metadata["code"] );
+    }
+
+    [Fact]
+    public async Task DownloadFilesAsyncはnullパス時に失敗を返す() {
+        // Arrange
+        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var request = new ApiDownloadFilesRequest( null!, null );
+
+        // Act
+        var result = await sut.DownloadFilesAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( "Paths には少なくとも1つの値が含まれている必要があります。", result.Errors.Single().Message );
+        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( "API_PATHS_REQUIRED", result.Errors.Single().Metadata["code"] );
+    }
+
+    [Fact]
+    public async Task DownloadFilePathsAsyncはパス上限超過時に失敗を返す() {
+        // Arrange
+        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var paths = Enumerable.Range( 1, 501 ).Select( index => $"path/{index}" ).ToArray();
+        var request = new ApiDownloadFilePathsRequest( paths, null );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( "Paths には500個以下のアイテムを含める必要があります。", result.Errors.Single().Message );
+        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( "API_PATHS_LIMIT", result.Errors.Single().Metadata["code"] );
+    }
+
+    [Fact]
+    public async Task DownloadFilesAsyncはHTTP失敗時に既存エラーコードを返す() {
+        // Arrange
+        var client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.BadGateway )
+        {
+            ReasonPhrase = "Bad Gateway",
+            Content = new StringContent( "upstream failed", Encoding.UTF8, "text/plain" ),
+        } ));
+        var sut = new ApiService( client );
+        var request = new ApiDownloadFilesRequest( ["path/one"], null );
+
+        // Act
+        var result = await sut.DownloadFilesAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( "Bad Gateway - upstream failed", result.Errors.Single().Message );
+        Assert.Equal( ResultErrorKind.External.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( "API_HTTP_ERROR", result.Errors.Single().Metadata["code"] );
+    }
+
+    [Fact]
+    public async Task DownloadFilePathsAsyncはHTTP失敗時に既存エラーコードを返す() {
+        // Arrange
+        var client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError )
+        {
+            ReasonPhrase = "Server Error",
+            Content = new StringContent( "failed", Encoding.UTF8, "text/plain" ),
+        } ));
+        var sut = new ApiService( client );
+        var request = new ApiDownloadFilePathsRequest( ["path/one"], null );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( "Server Error - failed", result.Errors.Single().Message );
+        Assert.Equal( ResultErrorKind.External.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( "API_HTTP_ERROR", result.Errors.Single().Metadata["code"] );
     }
 
     [Fact]

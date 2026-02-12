@@ -82,20 +82,11 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
     ) {
         ArgumentNullException.ThrowIfNull( request );
 
-        if(request.Paths is null || request.Paths.Count == 0)
-            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの値が含まれている必要があります。", "API_PATHS_REQUIRED" ) );
+        var sanitizeResult = ValidateAndSanitizePaths( request.Paths );
+        if(sanitizeResult.IsFailed)
+            return Result.Fail( sanitizeResult.Errors );
 
-        var sanitizedPaths = request.Paths
-            .Select(path => path?.Trim())
-            .Where(path => !string.IsNullOrWhiteSpace( path ))
-            .Select(path => path!)
-            .ToArray();
-
-        if(sanitizedPaths.Length == 0)
-            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの空でない値が含まれている必要があります。", "API_PATHS_EMPTY" ) );
-
-        if(sanitizedPaths.Length > 500)
-            return Result.Fail( ResultErrorFactory.Validation( "Paths には500個以下のアイテムを含める必要があります。", "API_PATHS_LIMIT" ) );
+        var sanitizedPaths = sanitizeResult.Value;
 
         try {
             var payload = new DownloadFilesRequest( sanitizedPaths );
@@ -128,15 +119,9 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                 return Result.Ok( cached );
             }
 
-            if(!response.IsSuccessStatusCode) {
-                var reason = response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}";
-                if(response.Content is not null) {
-                    var body = await response.Content.ReadAsStringAsync( cancellationToken ).ConfigureAwait(false);
-                    if(!string.IsNullOrWhiteSpace( body )) reason = $"{reason} - {body}";
-                }
-
-                return Result.Fail( ResultErrorFactory.External( reason, "API_HTTP_ERROR" ) );
-            }
+            var ensureResult = await EnsureSuccessStatusCodeAsync( response, cancellationToken ).ConfigureAwait(false);
+            if(ensureResult.IsFailed)
+                return Result.Fail( ensureResult.Errors );
 
             var content = await response.Content.ReadAsByteArrayAsync( cancellationToken ).ConfigureAwait(false);
             var size = response.Content.Headers.ContentLength ?? content.LongLength;
@@ -169,20 +154,11 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
     ) {
         ArgumentNullException.ThrowIfNull( request );
 
-        if(request.Paths is null || request.Paths.Count == 0)
-            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの値が含まれている必要があります。", "API_PATHS_REQUIRED" ) );
+        var sanitizeResult = ValidateAndSanitizePaths( request.Paths );
+        if(sanitizeResult.IsFailed)
+            return Result.Fail( sanitizeResult.Errors );
 
-        var sanitizedPaths = request.Paths
-            .Select(path => path?.Trim())
-            .Where(path => !string.IsNullOrWhiteSpace( path ))
-            .Select(path => path!)
-            .ToArray();
-
-        if(sanitizedPaths.Length == 0)
-            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの空でない値が含まれている必要があります。", "API_PATHS_EMPTY" ) );
-
-        if(sanitizedPaths.Length > 500)
-            return Result.Fail( ResultErrorFactory.Validation( "Paths には500個以下のアイテムを含める必要があります。", "API_PATHS_LIMIT" ) );
+        var sanitizedPaths = sanitizeResult.Value;
 
         try {
             var payload = new DownloadFilePathsRequest( sanitizedPaths );
@@ -205,15 +181,9 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
                 return Result.Ok( cached );
             }
 
-            if(!response.IsSuccessStatusCode) {
-                var reason = response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}";
-                if(response.Content is not null) {
-                    var body = await response.Content.ReadAsStringAsync( cancellationToken ).ConfigureAwait(false);
-                    if(!string.IsNullOrWhiteSpace( body )) reason = $"{reason} - {body}";
-                }
-
-                return Result.Fail( ResultErrorFactory.External( reason, "API_HTTP_ERROR" ) );
-            }
+            var ensureResult = await EnsureSuccessStatusCodeAsync( response, cancellationToken ).ConfigureAwait(false);
+            if(ensureResult.IsFailed)
+                return Result.Fail( ensureResult.Errors );
 
             var payloadResponse = await response.Content
                 .ReadFromJsonAsync<DownloadFilePathsResponse>( SerializerOptions, cancellationToken )
@@ -305,6 +275,46 @@ public class ApiService( HttpClient? httpClient = null ) : IApiService {
             client.DefaultRequestHeaders.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
 
         return client;
+    }
+
+    /// <summary>パス一覧を検証し、空白除去済み配列へ正規化する。</summary>
+    /// <param name="paths">検証対象のパス一覧。</param>
+    /// <returns>成功時は正規化済みパス配列、失敗時は検証エラーを返す。</returns>
+    private static Result<string[]> ValidateAndSanitizePaths( IReadOnlyList<string>? paths ) {
+        if(paths is null || paths.Count == 0)
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの値が含まれている必要があります。", "API_PATHS_REQUIRED" ) );
+
+        var sanitizedPaths = paths
+            .Select(path => path?.Trim())
+            .Where(path => !string.IsNullOrWhiteSpace( path ))
+            .Select(path => path!)
+            .ToArray();
+
+        if(sanitizedPaths.Length == 0)
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には少なくとも1つの空でない値が含まれている必要があります。", "API_PATHS_EMPTY" ) );
+
+        if(sanitizedPaths.Length > 500)
+            return Result.Fail( ResultErrorFactory.Validation( "Paths には500個以下のアイテムを含める必要があります。", "API_PATHS_LIMIT" ) );
+
+        return Result.Ok( sanitizedPaths );
+    }
+
+    /// <summary>HTTPレスポンスの失敗を共通フォーマットでエラー変換する。</summary>
+    /// <param name="response">判定対象のレスポンス。</param>
+    /// <param name="cancellationToken">キャンセル通知。</param>
+    /// <returns>成功ステータス時は成功、失敗ステータス時はExternalエラーを返す。</returns>
+    private static async Task<Result> EnsureSuccessStatusCodeAsync( HttpResponseMessage response, CancellationToken cancellationToken ) {
+        if(response.IsSuccessStatusCode)
+            return Result.Ok();
+
+        var reason = response.ReasonPhrase ?? $"HTTP {(int)response.StatusCode}";
+        if(response.Content is not null) {
+            var body = await response.Content.ReadAsStringAsync( cancellationToken ).ConfigureAwait(false);
+            if(!string.IsNullOrWhiteSpace( body ))
+                reason = $"{reason} - {body}";
+        }
+
+        return Result.Fail( ResultErrorFactory.External( reason, "API_HTTP_ERROR" ) );
     }
 
     /// <summary>パスの末尾要素から名前を抽出する。</summary>
