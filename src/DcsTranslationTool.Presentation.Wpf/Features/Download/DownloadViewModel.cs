@@ -10,6 +10,7 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -253,9 +254,10 @@ public class DownloadViewModel(
             var repoResult = await apiService.GetTreeAsync();
             if(repoResult.IsFailed) {
                 var reason = repoResult.Errors.Count > 0 ? repoResult.Errors[0].Message : null;
+                var message = ResultNotificationPolicy.GetTreeFetchFailureMessage( repoResult.GetFirstErrorKind() );
                 logger.Error( $"リポジトリのファイル一覧取得が失敗した。Reason={reason}" );
                 await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "リポジトリファイル一覧の取得に失敗しました" );
+                    snackbarService.Show( message );
                     return Task.CompletedTask;
                 } );
                 return;
@@ -338,8 +340,9 @@ public class DownloadViewModel(
             );
             if(pathResult.IsFailed) {
                 var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
+                var message = ResultNotificationPolicy.GetDownloadPathFailureMessage( pathResult.GetFirstErrorKind() );
                 logger.Error( $"ダウンロードURLの取得に失敗した。Reason={reason}" );
-                await ShowSnackbarAsync( "ダウンロードURLの取得に失敗しました" );
+                await ShowSnackbarAsync( message );
                 return;
             }
 

@@ -6,6 +6,7 @@ using Caliburn.Micro;
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
@@ -246,7 +247,7 @@ public sealed class UploadViewModelTests : IDisposable {
 
         context.ApiServiceMock
             .Setup( api => api.GetTreeAsync( It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync( Result.Fail<IReadOnlyList<FileEntry>>( "network error" ) );
+            .ReturnsAsync( Result.Fail<IReadOnlyList<FileEntry>>( ResultErrorFactory.NotFound( "network error", "TEST_NOT_FOUND" ) ) );
 
         var viewModel = context.CreateViewModel();
 
@@ -254,7 +255,7 @@ public sealed class UploadViewModelTests : IDisposable {
 
         Assert.Empty( viewModel.RepoEntries );
         Assert.Empty( viewModel.Tabs );
-        Assert.Contains( "リポジトリファイル一覧の取得に失敗しました", context.SnackbarMessages );
+        Assert.Contains( "リポジトリファイル一覧が見つかりませんでした", context.SnackbarMessages );
         Assert.False( viewModel.IsFetching );
 
         context.ApiServiceMock.Verify( api => api.GetTreeAsync( It.IsAny<CancellationToken>() ), Times.Once );

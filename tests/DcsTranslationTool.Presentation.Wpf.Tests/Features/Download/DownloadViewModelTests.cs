@@ -1,5 +1,6 @@
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -204,7 +205,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "deadbeef" );
         var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
 
-        var downloadResult = Result.Fail<ApiDownloadFilePathsResult>( "network failure" );
+        var downloadResult = Result.Fail<ApiDownloadFilePathsResult>( ResultErrorFactory.Validation( "network failure", "TEST_VALIDATION" ) );
 
         var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
         apiServiceMock
@@ -284,7 +285,7 @@ public sealed class DownloadViewModelTests : IDisposable {
 
         await viewModel.Download();
 
-        Assert.Contains( "ダウンロードURLの取得に失敗しました", snackbarMessages );
+        Assert.Contains( "ダウンロード対象が不正です", snackbarMessages );
         var expectedFilePath = Path.Combine( _tempDir, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "Example.lua" );
         Assert.False( File.Exists( expectedFilePath ) );
 

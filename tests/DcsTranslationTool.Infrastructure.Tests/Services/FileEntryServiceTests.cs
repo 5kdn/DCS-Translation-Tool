@@ -1,3 +1,4 @@
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 using DcsTranslationTool.Shared.Models;
@@ -78,6 +79,7 @@ public class FileEntryServiceTests : IDisposable {
         Assert.True( result.IsFailed );
         var actualMessage = result.Errors[0].Message;
         Assert.StartsWith( "指定されたパスが存在しません: ", actualMessage );
+        Assert.Equal( ResultErrorKind.NotFound, result.GetFirstErrorKind() );
     }
 
     #endregion
