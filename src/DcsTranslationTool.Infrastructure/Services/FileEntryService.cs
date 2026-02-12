@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Shared.Helpers;
 using DcsTranslationTool.Shared.Models;
@@ -47,7 +48,7 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
     public async Task<Result<IEnumerable<FileEntry>>> GetChildrenRecursiveAsync( string path ) {
         if(!Path.Exists( path )) {
             logger.Warn( $"ファイル列挙の対象パスが存在しない。Path={path}" );
-            return Result.Fail( $"指定されたパスが存在しません: {path}" );
+            return Result.Fail( ResultErrorFactory.NotFound( $"指定されたパスが存在しません: {path}", "FILE_ENTRY_PATH_NOT_FOUND" ) );
         }
 
         logger.Debug( $"ファイル階層を再帰的に列挙する。Path={path}" );
@@ -66,7 +67,7 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
         }
         catch(Exception ex) {
             logger.Error( $"ファイル階層の列挙に失敗した。Path={path}", ex );
-            return Result.Fail( ex.Message );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "FILE_ENTRY_ENUMERATION_EXCEPTION" ) );
         }
     }
 

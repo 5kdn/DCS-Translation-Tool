@@ -6,6 +6,7 @@ using Caliburn.Micro;
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -204,10 +205,11 @@ public sealed class UploadViewModel(
             var repoResult = await apiService.GetTreeAsync();
             if(repoResult.IsFailed) {
                 var reason = repoResult.Errors.Count > 0 ? repoResult.Errors[0].Message : null;
+                var message = ResultNotificationPolicy.GetTreeFetchFailureMessage( repoResult.GetFirstErrorKind() );
                 logger.Warn(
                     $"リポジトリのファイル一覧取得が失敗した。Reason={reason}" );
                 await dispatcherService.InvokeAsync( () => {
-                    snackbarService.Show( "リポジトリファイル一覧の取得に失敗しました" );
+                    snackbarService.Show( message );
                     return Task.CompletedTask;
                 } );
                 return;
