@@ -68,5 +68,23 @@ namespace DcsTranslationTool.Resources {
                 return ResourceManager.GetString("AppDisplayName", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   DLページ に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string UpdateActionOpenRelease {
+            get {
+                return ResourceManager.GetString("UpdateActionOpenRelease", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   新しいバージョン {0} が利用可能です に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string UpdateAvailableMessageFormat {
+            get {
+                return ResourceManager.GetString("UpdateAvailableMessageFormat", resourceCulture);
+            }
+        }
     }
 }
