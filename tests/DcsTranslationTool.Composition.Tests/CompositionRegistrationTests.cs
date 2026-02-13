@@ -24,6 +24,7 @@ public class CompositionRegistrationTests {
         var appSettingsService = container.GetInstance( typeof( IAppSettingsService ), null );
         var apiService1 = container.GetInstance( typeof( IApiService ), null );
         var apiService2 = container.GetInstance( typeof( IApiService ), null );
+        var updateCheckService = container.GetInstance( typeof( IUpdateCheckService ), null );
         var zipService1 = container.GetInstance( typeof( IZipService ), null );
         var zipService2 = container.GetInstance( typeof( IZipService ), null );
 
@@ -33,6 +34,7 @@ public class CompositionRegistrationTests {
         context.TrackedAppSettings = Assert.IsType<AppSettingsService>( appSettingsService );
         Assert.Same( apiService1, apiService2 );
         Assert.IsType<ApiService>( apiService1 );
+        Assert.IsType<UpdateCheckService>( updateCheckService );
         Assert.Same( zipService1, zipService2 );
         Assert.NotNull( NLogManager.Configuration );
     }

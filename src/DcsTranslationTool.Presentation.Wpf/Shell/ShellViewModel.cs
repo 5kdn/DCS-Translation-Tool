@@ -5,8 +5,8 @@ using Caliburn.Micro;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Resources;
 using DcsTranslationTool.Shared.Constants;
 
 using MaterialDesignThemes.Wpf;
@@ -19,12 +19,14 @@ public class ShellViewModel(
     ILoggingService logger,
     INavigationService navigationService,
     ISnackbarService snackbarService,
-    ISystemService systemService
+    ISystemService systemService,
+    IUpdateCheckService updateCheckService
 ) : Conductor<IScreen>.Collection.OneActive, IHandle<string>, IActivate {
 
     #region Fields
 
     private bool _initialized = false;
+    private bool _startupUpdateCheckStarted = false;
     private double _shellWidth = appSettingsService.Settings.ShellWidth;
     private double _shellHeight = appSettingsService.Settings.ShellHeight;
 
@@ -87,6 +89,7 @@ public class ShellViewModel(
 
         if(!_initialized) {
             navigationService.NavigateToViewModel<MainViewModel>();
+            _ = ExecuteStartupUpdateCheckAsync( CancellationToken.None );
             _initialized = true;
         }
         await Task.CompletedTask;
@@ -166,6 +169,39 @@ public class ShellViewModel(
         }
         else {
             logger.Info( "アプリ設定が検証済み。全ての必須ディレクトリが設定済み。" );
+        }
+    }
+
+    /// <summary>
+    /// 起動時に 1 回だけ更新確認を実行し、更新を検知したときに通知する。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセル通知を受け取る。</param>
+    private async Task ExecuteStartupUpdateCheckAsync( CancellationToken cancellationToken ) {
+        if(this._startupUpdateCheckStarted) {
+            return;
+        }
+
+        this._startupUpdateCheckStarted = true;
+
+        try {
+            var updateCheckResult = await updateCheckService.CheckForUpdateAsync( cancellationToken ).ConfigureAwait( false );
+            if(!updateCheckResult.IsUpdateAvailable ||
+                string.IsNullOrWhiteSpace( updateCheckResult.LatestVersionLabel ) ||
+                string.IsNullOrWhiteSpace( updateCheckResult.ReleaseUrl )) {
+                return;
+            }
+
+            await Execute.OnUIThreadAsync( () => {
+                snackbarService.Show(
+                    string.Format( Strings_Shared.UpdateAvailableMessageFormat, updateCheckResult.LatestVersionLabel ),
+                    Strings_Shared.UpdateActionOpenRelease,
+                    () => systemService.OpenInWebBrowser( updateCheckResult.ReleaseUrl ),
+                    duration: TimeSpan.FromSeconds( 4 ) );
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
+        }
+        catch(Exception ex) {
+            logger.Warn( "起動時更新確認でエラーが発生したため通知を行わない。", ex );
         }
     }
 }

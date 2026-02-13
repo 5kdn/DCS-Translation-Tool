@@ -5,7 +5,6 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.IO;
 using DcsTranslationTool.Infrastructure.Providers;
 using DcsTranslationTool.Infrastructure.Services;
@@ -33,7 +32,7 @@ public sealed class BootstrapperContainerTests {
         } );
     }
 
-    private static Task RunOnStaThreadAsync( System.Action action ) {
+    private static Task<object?> RunOnStaThreadAsync( System.Action action ) {
         var tcs = new TaskCompletionSource<object?>();
         var thread = new Thread( () => {
             try {
@@ -114,6 +113,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<EnvironmentProvider>( Get<IEnvironmentProvider>() );
             Assert.IsType<ProcessLauncher>( Get<IProcessLauncher>() );
             Assert.IsType<SystemService>( Get<ISystemService>() );
+            Assert.IsType<UpdateCheckService>( Get<IUpdateCheckService>() );
             Assert.IsType<ZipService>( Get<IZipService>() );
             Assert.IsType<DialogProvider>( Get<IDialogProvider>() );
             Assert.IsType<DispatcherService>( Get<IDispatcherService>() );

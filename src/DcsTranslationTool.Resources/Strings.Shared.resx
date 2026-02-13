@@ -120,4 +120,10 @@
   <data name="AppDisplayName" xml:space="preserve">
     <value>DCS Translation Tool</value>
   </data>
+  <data name="UpdateActionOpenRelease" xml:space="preserve">
+    <value>DLページ</value>
+  </data>
+  <data name="UpdateAvailableMessageFormat" xml:space="preserve">
+    <value>新しいバージョン {0} が利用可能です</value>
+  </data>
 </root>
