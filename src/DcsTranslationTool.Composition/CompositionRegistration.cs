@@ -35,7 +35,9 @@ public static class CompositionRegistration {
         var appSettingsService = new AppSettingsService( loggingService, saveDir, fileName );
         c.Instance<IAppSettingsService>( appSettingsService );
 
+        c.Singleton<ITreeHttpClientProvider, TreeHttpClientProvider>();
         c.Singleton<IApiService, ApiService>();
+        c.Singleton<IFileEntryHashCacheService, FileEntryHashCacheService>();
         c.Singleton<IFileContentInspector, FileContentInspector>();
         c.Singleton<IFileEntryService, FileEntryService>();
         c.Singleton<IFileService, FileService>();

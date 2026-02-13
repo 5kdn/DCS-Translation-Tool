@@ -105,7 +105,9 @@ public sealed class BootstrapperContainerTests {
         public void AssertResolutions() {
             Assert.IsType<LoggingService>( Get<ILoggingService>() );
             Assert.IsType<AppSettingsService>( Get<IAppSettingsService>() );
+            Assert.IsType<TreeHttpClientProvider>( Get<ITreeHttpClientProvider>() );
             Assert.IsType<ApiService>( Get<IApiService>() );
+            Assert.IsType<FileEntryHashCacheService>( Get<IFileEntryHashCacheService>() );
             Assert.IsType<FileEntryService>( Get<IFileEntryService>() );
             Assert.IsType<FileService>( Get<IFileService>() );
             Assert.IsType<FileContentInspector>( Get<IFileContentInspector>() );

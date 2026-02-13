@@ -6,6 +6,7 @@ using System.Text.Json;
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Infrastructure.Services;
+using DcsTranslationTool.Infrastructure.Tests.TestDoubles;
 
 namespace DcsTranslationTool.Infrastructure.Tests.Services;
 
@@ -34,7 +35,7 @@ public class ApiServiceTests {
 
             return Task.FromResult( response );
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         // Act
         var result = await sut.GetHealthAsync( TestContext.Current.CancellationToken );
@@ -55,7 +56,7 @@ public class ApiServiceTests {
             };
             return Task.FromResult( response );
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         // Act
         var result = await sut.GetHealthAsync( TestContext.Current.CancellationToken );
@@ -107,10 +108,10 @@ public class ApiServiceTests {
 
             return Task.FromResult( response );
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         // Act
-        var result = await sut.GetTreeAsync(TestContext.Current.CancellationToken);
+        var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsSuccess );
@@ -128,6 +129,64 @@ public class ApiServiceTests {
         Assert.Equal( "translations/file.po", file.Path );
         Assert.False( file.IsDirectory );
         Assert.Equal( "file-sha", file.RepoSha );
+    }
+
+    [Fact]
+    public async Task GetTreeAsyncは専用ipv4経路とのレースで両経路を実行する() {
+        // Arrange
+        var defaultRequestCount = 0;
+        var ipv4RequestCount = 0;
+
+        var defaultClient = CreateClient(async (_, cancellationToken) => {
+            Interlocked.Increment( ref defaultRequestCount );
+            await Task.Delay( 80, cancellationToken ).ConfigureAwait( false );
+            return new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateTreePayload( "default", "default-sha" ), Encoding.UTF8, "application/json" ),
+            };
+        });
+
+        var ipv4Client = CreateClient((_, _) => {
+            Interlocked.Increment( ref ipv4RequestCount );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateTreePayload( "ipv4", "ipv4-sha" ), Encoding.UTF8, "application/json" ),
+            } );
+        });
+
+        var sut = CreateSut( defaultClient, ipv4Client );
+
+        // Act
+        var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        Assert.Equal( 1, defaultRequestCount );
+        Assert.Equal( 1, ipv4RequestCount );
+        Assert.Equal( "ipv4", result.Value.Single().Path );
+    }
+
+    [Fact]
+    public async Task GetTreeAsyncは注入defaultクライアントのみでも同一ハンドラ上でレース実行する() {
+        // Arrange
+        var requestCount = 0;
+        var sharedClient = CreateClient((_, _) => {
+            Interlocked.Increment( ref requestCount );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateTreePayload( "shared", "shared-sha" ), Encoding.UTF8, "application/json" ),
+            } );
+        });
+
+        var sut = CreateSut( sharedClient );
+
+        // Act
+        var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        Assert.Equal( 2, requestCount );
+        Assert.Equal( "shared", result.Value.Single().Path );
     }
 
     [Fact]
@@ -157,7 +216,7 @@ public class ApiServiceTests {
 
             return response;
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         var request = new ApiDownloadFilesRequest( paths, "\"etag-value\"" );
 
@@ -222,7 +281,7 @@ public class ApiServiceTests {
 
             return response;
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         var request = new ApiCreatePullRequestRequest(
             "feature/test",
@@ -257,7 +316,7 @@ public class ApiServiceTests {
     [Fact]
     public async Task DownloadFilesAsyncはパス未指定時に失敗を返す() {
         // Arrange
-        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var sut = CreateSut( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
         var request = new ApiDownloadFilesRequest( [], null );
 
         // Act
@@ -266,14 +325,14 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Paths には少なくとも1つの値が含まれている必要があります。", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( nameof( ResultErrorKind.Validation ), result.Errors.Single().Metadata["kind"] );
         Assert.Equal( "API_PATHS_REQUIRED", result.Errors.Single().Metadata["code"] );
     }
 
     [Fact]
     public async Task DownloadFilePathsAsyncは空白のみパス時に失敗を返す() {
         // Arrange
-        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var sut = CreateSut( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
         var request = new ApiDownloadFilePathsRequest( ["   ", string.Empty], null );
 
         // Act
@@ -282,14 +341,14 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Paths には少なくとも1つの空でない値が含まれている必要があります。", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( nameof( ResultErrorKind.Validation ), result.Errors.Single().Metadata["kind"] );
         Assert.Equal( "API_PATHS_EMPTY", result.Errors.Single().Metadata["code"] );
     }
 
     [Fact]
     public async Task DownloadFilesAsyncはnullパス時に失敗を返す() {
         // Arrange
-        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var sut = CreateSut( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
         var request = new ApiDownloadFilesRequest( null!, null );
 
         // Act
@@ -298,14 +357,14 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Paths には少なくとも1つの値が含まれている必要があります。", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( nameof( ResultErrorKind.Validation ), result.Errors.Single().Metadata["kind"] );
         Assert.Equal( "API_PATHS_REQUIRED", result.Errors.Single().Metadata["code"] );
     }
 
     [Fact]
     public async Task DownloadFilePathsAsyncはパス上限超過時に失敗を返す() {
         // Arrange
-        var sut = new ApiService( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
+        var sut = CreateSut( CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) )) );
         var paths = Enumerable.Range( 1, 501 ).Select( index => $"path/{index}" ).ToArray();
         var request = new ApiDownloadFilePathsRequest( paths, null );
 
@@ -315,7 +374,7 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Paths には500個以下のアイテムを含める必要があります。", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.Validation.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( nameof( ResultErrorKind.Validation ), result.Errors.Single().Metadata["kind"] );
         Assert.Equal( "API_PATHS_LIMIT", result.Errors.Single().Metadata["code"] );
     }
 
@@ -327,7 +386,7 @@ public class ApiServiceTests {
             ReasonPhrase = "Bad Gateway",
             Content = new StringContent( "upstream failed", Encoding.UTF8, "text/plain" ),
         } ));
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
         var request = new ApiDownloadFilesRequest( ["path/one"], null );
 
         // Act
@@ -336,7 +395,7 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Bad Gateway - upstream failed", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.External.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( nameof( ResultErrorKind.External ), result.Errors.Single().Metadata["kind"] );
         Assert.Equal( "API_HTTP_ERROR", result.Errors.Single().Metadata["code"] );
     }
 
@@ -348,7 +407,7 @@ public class ApiServiceTests {
             ReasonPhrase = "Server Error",
             Content = new StringContent( "failed", Encoding.UTF8, "text/plain" ),
         } ));
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
         var request = new ApiDownloadFilePathsRequest( ["path/one"], null );
 
         // Act
@@ -357,7 +416,7 @@ public class ApiServiceTests {
         // Assert
         Assert.True( result.IsFailed );
         Assert.Equal( "Server Error - failed", result.Errors.Single().Message );
-        Assert.Equal( ResultErrorKind.External.ToString(), result.Errors.Single().Metadata["kind"] );
+        Assert.Equal( nameof( ResultErrorKind.External ), result.Errors.Single().Metadata["kind"] );
         Assert.Equal( "API_HTTP_ERROR", result.Errors.Single().Metadata["code"] );
     }
 
@@ -388,7 +447,7 @@ public class ApiServiceTests {
 
             return response;
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         var request = new ApiDownloadFilePathsRequest( paths, "\"etag-value\"" );
 
@@ -439,7 +498,7 @@ public class ApiServiceTests {
 
             return response;
         });
-        var sut = new ApiService( client );
+        var sut = CreateSut( client );
 
         var request = new ApiDownloadFilePathsRequest( ["path/one", "path/two"], null );
 
@@ -457,6 +516,27 @@ public class ApiServiceTests {
         Assert.Equal( "https://example.test/raw/file2", items[1].Url );
         Assert.Equal( "path/two", items[1].Path );
     }
+
+    private static ApiService CreateSut( HttpClient defaultClient, HttpClient? ipv4Client = null ) {
+        var provider = new TreeHttpClientProvider( defaultClient, ipv4Client );
+        return new ApiService( NoOpLoggingService.Instance, provider );
+    }
+
+    private static string CreateTreePayload( string path, string sha ) =>
+        $$"""
+          {
+            "success": true,
+            "message": "ok",
+            "data": [
+              {
+                "mode": "100644",
+                "path": "{{path}}",
+                "sha": "{{sha}}",
+                "type": "blob"
+              }
+            ]
+          }
+          """;
 
     private static HttpClient CreateClient( Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder ) {
         var handler = new StubHttpMessageHandler( responder );

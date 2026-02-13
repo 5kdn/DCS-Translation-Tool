@@ -1,7 +1,6 @@
 using Caliburn.Micro;
 
 using DcsTranslationTool.Domain.Models;
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 
 namespace DcsTranslationTool.Presentation.Wpf.ViewModels;

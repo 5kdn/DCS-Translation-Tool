@@ -5,7 +5,6 @@ using System.ComponentModel;
 using Caliburn.Micro;
 
 using DcsTranslationTool.Domain.Models;
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Shared.Models;
@@ -31,6 +30,8 @@ public class FileEntryViewModel(
     private readonly ChangeTypeMode _mode = changeTypeMode;
     private bool _isExpanded;
     private bool _isVisible = true;
+    private FileChangeType? _cachedChangeType;
+    private bool _isChangeTypeDirty = true;
 
     #endregion
 
@@ -78,50 +79,12 @@ public class FileEntryViewModel(
     /// <inheritdoc/>
     public FileChangeType? ChangeType {
         get {
-            switch(_mode) {
-                case ChangeTypeMode.Download:
-                    if(IsDirectory) {
-                        if(Children.Count == 0) return FileChangeType.Unchanged;
-                        var set = Children.Select(c => c.ChangeType).ToHashSet();
-                        if(set.Contains( FileChangeType.Modified )) return FileChangeType.Modified;
-                        if(set.Contains( FileChangeType.RepoOnly )) return FileChangeType.RepoOnly;
-                        if(set.Contains( FileChangeType.Unchanged )) return FileChangeType.Unchanged;
-                        if(set.Contains( FileChangeType.LocalOnly )) return FileChangeType.LocalOnly;
-                        return null;
-                    }
-                    return (Model.LocalSha, Model.RepoSha) switch
-                    {
-                        (string l, string r ) when l == r => FileChangeType.Unchanged,
-                        (string l, string r ) when l != r => FileChangeType.Modified,
-                        (string _, null ) => FileChangeType.LocalOnly,
-                        (null, string _ ) => FileChangeType.RepoOnly,
-                        (null, null ) => null,
-                        _ => throw new NotImplementedException()
-                    };
-
-                case ChangeTypeMode.Upload:
-                    if(IsDirectory) {
-                        if(Children.Count == 0) return FileChangeType.Unchanged;
-                        var set = Children.Select(c => c.ChangeType).ToHashSet();
-                        if(set.Contains( FileChangeType.Modified )) return FileChangeType.Modified;
-                        if(set.Contains( FileChangeType.LocalOnly )) return FileChangeType.LocalOnly;
-                        if(set.Contains( FileChangeType.Unchanged )) return FileChangeType.Unchanged;
-                        if(set.Contains( FileChangeType.RepoOnly )) return FileChangeType.RepoOnly;
-                        return null;
-                    }
-                    return (Model.LocalSha, Model.RepoSha) switch
-                    {
-                        (string l, string r ) when l == r => FileChangeType.Unchanged,
-                        (string l, string r ) when l != r => FileChangeType.Modified,
-                        (string _, null ) => FileChangeType.LocalOnly,
-                        (null, string _ ) => FileChangeType.RepoOnly,
-                        (null, null ) => null,
-                        _ => throw new NotImplementedException()
-                    };
-
-                default:
-                    throw new InvalidEnumArgumentException();
+            if(_isChangeTypeDirty) {
+                _cachedChangeType = ComputeChangeType();
+                _isChangeTypeDirty = false;
             }
+
+            return _cachedChangeType;
         }
     }
 
@@ -195,9 +158,8 @@ public class FileEntryViewModel(
             logger.Info( $"子ノードコレクションを更新した。Path={Model.Path}, ChildCount={_children.Count}" );
 
             // 参照入替に伴い集計系を更新
-            NotifyOfPropertyChange( nameof( ChangeType ) );
+            InvalidateChangeType();
             RecomputeCheckStateFromChildren();
-            NotifyOfPropertyChange( nameof( CanCheck ) );
             if(!CanCheck && _checkState is not false) CheckState = false;
         }
     }
@@ -268,6 +230,76 @@ public class FileEntryViewModel(
     }
 
     /// <summary>
+    /// 現在ノードの変更種別を算出する。
+    /// </summary>
+    /// <returns>算出した変更種別。</returns>
+    private FileChangeType? ComputeChangeType() {
+        if(!IsDirectory) {
+            return (Model.LocalSha, Model.RepoSha) switch
+            {
+                (string l, string r ) when l == r => FileChangeType.Unchanged,
+                (string l, string r ) when l != r => FileChangeType.Modified,
+                (string _, null ) => FileChangeType.LocalOnly,
+                (null, string _ ) => FileChangeType.RepoOnly,
+                (null, null ) => null,
+                _ => throw new NotImplementedException()
+            };
+        }
+
+        if(Children.Count == 0) {
+            return FileChangeType.Unchanged;
+        }
+
+        var hasModified = false;
+        var hasRepoOnly = false;
+        var hasLocalOnly = false;
+        var hasUnchanged = false;
+
+        foreach(var child in Children) {
+            switch(child.ChangeType) {
+                case FileChangeType.Modified:
+                    hasModified = true;
+                    break;
+                case FileChangeType.RepoOnly:
+                    hasRepoOnly = true;
+                    break;
+                case FileChangeType.LocalOnly:
+                    hasLocalOnly = true;
+                    break;
+                case FileChangeType.Unchanged:
+                    hasUnchanged = true;
+                    break;
+            }
+        }
+
+        return _mode switch
+        {
+            ChangeTypeMode.Download when hasModified => FileChangeType.Modified,
+            ChangeTypeMode.Download when hasRepoOnly => FileChangeType.RepoOnly,
+            ChangeTypeMode.Download when hasUnchanged => FileChangeType.Unchanged,
+            ChangeTypeMode.Download when hasLocalOnly => FileChangeType.LocalOnly,
+
+            ChangeTypeMode.Upload when hasModified => FileChangeType.Modified,
+            ChangeTypeMode.Upload when hasLocalOnly => FileChangeType.LocalOnly,
+            ChangeTypeMode.Upload when hasUnchanged => FileChangeType.Unchanged,
+            ChangeTypeMode.Upload when hasRepoOnly => FileChangeType.RepoOnly,
+
+            ChangeTypeMode.Download => null,
+            ChangeTypeMode.Upload => null,
+            _ => throw new InvalidEnumArgumentException(),
+        };
+    }
+
+    /// <summary>
+    /// 変更種別キャッシュを無効化して関連プロパティを通知する。
+    /// </summary>
+    private void InvalidateChangeType() {
+        _isChangeTypeDirty = true;
+        NotifyOfPropertyChange( nameof( ChangeType ) );
+        NotifyOfPropertyChange( nameof( CanCheck ) );
+    }
+
+    /// <summary>
     /// 子ノードの状態から自分のチェック状態を再計算する
     /// </summary>
     private void RecomputeCheckStateFromChildren() {
@@ -321,9 +353,8 @@ public class FileEntryViewModel(
         if(e.Action == NotifyCollectionChangedAction.Reset) {
             DetachChildrenHandlers( Children );
             AttachChildrenHandlers( Children );
-            NotifyOfPropertyChange( nameof( ChangeType ) );
+            InvalidateChangeType();
             RecomputeCheckStateFromChildren();
-            NotifyOfPropertyChange( nameof( CanCheck ) );
             if(!CanCheck && CheckState != false) CheckState = false;
             logger.Info( $"子ノードコレクションがリセットされた。Path={Model.Path}" );
             return;
@@ -342,16 +373,14 @@ public class FileEntryViewModel(
             }
         }
 
-        NotifyOfPropertyChange( nameof( ChangeType ) );
+        InvalidateChangeType();
         RecomputeCheckStateFromChildren();
-        NotifyOfPropertyChange( nameof( CanCheck ) );
         if(!CanCheck && CheckState is not false) CheckState = false;
     }
 
     private void OnChildPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
         if(e.PropertyName == nameof( ChangeType )) {
-            NotifyOfPropertyChange( nameof( ChangeType ) );
-            NotifyOfPropertyChange( nameof( CanCheck ) );
+            InvalidateChangeType();
             if(!CanCheck && CheckState is not false) CheckState = false;
         }
     }

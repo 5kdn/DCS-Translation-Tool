@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 
 using Caliburn.Micro;
 
@@ -31,8 +32,13 @@ public abstract class FileEntryTabsViewModelBase(
     private int _selectedTabIndex;
     private IFilterViewModel _filter = new FilterViewModel( logger );
     private bool _isFetching;
+    private bool _isLocalRefreshRunning;
+    private int _localEntriesSignature;
     private Func<IReadOnlyList<FileEntry>, Task>? _entriesChangedHandler;
     private EventHandler? _filtersChangedHandler;
+    private readonly object _refreshTabsGate = new();
+    private CancellationTokenSource? _refreshTabsCts;
+    private int _refreshTabsVersion;
 
     /// <summary>
     /// ローカル側のエントリ一覧を取得または設定する。
@@ -184,6 +190,7 @@ public abstract class FileEntryTabsViewModelBase(
         }
 
         fileEntryWatcherLifecycle.StopWatching();
+        CancelRefreshTabs();
         snackbarService.Clear();
         logger.Info( "リソースを解放した。" );
 
@@ -195,6 +202,7 @@ public abstract class FileEntryTabsViewModelBase(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task Fetch() {
+        var fetchStopwatch = Stopwatch.StartNew();
         logger.Info( "ファイル一覧の取得を開始する。" );
         IsFetching = true;
         try {
@@ -212,9 +220,10 @@ public abstract class FileEntryTabsViewModelBase(
 
             RepoEntries = [.. repoResult.Value];
             logger.Info( $"ファイル一覧を取得した。件数={RepoEntries.Count}" );
-            RefreshTabs();
+            await RefreshTabsAsync();
+            _ = RefreshLocalEntriesInBackgroundAsync();
             await dispatcherService.InvokeAsync( () => {
-                snackbarService.Show( "ファイル一覧の取得が完了しました" );
+                snackbarService.Show( "リポジトリ一覧の取得が完了しました" );
                 return Task.CompletedTask;
             } );
         }
@@ -227,7 +236,7 @@ public abstract class FileEntryTabsViewModelBase(
         }
         finally {
             IsFetching = false;
-            logger.Info( "ファイル一覧取得処理を終了した。" );
+            logger.Info( $"ファイル一覧取得処理を終了した。ElapsedMs={fetchStopwatch.ElapsedMilliseconds}" );
         }
     }
 
@@ -247,11 +256,7 @@ public abstract class FileEntryTabsViewModelBase(
             return;
         }
 
-        await dispatcherService.InvokeAsync( () => {
-            LocalEntries = entries.Value;
-            RefreshTabs();
-            return Task.CompletedTask;
-        } );
+        await dispatcherService.InvokeAsync( () => UpdateLocalEntriesAndRefreshAsync( entries.Value ) );
     }
 
     /// <summary>
@@ -290,39 +295,60 @@ public abstract class FileEntryTabsViewModelBase(
     /// 現在のフィルタ条件を適用する。
     /// </summary>
     protected void ApplyFilter() {
+        var filterStopwatch = Stopwatch.StartNew();
         var types = Filter.GetActiveTypes().ToHashSet();
         var activeTypes = string.Join( ",", types.Select( type => type?.ToString() ?? "null" ) );
         logger.Info( $"フィルタを適用する。ActiveTypes={activeTypes}" );
         fileEntryTreeService.ApplyFilter( Tabs, types );
         NotifyGuardProperties();
-        logger.Info( "フィルタ適用が完了した。" );
+        logger.Info( $"フィルタ適用が完了した。ElapsedMs={filterStopwatch.ElapsedMilliseconds}" );
     }
 
     /// <summary>
     /// リポジトリとローカルのエントリをマージしてタブを再構築する。
     /// </summary>
-    protected void RefreshTabs() {
+    protected async Task RefreshTabsAsync() {
+        var refreshStopwatch = Stopwatch.StartNew();
         var tabIndex = SelectedTabIndex;
         logger.Info( $"タブを再構築する。LocalCount={LocalEntries.Count}, RepoCount={RepoEntries.Count}, SelectedIndex={tabIndex}" );
-
-        var tabs = fileEntryTreeService.BuildTabs( LocalEntries, RepoEntries, TreeMode );
-
-        foreach(var tab in Tabs) {
-            tab.Root.CheckStateChanged -= OnRootCheckStateChanged;
+        var token = CreateRefreshToken( out var version );
+        IReadOnlyList<TabItemViewModel> tabs;
+        var buildStopwatch = Stopwatch.StartNew();
+        try {
+            tabs = await Task.Run( () => fileEntryTreeService.BuildTabs( LocalEntries, RepoEntries, TreeMode ), token );
+        }
+        catch(OperationCanceledException) {
+            logger.Debug( $"タブ再構築をキャンセルした。Version={version}" );
+            return;
         }
 
-        Tabs.Clear();
-        foreach(var tab in tabs) {
-            Tabs.Add( tab );
-        }
+        logger.Info( $"タブ構築が完了した。Version={version}, BuildTabsElapsedMs={buildStopwatch.ElapsedMilliseconds}" );
+        await dispatcherService.InvokeAsync( () => {
+            if(token.IsCancellationRequested || !IsLatestRefreshVersion( version )) {
+                logger.Debug( $"最新のタブ再構築ではないため反映をスキップする。Version={version}" );
+                return Task.CompletedTask;
+            }
 
-        foreach(var tab in Tabs) {
-            tab.Root.CheckStateChanged += OnRootCheckStateChanged;
-        }
+            var applyStopwatch = Stopwatch.StartNew();
+            foreach(var tab in Tabs) {
+                tab.Root.CheckStateChanged -= OnRootCheckStateChanged;
+            }
 
-        SelectedTabIndex = Tabs.Count == 0 ? 0 : Math.Clamp( tabIndex, 0, Tabs.Count - 1 );
-        ApplyFilter();
-        logger.Info( $"タブの再構築が完了した。TabCount={Tabs.Count}, SelectedIndex={SelectedTabIndex}" );
+            Tabs.Clear();
+            foreach(var tab in tabs) {
+                Tabs.Add( tab );
+            }
+
+            foreach(var tab in Tabs) {
+                tab.Root.CheckStateChanged += OnRootCheckStateChanged;
+            }
+
+            SelectedTabIndex = Tabs.Count == 0 ? 0 : Math.Clamp( tabIndex, 0, Tabs.Count - 1 );
+            ApplyFilter();
+            logger.Info( $"タブ反映が完了した。Version={version}, ApplyTabsElapsedMs={applyStopwatch.ElapsedMilliseconds}" );
+            logger.Info( $"タブの再構築が完了した。TabCount={Tabs.Count}, SelectedIndex={SelectedTabIndex}, ElapsedMs={refreshStopwatch.ElapsedMilliseconds}" );
+            return Task.CompletedTask;
+        } );
     }
 
     /// <summary>
@@ -356,15 +382,103 @@ public abstract class FileEntryTabsViewModelBase(
 
         return dispatcherService.InvokeAsync( () => {
             logger.Info( $"EntriesChanged を受信した。件数={entries.Count}" );
-            LocalEntries = entries;
-            RefreshTabs();
-            return Task.CompletedTask;
+            return UpdateLocalEntriesAndRefreshAsync( entries );
         } );
+    }
+
+    /// <summary>
+    /// ローカルエントリをバックグラウンドで更新する。
+    /// </summary>
+    /// <returns>非同期タスク。</returns>
+    private async Task RefreshLocalEntriesInBackgroundAsync() {
+        if(_isLocalRefreshRunning) {
+            return;
+        }
+
+        _isLocalRefreshRunning = true;
+        try {
+            await RefreshLocalEntriesAsync();
+        }
+        catch(Exception ex) {
+            logger.Warn( "バックグラウンドのローカル一覧更新に失敗した。", ex );
+        }
+        finally {
+            _isLocalRefreshRunning = false;
+        }
+    }
+
+    /// <summary>
+    /// ローカルエントリを更新して必要時のみタブを再構築する。
+    /// </summary>
+    /// <param name="entries">更新対象エントリ。</param>
+    private async Task UpdateLocalEntriesAndRefreshAsync( IReadOnlyList<FileEntry> entries ) {
+        var signature = ComputeLocalEntriesSignature( entries );
+        if(signature == _localEntriesSignature && Tabs.Count > 0) {
+            logger.Debug( "ローカル一覧に差分がないためタブ再構築を省略する。" );
+            return;
+        }
+
+        _localEntriesSignature = signature;
+        LocalEntries = entries;
+        await RefreshTabsAsync();
+    }
+
+    /// <summary>
+    /// ローカルエントリの内容署名を算出する。
+    /// </summary>
+    /// <param name="entries">対象エントリ。</param>
+    /// <returns>署名値。</returns>
+    private static int ComputeLocalEntriesSignature( IReadOnlyList<FileEntry> entries ) {
+        var hash = new HashCode();
+        hash.Add( entries.Count );
+        foreach(var entry in entries) {
+            hash.Add( entry.Path, StringComparer.Ordinal );
+            hash.Add( entry.LocalSha, StringComparer.Ordinal );
+        }
+
+        return hash.ToHashCode();
     }
 
     private void OnRootCheckStateChanged( object? sender, bool? e ) {
         _ = sender;
         NotifyGuardProperties();
         logger.Info( $"ルートチェック状態が変化した。SelectedIndex={SelectedTabIndex}, NewState={e}" );
+    }
+
+    /// <summary>
+    /// タブ再構築の世代を更新し、直前の再構築を取り消す。
+    /// </summary>
+    /// <param name="version">発行した世代番号。</param>
+    /// <returns>新しいキャンセルトークン。</returns>
+    private CancellationToken CreateRefreshToken( out int version ) {
+        lock(_refreshTabsGate) {
+            _refreshTabsCts?.Cancel();
+            _refreshTabsCts?.Dispose();
+            _refreshTabsCts = new CancellationTokenSource();
+            version = ++_refreshTabsVersion;
+            return _refreshTabsCts.Token;
+        }
+    }
+
+    /// <summary>
+    /// 指定した世代が最新の再構築であるかを判定する。
+    /// </summary>
+    /// <param name="version">判定対象世代。</param>
+    /// <returns>最新世代の場合は <see langword="true"/>。</returns>
+    private bool IsLatestRefreshVersion( int version ) {
+        lock(_refreshTabsGate) {
+            return version == _refreshTabsVersion;
+        }
+    }
+
+    /// <summary>
+    /// タブ再構築の進行を取り消して状態を解放する。
+    /// </summary>
+    private void CancelRefreshTabs() {
+        lock(_refreshTabsGate) {
+            _refreshTabsCts?.Cancel();
+            _refreshTabsCts?.Dispose();
+            _refreshTabsCts = null;
+        }
     }
 }

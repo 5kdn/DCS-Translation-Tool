@@ -5,7 +5,6 @@ using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.Common;
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
@@ -148,6 +147,11 @@ public sealed class UploadViewModel(
 
     private IEnumerable<CommitFile> GetCommitFiles {
         get {
+            if(SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count) {
+                Logger.Warn( $"コミット対象ファイル収集を中断する。SelectedTabIndex={SelectedTabIndex}, TabCount={Tabs.Count}" );
+                return [];
+            }
+
             var files = Tabs[SelectedTabIndex]
             .GetCheckedEntries()
             .Where( e => !e.IsDirectory && e.RepoSha != e.LocalSha )

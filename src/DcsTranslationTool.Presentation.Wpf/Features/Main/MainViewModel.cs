@@ -2,7 +2,6 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
-using DcsTranslationTool.Presentation.Wpf.Services;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Main;
 
