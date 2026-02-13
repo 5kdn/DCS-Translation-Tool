@@ -7,7 +7,6 @@ using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Shared.Models;

@@ -1,7 +1,6 @@
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Settings;

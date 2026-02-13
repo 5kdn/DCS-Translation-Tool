@@ -1,6 +1,5 @@
 using Caliburn.Micro;
 
-using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 
 namespace DcsTranslationTool.Presentation.Wpf.ViewModels;

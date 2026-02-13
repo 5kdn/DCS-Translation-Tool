@@ -1,5 +1,3 @@
-using System.Threading;
-
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 

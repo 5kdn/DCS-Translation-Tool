@@ -15,7 +15,6 @@ using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
-using DcsTranslationTool.Presentation.Wpf.ViewModels;
 using DcsTranslationTool.Shared.Models;
 
 using FluentResults;
@@ -226,13 +225,13 @@ public sealed class UploadViewModelTests : IDisposable {
         Assert.Contains( viewModel.RepoEntries, entry => entry.Path == repoEntries[0].Path );
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
         Assert.Contains( aircraftTab.Root.Children, child => string.Equals( child?.Name, "A10C", StringComparison.Ordinal ) );
-        Assert.Contains( "ファイル一覧の取得が完了しました", context.SnackbarMessages );
+        Assert.Contains( "リポジトリ一覧の取得が完了しました", context.SnackbarMessages );
         Assert.False( viewModel.IsFetching );
 
         context.ApiServiceMock.Verify( api => api.GetTreeAsync( It.IsAny<CancellationToken>() ), Times.Once );
         context.SnackbarServiceMock.Verify(
             service => service.Show(
-                "ファイル一覧の取得が完了しました",
+                "リポジトリ一覧の取得が完了しました",
                 It.IsAny<string?>(),
                 It.IsAny<Action?>(),
                 It.IsAny<object?>(),
@@ -317,17 +316,21 @@ public sealed class UploadViewModelTests : IDisposable {
             .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( CreateAircraftRepoEntries() ) );
 
         var viewModel = context.CreateViewModel();
-        await viewModel.Fetch();
+        await viewModel.ActivateAsync( CancellationToken.None );
+        await WaitUntilAsync(
+            () => context.FileEntryServiceMock.Invocations.Any( invocation => invocation.Method.Name == nameof( IFileEntryService.GetEntriesAsync ) ),
+            "バックグラウンドのローカル再取得が開始されない。" );
 
         List<string> notified = [];
         viewModel.PropertyChanged += ( _, e ) => {
             if(!string.IsNullOrEmpty( e.PropertyName )) notified.Add( e.PropertyName );
         };
 
-        var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        aircraftTab.Root.CheckState = true;
+        SetAircraftRootCheckState( viewModel, true );
 
-        Assert.Contains( nameof( UploadViewModel.CanShowCreatePullRequestDialog ), notified );
+        await WaitUntilAsync(
+            () => notified.Contains( nameof( UploadViewModel.CanShowCreatePullRequestDialog ), StringComparer.Ordinal ),
+            "CanShowCreatePullRequestDialog の PropertyChanged が発火しない。" );
     }
 
     /// <summary>CanShowCreatePullRequestDialog が状態に応じて真偽を切り替えることを確認する。</summary>
@@ -337,21 +340,29 @@ public sealed class UploadViewModelTests : IDisposable {
         context.ApiServiceMock
             .Setup( api => api.GetTreeAsync( It.IsAny<CancellationToken>() ) )
             .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( CreateAircraftRepoEntries() ) );
+        var localEntries = new FileEntry[]
+        {
+            new LocalFileEntry( "Example.lua", AircraftExamplePath, false, "local-sha" )
+        };
 
         var viewModel = context.CreateViewModel();
-        await viewModel.Fetch();
+        context.FileEntryServiceMock
+            .Setup( service => service.GetEntriesAsync() )
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( localEntries ) );
+        await viewModel.ActivateAsync( CancellationToken.None );
+        await context.RaiseEntriesChangedAsync( localEntries );
 
-        var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        aircraftTab.Root.CheckState = true;
-
-        Assert.True( viewModel.CanShowCreatePullRequestDialog );
+        await WaitUntilAsync( () => {
+            SetAircraftModuleCheckState( viewModel, true );
+            return viewModel.CanShowCreatePullRequestDialog;
+        }, "CreatePullRequestDialog の表示可否が true へ遷移しない。" );
 
         viewModel.IsFetching = true;
         Assert.False( viewModel.CanShowCreatePullRequestDialog );
 
         viewModel.IsFetching = false;
-        aircraftTab.Root.CheckState = false;
-        Assert.False( viewModel.CanShowCreatePullRequestDialog );
+        SetAircraftModuleCheckState( viewModel, false );
+        await WaitUntilAsync( () => !viewModel.CanShowCreatePullRequestDialog, "CreatePullRequestDialog の表示可否が false へ遷移しない。" );
     }
 
 
@@ -441,6 +452,9 @@ public sealed class UploadViewModelTests : IDisposable {
             .SetupSequence( api => api.GetTreeAsync( It.IsAny<CancellationToken>() ) )
             .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( CreateAircraftRepoEntries() ) )
             .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( CreateAircraftRepoEntries() ) );
+        context.FileEntryServiceMock
+            .Setup( service => service.GetEntriesAsync() )
+            .ReturnsAsync( Result.Fail<IReadOnlyList<FileEntry>>( "test-local-refresh-disabled" ) );
 
         var viewModel = context.CreateViewModel();
         viewModel.SelectedTabIndex = -3;
@@ -490,20 +504,33 @@ public sealed class UploadViewModelTests : IDisposable {
         var viewModel = context.CreateViewModel();
         viewModel.Filter = filter;
 
+        var notifiedGate = new object();
         List<string> notified = [];
         viewModel.PropertyChanged += ( _, e ) => {
-            if(!string.IsNullOrEmpty( e.PropertyName )) notified.Add( e.PropertyName );
+            if(string.IsNullOrEmpty( e.PropertyName )) {
+                return;
+            }
+
+            lock(notifiedGate) {
+                notified.Add( e.PropertyName );
+            }
         };
 
         await viewModel.ActivateAsync( CancellationToken.None );
-        notified.Clear();
+        lock(notifiedGate) {
+            notified.Clear();
+        }
         var before = filter.GetActiveTypesCallCount;
 
         filter.SetActiveTypes( FileChangeType.LocalOnly );
         filter.RaiseFiltersChanged();
 
         Assert.True( filter.GetActiveTypesCallCount > before );
-        Assert.Contains( nameof( UploadViewModel.CanShowCreatePullRequestDialog ), notified );
+        await WaitUntilAsync( () => {
+            lock(notifiedGate) {
+                return notified.Contains( nameof( UploadViewModel.CanShowCreatePullRequestDialog ), StringComparer.Ordinal );
+            }
+        }, "CanShowCreatePullRequestDialog の PropertyChanged が発火しない。" );
     }
 
     /// <summary>ApplyFilterを呼び出すと可視な種別のみIsVisibleがtrueになり、それ以外はfalseになることを確認する。</summary>
@@ -686,7 +713,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await context.RaiseEntriesChangedAsync( localEntries );
 
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( aircraftTab );
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
         var fileNode = FindNodeByPath( aircraftTab.Root, AircraftExamplePath );
         Assert.NotNull( fileNode );
         fileNode!.CheckState = true;
@@ -710,10 +737,13 @@ public sealed class UploadViewModelTests : IDisposable {
 
         var viewModel = context.CreateViewModel();
         await viewModel.ActivateAsync( CancellationToken.None );
+        await WaitUntilAsync(
+            () => context.FileEntryServiceMock.Invocations.Any( invocation => invocation.Method.Name == nameof( IFileEntryService.GetEntriesAsync ) ),
+            "バックグラウンドのローカル再取得が開始されない。" );
         await context.RaiseEntriesChangedAsync( [] );
 
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( aircraftTab );
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
         var fileNode = FindNodeByPath( aircraftTab.Root, AircraftExamplePath );
         Assert.NotNull( fileNode );
         fileNode!.CheckState = true;
@@ -743,7 +773,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await context.RaiseEntriesChangedAsync( localEntries );
 
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( aircraftTab );
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
         var fileNode = FindNodeByPath( aircraftTab.Root, AircraftExamplePath );
         Assert.NotNull( fileNode );
         fileNode!.CheckState = true;
@@ -772,7 +802,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await context.RaiseEntriesChangedAsync( localEntries );
 
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( aircraftTab );
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
 
         var directoryNode = FindNodeByPath( aircraftTab.Root, AircraftLocalizationDirectoryPath );
         Assert.NotNull( directoryNode );
@@ -794,7 +824,7 @@ public sealed class UploadViewModelTests : IDisposable {
         var logger = new Mock<ILoggingService>().Object;
         var sut = new FileEntryTreeService( logger );
         var entry = new RepoFileEntry( "Example.lua", AircraftExamplePath, false, "repo-sha" );
-        var tabs = sut.BuildTabs( Array.Empty<FileEntry>(), [entry], ChangeTypeMode.Upload );
+        var tabs = sut.BuildTabs( [], [entry], ChangeTypeMode.Upload );
         var aircraftTab = tabs.First( tab => tab.TabType == CategoryType.Aircraft );
         var root = aircraftTab.Root;
 
@@ -860,7 +890,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await context.RaiseEntriesChangedAsync( localEntries );
 
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( aircraftTab );
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
         var moduleNode = FindNodeByPath( aircraftTab.Root, AircraftModuleDirectoryPath )
             ?? throw new InvalidOperationException( "対象モジュールが見つからない。" );
         moduleNode.CheckState = true;
@@ -905,7 +935,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^1];
         Assert.Equal( "Pull Request の作成に成功しました", notification.Message );
     }
 
@@ -918,7 +948,7 @@ public sealed class UploadViewModelTests : IDisposable {
             CreateAircraftRepoEntries(),
             [new LocalFileEntry( "Example.lua", AircraftExamplePath, false, "local-sha" )] );
 
-        var prUrl = "https://github.com/5kdn/DCS-Translation-Japanese/pull/1";
+        const string prUrl = "https://github.com/5kdn/DCS-Translation-Japanese/pull/1";
         context.DialogServiceMock
             .Setup( service => service.CreatePullRequestDialogShowAsync(
                 It.IsAny<CreatePullRequestDialogParameters>(),
@@ -930,7 +960,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^1];
         Assert.Equal( "Pull Request の作成に成功しました", notification.Message );
         Assert.Equal( "開く", notification.ActionContent );
         Assert.NotNull( notification.Handler );
@@ -963,7 +993,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^1];
         Assert.Null( notification.ActionContent );
         Assert.Null( notification.Handler );
     }
@@ -983,7 +1013,7 @@ public sealed class UploadViewModelTests : IDisposable {
                 It.IsAny<CancellationToken>() ) )
             .ReturnsAsync( new CreatePullRequestResult
             {
-                Errors = new List<Exception> { new OperationCanceledException() }
+                Errors = [new OperationCanceledException()]
             } );
 
         var initialCount = context.SnackbarNotifications.Count;
@@ -991,7 +1021,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^ 1];
         Assert.Equal( "Pull Request の作成をキャンセルしました", notification.Message );
     }
 
@@ -1010,7 +1040,7 @@ public sealed class UploadViewModelTests : IDisposable {
                 It.IsAny<CancellationToken>() ) )
             .ReturnsAsync( new CreatePullRequestResult
             {
-                Errors = new List<Exception> { new InvalidOperationException( "backend error" ) }
+                Errors = [new InvalidOperationException( "backend error" )]
             } );
 
         var initialCount = context.SnackbarNotifications.Count;
@@ -1018,7 +1048,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^ 1];
         Assert.Equal( "Pull Request の作成に失敗しました: backend error", notification.Message );
     }
 
@@ -1037,7 +1067,7 @@ public sealed class UploadViewModelTests : IDisposable {
                 It.IsAny<CancellationToken>() ) )
             .ReturnsAsync( new CreatePullRequestResult
             {
-                Errors = Array.Empty<Exception>()
+                Errors = []
             } );
 
         var initialCount = context.SnackbarNotifications.Count;
@@ -1045,7 +1075,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^ 1];
         Assert.Equal( "Pull Request の作成に失敗しました", notification.Message );
     }
 
@@ -1069,7 +1099,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^ 1];
         Assert.Equal( "Pull Request の作成をキャンセルしました", notification.Message );
     }
 
@@ -1093,7 +1123,7 @@ public sealed class UploadViewModelTests : IDisposable {
         await viewModel.ShowCreatePullRequestDialog();
 
         Assert.Equal( initialCount + 1, context.SnackbarNotifications.Count );
-        var notification = context.SnackbarNotifications.Last();
+        var notification = context.SnackbarNotifications[^ 1];
         Assert.Equal( "Pull Request ダイアログで例外が発生しました: dialog error", notification.Message );
     }
 
@@ -1205,7 +1235,7 @@ public sealed class UploadViewModelTests : IDisposable {
     }
 
     /// <summary>テスト用に Aircraft タブをチェック済みにした UploadViewModel を生成する。</summary>
-    private async Task<UploadViewModel> CreateCheckedUploadViewModelAsync(
+    private static async Task<UploadViewModel> CreateCheckedUploadViewModelAsync(
         UploadViewModelTestContext context,
         IReadOnlyList<FileEntry> repoEntries,
         IReadOnlyList<FileEntry> localEntries
@@ -1219,11 +1249,53 @@ public sealed class UploadViewModelTests : IDisposable {
         await context.RaiseEntriesChangedAsync( localEntries );
 
         var aircraftTab = viewModel.Tabs.First( tab => tab.TabType == CategoryType.Aircraft );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( aircraftTab );
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
         var moduleNode = FindNodeByPath( aircraftTab.Root, AircraftModuleDirectoryPath )
             ?? throw new InvalidOperationException( "対象モジュールが見つからない。" );
         moduleNode.CheckState = true;
         return viewModel;
+    }
+
+    /// <summary>指定条件が満たされるまで待機する。</summary>
+    private static async Task WaitUntilAsync( Func<bool> predicate, string timeoutMessage, int timeoutMs = 3000 ) {
+        var startedAt = DateTime.UtcNow;
+        while((DateTime.UtcNow - startedAt).TotalMilliseconds < timeoutMs) {
+            if(predicate()) {
+                return;
+            }
+
+            await Task.Delay( 20 );
+        }
+
+        throw new TimeoutException( timeoutMessage );
+    }
+
+    /// <summary>指定カテゴリのタブインデックスを取得する。</summary>
+    private static int GetTabIndexByType( UploadViewModel viewModel, CategoryType tabType ) {
+        var index = viewModel.Tabs
+            .Select( (tab, i) => (tab, i) )
+            .Where( tuple => tuple.tab.TabType == tabType )
+            .Select( tuple => tuple.i )
+            .DefaultIfEmpty( -1 )
+            .First();
+        Assert.True( index >= 0, $"対象タブが見つからない。Type={tabType}" );
+        return index;
+    }
+
+    /// <summary>現在の Aircraft タブで対象モジュールのチェック状態を設定する。</summary>
+    private static void SetAircraftModuleCheckState( UploadViewModel viewModel, bool? checkState ) {
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
+        var aircraftTab = viewModel.Tabs[viewModel.SelectedTabIndex];
+        var moduleNode = FindNodeByPath( aircraftTab.Root, AircraftModuleDirectoryPath )
+            ?? throw new InvalidOperationException( "対象モジュールが見つからない。" );
+        moduleNode.CheckState = checkState;
+    }
+
+    /// <summary>現在の Aircraft タブのルートチェック状態を設定する。</summary>
+    private static void SetAircraftRootCheckState( UploadViewModel viewModel, bool? checkState ) {
+        viewModel.SelectedTabIndex = GetTabIndexByType( viewModel, CategoryType.Aircraft );
+        var aircraftTab = viewModel.Tabs[viewModel.SelectedTabIndex];
+        aircraftTab.Root.CheckState = checkState;
     }
 
     private sealed class TestFilterViewModel : IFilterViewModel {
@@ -1302,8 +1374,8 @@ public sealed class UploadViewModelTests : IDisposable {
     }
 
     /// <summary>UploadViewModel の依存関係を構築するコンテキストを表す。</summary>
-    private sealed class UploadViewModelTestContext( string translateDirectory ) {
-        private readonly AppSettings _appSettings = new() { TranslateFileDir = translateDirectory };
+    private sealed class UploadViewModelTestContext {
+        private readonly AppSettings _appSettings;
         private readonly List<Func<IReadOnlyList<FileEntry>, Task>> _entriesChangedHandlers = [];
 
         public Mock<IApiService> ApiServiceMock { get; } = new( MockBehavior.Strict );
@@ -1325,12 +1397,13 @@ public sealed class UploadViewModelTests : IDisposable {
         public IReadOnlyList<Func<IReadOnlyList<FileEntry>, Task>> EntriesChangedHandlers => _entriesChangedHandlers;
         public int EntriesChangedSubscribeCount { get; private set; }
         public int EntriesChangedUnsubscribeCount { get; private set; }
-        private bool _initialized;
 
-        private void EnsureInitialized() {
-            if(_initialized) return;
-            _initialized = true;
+        public UploadViewModelTestContext( string translateDirectory ) {
+            _appSettings = new AppSettings { TranslateFileDir = translateDirectory };
+            ConfigureDefaultMocks();
+        }
 
+        private void ConfigureDefaultMocks() {
             AppSettingsServiceMock
                 .SetupGet( service => service.Settings )
                 .Returns( _appSettings );
@@ -1392,7 +1465,6 @@ public sealed class UploadViewModelTests : IDisposable {
         }
 
         public UploadViewModel CreateViewModel() {
-            EnsureInitialized();
             var fileEntryTreeService = new FileEntryTreeService( LoggingServiceMock.Object );
             var fileEntryWatcherLifecycle = new FileEntryWatcherLifecycle(
                 AppSettingsServiceMock.Object,
@@ -1413,7 +1485,6 @@ public sealed class UploadViewModelTests : IDisposable {
         }
 
         public async Task RaiseEntriesChangedAsync( IReadOnlyList<FileEntry> entries ) {
-            EnsureInitialized();
             if(_entriesChangedHandlers.Count == 0) {
                 throw new InvalidOperationException( "EntriesChanged の購読が設定されていない。" );
             }

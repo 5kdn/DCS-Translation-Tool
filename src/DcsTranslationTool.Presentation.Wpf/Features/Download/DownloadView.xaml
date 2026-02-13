@@ -11,7 +11,7 @@
       xmlns:enums="clr-namespace:DcsTranslationTool.Presentation.Wpf.UI.Enums"
       xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
       xmlns:cal="http://www.caliburnproject.org"
-      d:DataContext="{d:DesignInstance Type=local:DownloadViewModel}"
+      d:DataContext="{d:DesignInstance Type=local:DownloadView}"
       mc:Ignorable="d"
       d:DesignHeight="450" d:DesignWidth="800">
 
@@ -96,7 +96,12 @@
 
                 <TabControl.ContentTemplate>
                     <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
-                        <TreeView x:Name="TreeViewControl" ItemsSource="{Binding Root.Children}" Margin="{StaticResource XSmallTopMargin}">
+                        <TreeView x:Name="TreeViewControl"
+                                  ItemsSource="{Binding Root.Children}"
+                                  Margin="{StaticResource XSmallTopMargin}"
+                                  VirtualizingStackPanel.IsVirtualizing="True"
+                                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.CanContentScroll="True">
                             <TreeView.ItemContainerStyle>
                                 <Style TargetType="TreeViewItem">
                                     <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>

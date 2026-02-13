@@ -2,8 +2,6 @@ using DcsTranslationTool.Presentation.Wpf.Services;
 
 using Moq;
 
-using Xunit;
-
 namespace DcsTranslationTool.Presentation.Wpf.Tests.Services;
 
 public sealed class ApplicationInfoServiceTests {

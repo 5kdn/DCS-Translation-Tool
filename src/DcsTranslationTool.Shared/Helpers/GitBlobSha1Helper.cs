@@ -17,6 +17,7 @@ public static class GitBlobSha1Helper {
     /// <exception cref="ArgumentNullException"><paramref name="filePath"/> が <see langword="null"/> または空文字列の場合</exception>
     public static async Task<string?> CalculateAsync( string filePath, CancellationToken ct = default ) {
         const int retryCount = 10;
+        const int bufferSize = 1024 * 128;
         for(var i = 0; i < retryCount; i++) {
             try {
                 await using FileStream stream = new(
@@ -24,15 +25,28 @@ public static class GitBlobSha1Helper {
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.Read,
-                    bufferSize: 4096,
+                    bufferSize: bufferSize,
                     useAsync: true);
-                var content = new byte[stream.Length];
-                await stream.ReadExactlyAsync( content, ct );
+                var header = Encoding.UTF8.GetBytes( $"blob {stream.Length}\0" );
+                using var sha1 = SHA1.Create();
+                _ = sha1.TransformBlock( header, 0, header.Length, null, 0 );
 
-                var header = $"blob {content.Length}\0";
-                byte[] data = [.. Encoding.UTF8.GetBytes( header ), .. content];
+                var buffer = new byte[bufferSize];
+                while(true) {
+                    var read = await stream.ReadAsync( buffer.AsMemory( 0, buffer.Length ), ct );
+                    if(read == 0) {
+                        break;
+                    }
 
-                var hash = SHA1.HashData( data );
+                    _ = sha1.TransformBlock( buffer, 0, read, null, 0 );
+                }
+
+                _ = sha1.TransformFinalBlock( [], 0, 0 );
+                var hash = sha1.Hash;
+                if(hash is null) {
+                    return null;
+                }
+
                 return Convert.ToHexString( hash ).ToLowerInvariant();
             }
             catch(IOException) when(i < retryCount - 1) {

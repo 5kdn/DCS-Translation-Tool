@@ -1,5 +1,5 @@
-using System.Threading;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Results;
@@ -15,16 +15,23 @@ namespace DcsTranslationTool.Infrastructure.Services;
 /// ローカルディレクトリのファイル列挙と監視を行うサービス。
 /// </summary>
 /// <param name="logger">ロギングサービス。</param>
-public class FileEntryService( ILoggingService logger ) : IFileEntryService {
+/// <param name="fileEntryHashCacheService">ファイルハッシュキャッシュサービス。</param>
+public class FileEntryService(
+    ILoggingService logger,
+    IFileEntryHashCacheService fileEntryHashCacheService
+) : IFileEntryService {
     #region Fields
+
+    private const int FileSystemDebounceMilliseconds = 200;
+    private const int HashParallelismMin = 2;
+    private const int HashParallelismMax = 8;
 
     private FileSystemWatcher? watcher;
     private string _path = string.Empty;
+    private bool _isHashCacheEnabled = true;
     private readonly SemaphoreSlim _notifySemaphore = new( 1, 1 );
     private readonly object _debounceLock = new();
     private CancellationTokenSource? _debounceCts;
-
-    private const int FileSystemDebounceMilliseconds = 200;
 
     #endregion
 
@@ -32,6 +39,10 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
     public void Dispose() {
         logger.Debug( "ファイル監視サービスを破棄する。" );
         watcher?.Dispose();
+        if(fileEntryHashCacheService is IDisposable disposable) {
+            disposable.Dispose();
+        }
+
         lock(_debounceLock) {
             _debounceCts?.Cancel();
             _debounceCts?.Dispose();
@@ -52,17 +63,70 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
         }
 
         logger.Debug( $"ファイル階層を再帰的に列挙する。Path={path}" );
+        var stopwatch = Stopwatch.StartNew();
 
-        List<FileEntry> result = [];
         try {
-            foreach(var entryPath in Directory.GetFiles( path, "*", SearchOption.AllDirectories )) {
-                var isDir = Directory.Exists( entryPath );
-                var relative = Path.GetRelativePath( path, entryPath ).Replace( "\\", "/" );
-                var name = Path.GetFileName( entryPath );
-                string? sha = isDir ? null : await GitBlobSha1Helper.CalculateAsync( entryPath );
-                result.Add( new LocalFileEntry( name, relative, isDir, sha ) );
+            var useHashCache = true;
+            try {
+                fileEntryHashCacheService.ConfigureRoot( path );
+                _isHashCacheEnabled = true;
             }
-            logger.Info( $"ファイル階層の列挙が完了した。Count={result.Count}" );
+            catch(Exception ex) {
+                var isWatchPath = !string.IsNullOrEmpty( _path ) && string.Equals( _path, path, StringComparison.OrdinalIgnoreCase );
+                if(!isWatchPath) {
+                    logger.Error( $"ハッシュキャッシュ初期化に失敗した。Path={path}", ex );
+                    return Result.Fail( ResultErrorFactory.Unexpected( ex, "FILE_ENTRY_CACHE_INIT_EXCEPTION" ) );
+                }
+
+                _isHashCacheEnabled = false;
+                useHashCache = false;
+                logger.Warn( $"ハッシュキャッシュ初期化に失敗したためキャッシュなしで列挙を継続する。Path={path}", ex );
+            }
+
+            var allFilePaths = Directory
+                .EnumerateFiles( path, "*", SearchOption.AllDirectories )
+                .ToArray();
+            var existingRelativePaths = new ConcurrentDictionary<string, byte>( StringComparer.OrdinalIgnoreCase );
+            var entries = new ConcurrentBag<FileEntry>();
+            var parallelism = Math.Clamp( Environment.ProcessorCount, HashParallelismMin, HashParallelismMax );
+            var cacheHitCount = 0;
+            var cacheMissCount = 0;
+
+            await Parallel.ForEachAsync(
+                allFilePaths,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = parallelism
+                },
+                async ( entryPath, cancellationToken ) => {
+                    var relativePath = Path.GetRelativePath( path, entryPath ).Replace( "\\", "/", StringComparison.Ordinal );
+                    existingRelativePaths.TryAdd( relativePath, 0 );
+
+                    var fileInfo = new FileInfo( entryPath );
+                    var lastWriteUtc = fileInfo.LastWriteTimeUtc;
+                    var fileSize = fileInfo.Length;
+
+                    if(!useHashCache || !fileEntryHashCacheService.TryGetSha( relativePath, fileSize, lastWriteUtc, out var sha )) {
+                        Interlocked.Increment( ref cacheMissCount );
+                        sha = await GitBlobSha1Helper.CalculateAsync( entryPath, cancellationToken );
+                        if(useHashCache) {
+                            fileEntryHashCacheService.Upsert( relativePath, fileSize, lastWriteUtc, sha );
+                        }
+                    }
+                    else {
+                        Interlocked.Increment( ref cacheHitCount );
+                    }
+
+                    var name = Path.GetFileName( entryPath );
+                    entries.Add( new LocalFileEntry( name, relativePath, false, sha ) );
+                }
+            );
+
+            if(useHashCache) {
+                fileEntryHashCacheService.Prune( existingRelativePaths.Keys.ToHashSet( StringComparer.OrdinalIgnoreCase ) );
+            }
+            var result = entries.OrderBy( entry => entry.Path, StringComparer.Ordinal ).ToArray();
+            logger.Info( $"ファイル階層の列挙が完了した。Count={result.Length}, CacheHit={cacheHitCount}, CacheMiss={cacheMissCount}, ElapsedMs={stopwatch.ElapsedMilliseconds}" );
             return Result.Ok<IEnumerable<FileEntry>>( result );
         }
         catch(Exception ex) {
@@ -78,6 +142,15 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
         if(!Directory.Exists( path )) {
             logger.Warn( $"監視対象ディレクトリが存在しないため監視を開始しない。Path={path}" );
             return;
+        }
+
+        try {
+            fileEntryHashCacheService.ConfigureRoot( path );
+            _isHashCacheEnabled = true;
+        }
+        catch(Exception ex) {
+            _isHashCacheEnabled = false;
+            logger.Warn( $"ハッシュキャッシュ初期化に失敗したためキャッシュなしで監視を継続する。Path={path}", ex );
         }
 
         logger.Info( $"ファイル監視を開始する。Path={path}" );
@@ -107,8 +180,9 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
             return Result.Fail<IReadOnlyList<FileEntry>>( result.Errors );
         }
 
-        logger.Info( $"監視ディレクトリのエントリ取得が完了した。Count={result.Value.Count()}" );
-        return Result.Ok<IReadOnlyList<FileEntry>>( [.. result.Value] );
+        var entries = result.Value.ToArray();
+        logger.Info( $"監視ディレクトリのエントリ取得が完了した。Count={entries.Length}" );
+        return Result.Ok<IReadOnlyList<FileEntry>>( entries );
     }
 
     /// <summary>
@@ -116,7 +190,18 @@ public class FileEntryService( ILoggingService logger ) : IFileEntryService {
     /// </summary>
     /// <param name="sender">イベント発生元</param>
     /// <param name="e">イベント引数</param>
-    private void OnFileSystemChanged( object sender, FileSystemEventArgs e ) => ScheduleNotify();
+    private void OnFileSystemChanged( object sender, FileSystemEventArgs e ) {
+        if(e.ChangeType is WatcherChangeTypes.Deleted && !string.IsNullOrWhiteSpace( e.FullPath ) && !string.IsNullOrEmpty( _path )) {
+            var relativePath = Path.GetRelativePath( _path, e.FullPath ).Replace( "\\", "/", StringComparison.Ordinal );
+            if(!relativePath.StartsWith( "..", StringComparison.Ordinal )) {
+                if(_isHashCacheEnabled) {
+                    fileEntryHashCacheService.Remove( relativePath );
+                }
+            }
+        }
+
+        ScheduleNotify();
+    }
 
     /// <summary>
     /// ファイルシステムイベントをデバウンスして通知する。

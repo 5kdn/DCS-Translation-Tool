@@ -97,7 +97,12 @@
 
                 <TabControl.ContentTemplate>
                     <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
-                        <TreeView x:Name="TreeViewControl" ItemsSource="{Binding Root.Children}" Margin="{StaticResource XSmallTopMargin}">
+                        <TreeView x:Name="TreeViewControl"
+                                  ItemsSource="{Binding Root.Children}"
+                                  Margin="{StaticResource XSmallTopMargin}"
+                                  VirtualizingStackPanel.IsVirtualizing="True"
+                                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.CanContentScroll="True">
                             <TreeView.ItemContainerStyle>
                                 <Style TargetType="TreeViewItem">
                                     <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>

@@ -22,8 +22,11 @@ public class CompositionRegistrationTests {
         // Act
         var loggingService = container.GetInstance( typeof( ILoggingService ), null );
         var appSettingsService = container.GetInstance( typeof( IAppSettingsService ), null );
+        var treeHttpClientProvider = container.GetInstance( typeof( ITreeHttpClientProvider ), null );
         var apiService1 = container.GetInstance( typeof( IApiService ), null );
         var apiService2 = container.GetInstance( typeof( IApiService ), null );
+        var hashCacheService1 = container.GetInstance( typeof( IFileEntryHashCacheService ), null );
+        var hashCacheService2 = container.GetInstance( typeof( IFileEntryHashCacheService ), null );
         var updateCheckService = container.GetInstance( typeof( IUpdateCheckService ), null );
         var zipService1 = container.GetInstance( typeof( IZipService ), null );
         var zipService2 = container.GetInstance( typeof( IZipService ), null );
@@ -32,8 +35,11 @@ public class CompositionRegistrationTests {
         Assert.NotNull( loggingService );
         Assert.IsType<LoggingService>( loggingService );
         context.TrackedAppSettings = Assert.IsType<AppSettingsService>( appSettingsService );
+        Assert.IsType<TreeHttpClientProvider>( treeHttpClientProvider );
         Assert.Same( apiService1, apiService2 );
         Assert.IsType<ApiService>( apiService1 );
+        Assert.Same( hashCacheService1, hashCacheService2 );
+        Assert.IsType<FileEntryHashCacheService>( hashCacheService1 );
         Assert.IsType<UpdateCheckService>( updateCheckService );
         Assert.Same( zipService1, zipService2 );
         Assert.NotNull( NLogManager.Configuration );
