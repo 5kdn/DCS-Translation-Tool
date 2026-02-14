@@ -33,7 +33,7 @@ public abstract class FileEntryTabsViewModelBase(
     private IFilterViewModel _filter = new FilterViewModel( logger );
     private bool _isFetching;
     private bool _isLocalRefreshRunning;
-    private int _localEntriesSignature;
+    private int _localEntriesSignature = ComputeLocalEntriesSignature( [] );
     private Func<IReadOnlyList<FileEntry>, Task>? _entriesChangedHandler;
     private EventHandler? _filtersChangedHandler;
     private readonly object _refreshTabsGate = new();
