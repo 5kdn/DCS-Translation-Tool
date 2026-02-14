@@ -835,11 +835,17 @@ public sealed class DownloadViewModelTests : IDisposable {
         var fileNode = FindNodeByPath( aircraftRoot, "A10C", "L10N", "Example.lua" );
         Assert.NotNull( fileNode );
         fileNode!.CheckState = true;
+        Assert.True( viewModel.CanApply );
 
         await viewModel.Apply();
 
-        downloadWorkflowServiceMock.VerifyAll();
-        apiServiceMock.VerifyAll();
+        downloadWorkflowServiceMock.Verify( service => service.ExecuteApplyAsync(
+            It.IsAny<ApplyExecutionRequest>(),
+            It.IsAny<Func<string, Task>>(),
+            It.IsAny<Func<double, Task>>(),
+            It.IsAny<CancellationToken>()
+        ), Times.Once );
+        apiServiceMock.Verify( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ), Times.Once );
     }
 
     ///// <summary>Applyを呼び出すとRepoOnlyエントリを miz へ適用する。</summary>
