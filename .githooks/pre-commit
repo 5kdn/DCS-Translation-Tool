@@ -54,7 +54,7 @@ TYPES="${BRANCH_TYPES:-feature|fix|docs|style|refactor|perf|test|build|ci|chore|
 # <type>/<optional-issue>-<slug>
 #  - optional-issue は「123-」または「ABC-123/」等も許可
 #  - 例: feature/123-add-login, fix/ABC-456/fix-npe
-PATTERN="^(${TYPES})/(([A-Z]+-[0-9]+|[0-9]+)[-_/])?.+$"
+PATTERN="^((${TYPES})/(([A-Z]+-[0-9]+|[0-9]+)[-_/])?|dependabot\-).+$"
 
 if echo "${branch}" | grep -Eq "${PATTERN}"; then
     exit 0
