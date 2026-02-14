@@ -241,8 +241,8 @@
       },
       "NLog": {
         "type": "Transitive",
-        "resolved": "6.0.7",
-        "contentHash": "16kwDY6+/TCBToyXekpcl5mxprUWuXqltdOK26w44E0rTQTiRCjXv1VVLDtSbgMCR1RirVvr+V/9T+76cwuqnw=="
+        "resolved": "6.1.0",
+        "contentHash": "K4UdxS4fuJeCM0sm+JTXWoJgOtcXX7X5kvE94bR07UB8JOB6A2+ski7q1tf2qdv+N0H3gsoWtteScJCHa3+zpw=="
       },
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "Transitive",
@@ -439,7 +439,7 @@
           "Microsoft.Kiota.Serialization.Json": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Multipart": "[1.21.0, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.0, )",
-          "NLog": "[6.0.7, )",
+          "NLog": "[6.1.0, )",
           "UTF.Unknown": "[2.6.0, )"
         }
       },
