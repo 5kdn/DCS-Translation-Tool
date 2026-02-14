@@ -8,6 +8,7 @@ namespace DcsTranslationTool.Shared.Constants;
 public static class TargetRepository {
     private const string _owner = "5kdn";
     private const string _repo = "DCS-Translation-Japanese";
+    private const string _distributionControlPolicyUrl = "https://github.com/5kdn/DCS-Translation-Japanese/blob/master/DISTRIBUTION_POLICY.md";
 
     /// <summary>
     /// GitHub リポジトリの所有者名。
@@ -24,6 +25,11 @@ public static class TargetRepository {
     /// リポジトリ名。
     /// </returns>
     public static string Repo => _repo;
+
+    /// <summary>
+    /// 流通ポリシーのURL
+    /// </summary>
+    public static string DistributionControlPolicyUrl => _distributionControlPolicyUrl;
 
     public static string DefaultBranch => "master";
 

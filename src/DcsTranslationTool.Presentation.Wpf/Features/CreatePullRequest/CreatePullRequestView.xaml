@@ -148,14 +148,22 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <CheckBox Content="{Binding Message}"
-                                      Margin="{StaticResource XSmallTopMargin}"
                                       IsChecked="{Binding IsAgreed, Mode=TwoWay}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <Button cal:Message.Attach="BrowseToDistributionControlPolicyPage()"
+                            Margin="{StaticResource XSmallTopMargin}"
+                            Style="{StaticResource HyperLinkButtonStyle}"
+                            AutomationProperties.Name="{x:Static resx:Strings_CreatePullRequest.DistributionControlPolicyText}">
+                    <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.DistributionControlPolicyText}" TextDecorations="Underline" />
+                </Button>
+
             </StackPanel>
 
             <common:ActionButton IconKind="Upload"
+                                 Margin="{StaticResource MediumTopMargin}"
                                  Text="{x:Static resx:Strings_CreatePullRequest.CreatePRButtonContent}"
                                  IsIndicatorVisible="{Binding IsCreatingPullRequest}"
                                  IsIndeterminate="True"

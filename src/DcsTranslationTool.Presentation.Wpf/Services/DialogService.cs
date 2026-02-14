@@ -17,11 +17,13 @@ namespace DcsTranslationTool.Presentation.Wpf.Services;
 /// <param name="logger">ロギングサービス。</param>
 /// <param name="apiService">GitHub API サービス。</param>
 /// <param name="fileContentInspector">ファイル内容検査サービス。</param>
+/// <param name="systemService">システム連携サービス。</param>
 /// <param name="windowManager">ウィンドウマネージャー。</param>
 public sealed class DialogService(
     ILoggingService logger,
     IApiService apiService,
     IFileContentInspector fileContentInspector,
+    ISystemService systemService,
     IWindowManager windowManager
 ) : IDialogService {
     /// <inheritdoc/>
@@ -55,6 +57,7 @@ public sealed class DialogService(
             apiService,
             fileContentInspector,
             logger,
+            systemService,
             windowManager,
             cancellationToken );
         logger.Info( $"PRダイアログが閉じられた。IsOk={result.IsOk}" );

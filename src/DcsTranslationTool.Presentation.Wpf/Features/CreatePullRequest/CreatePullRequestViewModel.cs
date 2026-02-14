@@ -17,6 +17,7 @@ using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
 using DcsTranslationTool.Resources;
+using DcsTranslationTool.Shared.Constants;
 
 using FluentResults;
 
@@ -30,7 +31,8 @@ public class CreatePullRequestViewModel(
     CreatePullRequestDialogParameters dialogParameters,
     IApiService apiService,
     IFileContentInspector fileContentInspector,
-    ILoggingService logger
+    ILoggingService logger,
+    ISystemService systemService
 ) : Conductor<IScreen>.Collection.OneActive, IActivate {
 
     #region Fields
@@ -142,7 +144,8 @@ public class CreatePullRequestViewModel(
     /// <summary>同意チェック項目コレクション。</summary>
     public ObservableCollection<PullRequestDialogAgreementCheckItem> AgreementItems { get; } =
     [
-        new("アップロードするファイルに個人情報は含まれていません"),
+        new( Strings_CreatePullRequest.AgreementContainsNoPersonalInformation ),
+        new( Strings_CreatePullRequest.AgreementDistributionControlPolicy ),
     ];
 
     /// <summary>全同意済みか。0件時は <see langword="false"/>。</summary>
@@ -169,6 +172,7 @@ public class CreatePullRequestViewModel(
         IApiService apiService,
         IFileContentInspector fileContentInspector,
         ILoggingService logger,
+        ISystemService systemService,
         IWindowManager windowManager,
         CancellationToken cancellationToken = default
     ) {
@@ -178,7 +182,7 @@ public class CreatePullRequestViewModel(
 
         logger.Info( "Pull Request ダイアログを表示する準備を開始する。" );
 
-        var vm = new CreatePullRequestViewModel(parameters, apiService, fileContentInspector, logger);
+        var vm = new CreatePullRequestViewModel(parameters, apiService, fileContentInspector, logger, systemService);
         _ = windowManager.ShowDialogAsync( vm );
         await using var reg = cancellationToken.Register(() => vm._tcs.TrySetCanceled(cancellationToken));
         var result = await vm._tcs.Task.ConfigureAwait( false );
@@ -376,6 +380,14 @@ public class CreatePullRequestViewModel(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// 5kdn/DCS-Translation-Japaneseリポジトリの流通ポリシーをブラウザで表示する。
+    /// </summary>
+    public void BrowseToDistributionControlPolicyPage() {
+        logger.Info( $"ライセンスページを開く。Url={TargetRepository.DistributionControlPolicyUrl}" );
+        systemService.OpenInWebBrowser( TargetRepository.DistributionControlPolicyUrl );
     }
 
     #endregion

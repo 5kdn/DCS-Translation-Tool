@@ -46,12 +46,14 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
         var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
         var inspectorMock = new Mock<IFileContentInspector>();
         var loggerMock = new Mock<ILoggingService>();
+        var systemServiceMock = new Mock<ISystemService>();
 
         var viewModel = new CreatePullRequestViewModel(
             parameters,
             apiServiceMock.Object,
             inspectorMock.Object,
-            loggerMock.Object );
+            loggerMock.Object,
+            systemServiceMock.Object );
 
         await viewModel.ActivateAsync( CancellationToken.None );
 
@@ -72,7 +74,11 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
         Assert.False( viewModel.IsCreatingPullRequest );
 
         viewModel.PRSummary = "サマリ";
-        viewModel.AgreementItems[0].IsAgreed = true;
+        Assert.NotEmpty( viewModel.AgreementItems );
+
+        Assert.False( viewModel.CanCreatePullRequest );
+
+        AgreeAllAgreements( viewModel );
 
         Assert.True( viewModel.CanCreatePullRequest );
     }
@@ -107,6 +113,7 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
                 bytes.Length ) );
 
         var loggerMock = new Mock<ILoggingService>();
+        var systemServiceMock = new Mock<ISystemService>();
         var windowManagerMock = new Mock<IWindowManager>();
         CreatePullRequestViewModel? capturedViewModel = null;
         windowManagerMock
@@ -122,6 +129,7 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
             apiServiceMock.Object,
             inspectorMock.Object,
             loggerMock.Object,
+            systemServiceMock.Object,
             windowManagerMock.Object,
             CancellationToken.None );
 
@@ -133,7 +141,7 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
         viewModel.PullRequestChangeKinds
             .First( vm => vm.Kind == PullRequestChangeKind.ファイルの追加 )
             .IsChecked = true;
-        viewModel.AgreementItems[0].IsAgreed = true;
+        AgreeAllAgreements( viewModel );
         viewModel.PRSummary = "Pull Request Summary";
 
         await viewModel.CreatePullRequest();
@@ -165,6 +173,7 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
         var apiServiceMock = new Mock<IApiService>();
         var inspectorMock = new Mock<IFileContentInspector>();
         var loggerMock = new Mock<ILoggingService>();
+        var systemServiceMock = new Mock<ISystemService>();
         var windowManagerMock = new Mock<IWindowManager>();
         windowManagerMock
             .Setup( manager => manager.ShowDialogAsync(
@@ -180,6 +189,7 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
             apiServiceMock.Object,
             inspectorMock.Object,
             loggerMock.Object,
+            systemServiceMock.Object,
             windowManagerMock.Object,
             cts.Token );
 
@@ -198,6 +208,12 @@ public sealed class CreatePullRequestViewModelTests : IDisposable {
         var path = Path.Combine( _tempDir, $"{Guid.NewGuid():N}.txt" );
         File.WriteAllText( path, content, Encoding.UTF8 );
         return path;
+    }
+
+    private static void AgreeAllAgreements( CreatePullRequestViewModel viewModel ) {
+        foreach(var item in viewModel.AgreementItems) {
+            item.IsAgreed = true;
+        }
     }
 
     private static CreatePullRequestDialogParameters CreateParameters( params CommitFile[] files ) =>
