@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.3.1...v1.4.0) (2026-02-16)
+
+
+### Features
+
+* **dialog:** PR作成時に流通制御ポリシー同意を必須化 ([#68](https://github.com/5kdn/DCS-Translation-Tool/issues/68)) ([3a70527](https://github.com/5kdn/DCS-Translation-Tool/commit/3a70527bdfed330b25a3f194826e26a97e3bb3b8))
+* **infra:** API経路選択をIPv4/IPv6ヘルスレースとフォールバック対応へ拡張 ([#77](https://github.com/5kdn/DCS-Translation-Tool/issues/77)) ([462f320](https://github.com/5kdn/DCS-Translation-Tool/commit/462f3200f78949f50626f939119513540471c29d))
+* **perf:** SHAキャッシュ導入とTree API経路最適化で一覧取得とツリー表示を高速化 ([#66](https://github.com/5kdn/DCS-Translation-Tool/issues/66)) ([e24bce0](https://github.com/5kdn/DCS-Translation-Tool/commit/e24bce0664f10226b773c4945b1e1aee44b7f943))
+* **update:** 起動時のGitHub Releases更新確認と通知機能を追加 ([#63](https://github.com/5kdn/DCS-Translation-Tool/issues/63)) ([f291a1c](https://github.com/5kdn/DCS-Translation-Tool/commit/f291a1cbe9ec0a55f7b2352cd9f1b59b433b567f))
+
+
+### Bug Fixes
+
+* Bump Microsoft.Kiota.Abstractions and Microsoft.Kiota.Serialization.Form ([#41](https://github.com/5kdn/DCS-Translation-Tool/issues/41)) ([da539af](https://github.com/5kdn/DCS-Translation-Tool/commit/da539af23ffac943238133caa4652aacfd0a7308))
+* Bump NLog from 6.0.7 to 6.1.0 ([#39](https://github.com/5kdn/DCS-Translation-Tool/issues/39)) ([574b5b8](https://github.com/5kdn/DCS-Translation-Tool/commit/574b5b8d164a39b8e337d2f25296d7a72f5f4702))
+* Bump the kiota group with 4 updates ([#75](https://github.com/5kdn/DCS-Translation-Tool/issues/75)) ([5c28ea0](https://github.com/5kdn/DCS-Translation-Tool/commit/5c28ea00098ecd6902e73680398dc7dc3415e9c4))
+
 ## [1.3.1](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.3.0...v1.3.1) (2025-12-04)
 
 
