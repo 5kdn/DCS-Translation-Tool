@@ -45,3 +45,33 @@ updates:
     prefix: "fix"
     prefix-development: "chore"
     include: "scope"
+
+  groups:
+    app-core:
+      patterns:
+        - "Caliburn.Micro"
+        - "MaterialDesignThemes*"
+        - "FluentResults"
+        - "Microsoft.Data.Sqlite"
+        - "NLog"
+        - "UTF.Unknown"
+      update-types:
+        - "minor"
+        - "patch"
+    kiota:
+      patterns:
+        - "Microsoft.Kiota.*"
+      update-types:
+        - "minor"
+        - "patch"
+    testing:
+      patterns:
+        - "coverlet.collector"
+        - "Microsoft.NET.Test.Sdk"
+        - "Moq"
+        - "xunit.runner.visualstudio"
+        - "Xunit.StaFact"
+        - "xunit.v3"
+      update-types:
+        - "minor"
+        - "patch"
