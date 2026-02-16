@@ -13,8 +13,6 @@
 
 ### Bug Fixes
 
-* Bump coverlet.collector from 6.0.4 to 8.0.0 ([#69](https://github.com/5kdn/DCS-Translation-Tool/issues/69)) ([26ed489](https://github.com/5kdn/DCS-Translation-Tool/commit/26ed489ef121fa86801bbf0d9b459233f1fa41a1))
-* Bump Microsoft.Data.Sqlite from 9.0.10 to 10.0.3 ([#70](https://github.com/5kdn/DCS-Translation-Tool/issues/70)) ([f032255](https://github.com/5kdn/DCS-Translation-Tool/commit/f0322553b7f494653b3778531a9c69c0797631c7))
 * Bump Microsoft.Kiota.Abstractions and Microsoft.Kiota.Serialization.Form ([#41](https://github.com/5kdn/DCS-Translation-Tool/issues/41)) ([da539af](https://github.com/5kdn/DCS-Translation-Tool/commit/da539af23ffac943238133caa4652aacfd0a7308))
 * Bump NLog from 6.0.7 to 6.1.0 ([#39](https://github.com/5kdn/DCS-Translation-Tool/issues/39)) ([574b5b8](https://github.com/5kdn/DCS-Translation-Tool/commit/574b5b8d164a39b8e337d2f25296d7a72f5f4702))
 * Bump the kiota group with 4 updates ([#75](https://github.com/5kdn/DCS-Translation-Tool/issues/75)) ([5c28ea0](https://github.com/5kdn/DCS-Translation-Tool/commit/5c28ea00098ecd6902e73680398dc7dc3415e9c4))
