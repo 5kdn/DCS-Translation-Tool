@@ -25,13 +25,16 @@ namespace DcsTranslationTool.Infrastructure.Services;
 
 /// <summary>APIクライアントを操作する</summary>
 public class ApiService(
+    IAppSettingsService appSettingsService,
     ILoggingService loggingService,
     ITreeHttpClientProvider treeHttpClientProvider
 ) : IApiService {
     private const string DefaultBaseUrl = "https://dcs-translation-japanese-cloudflare-worker.dcs-translation-japanese.workers.dev/";
     private const int TreePrimaryTimeoutSeconds = 10;
     private const int TreeFallbackTimeoutSeconds = 15;
-    private static readonly TimeSpan Ipv4PreferenceTtl = TimeSpan.FromDays( 1 );
+    private static readonly TimeSpan RoutePreferenceTtl = TimeSpan.FromDays( 1 );
+    private static readonly TimeSpan RouteVerificationRetryBackoff = TimeSpan.FromMinutes( 5 );
+    private static readonly TimeSpan HealthRaceTimeout = TimeSpan.FromSeconds( 5 );
 
     private static readonly JsonSerializerOptions SerializerOptions = new( JsonSerializerDefaults.Web )
     {
@@ -40,32 +43,35 @@ public class ApiService(
         Converters = { new JsonStringEnumConverter() },
     };
 
-    private readonly ApiClientContext _apiClientContext = InitializeApiClientContext( treeHttpClientProvider.DefaultClient );
+    private readonly IAppSettingsService _appSettingsService = appSettingsService;
     private readonly ILoggingService _logger = loggingService;
     private readonly ITreeHttpClientProvider _treeHttpClientProvider = treeHttpClientProvider;
-    private readonly string _ipv4PathPrefix = treeHttpClientProvider.IsIpv4PreferredDedicated ? "ipv4" : "ipv4(shared)";
-    private readonly object _treeRouteGate = new();
-    private TreeRoutePreference _treeRoutePreference = TreeRoutePreference.None;
-    private DateTimeOffset _treeRoutePreferenceUntilUtc = DateTimeOffset.MinValue;
+    private readonly object _routePreferenceGate = new();
 
     /// <summary>APIのヘルスチェックを実行して結果を返却する</summary>
     public async Task<Result<ApiHealth>> GetHealthAsync( CancellationToken cancellationToken = default ) {
         try {
-            using var response = await _apiClientContext.HttpClient.GetAsync( "health", cancellationToken ).ConfigureAwait( false );
-            if(!response.IsSuccessStatusCode)
-                return Result.Fail( ResultErrorFactory.External( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}", "API_HTTP_ERROR" ) );
+            return await ExecuteWithRouteFallbackAsync(
+                async ( routeClient, token ) => {
+                    using var response = await routeClient.Client.GetAsync( "health", token ).ConfigureAwait( false );
+                    if(!response.IsSuccessStatusCode)
+                        return Result.Fail( ResultErrorFactory.External( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}", "API_HTTP_ERROR" ) );
 
-            var payload = await response.Content.ReadFromJsonAsync<HealthResponse>( SerializerOptions, cancellationToken ).ConfigureAwait( false );
-            if(payload is null)
-                return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
+                    var payload = await response.Content.ReadFromJsonAsync<HealthResponse>( SerializerOptions, token ).ConfigureAwait( false );
+                    if(payload is null)
+                        return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
 
-            var status = payload.Status switch
-            {
-                string value when string.Equals( value, "ok", StringComparison.OrdinalIgnoreCase ) => ApiHealthStatus.Ok,
-                _ => ApiHealthStatus.Unknown,
-            };
+                    var status = payload.Status switch
+                    {
+                        string value when string.Equals( value, "ok", StringComparison.OrdinalIgnoreCase ) => ApiHealthStatus.Ok,
+                        _ => ApiHealthStatus.Unknown,
+                    };
 
-            return Result.Ok( new ApiHealth( status, payload.Timestamp ) );
+                    return Result.Ok( new ApiHealth( status, payload.Timestamp ) );
+                },
+                "GetHealthAsync",
+                cancellationToken
+            ).ConfigureAwait( false );
         }
         catch(Exception ex) {
             return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_HEALTH_EXCEPTION" ) );
@@ -74,114 +80,327 @@ public class ApiService(
 
     /// <summary>APIを呼び出してツリー情報を取得しコレクションとして返却する</summary>
     public async Task<Result<IReadOnlyList<FileEntry>>> GetTreeAsync( CancellationToken cancellationToken = default ) {
-        var routePreference = GetTreeRoutePreference();
-        if(routePreference == TreeRoutePreference.Ipv4) {
-            var preferredAttempt = await ExecuteTreeRequestAsync(
-                _treeHttpClientProvider.Ipv4PreferredClient,
-                $"{_ipv4PathPrefix}-preferred",
-                TimeSpan.FromSeconds( TreeFallbackTimeoutSeconds ),
-                cancellationToken
-            ).ConfigureAwait( false );
-            LogTreeAttempt( preferredAttempt );
-            if(preferredAttempt.Result.IsSuccess) {
-                LogTreeSummary( preferredAttempt );
-                return preferredAttempt.Result;
-            }
+        var routeClient = await ResolvePreferredClientAsync( cancellationToken ).ConfigureAwait( false );
+        var preferredAttempt = await ExecuteTreeRequestAsync(
+            routeClient.Client,
+            $"{routeClient.Label}-preferred",
+            TimeSpan.FromSeconds( TreePrimaryTimeoutSeconds ),
+            cancellationToken
+        ).ConfigureAwait( false );
+        LogTreeAttempt( preferredAttempt );
+        if(preferredAttempt.Result.IsSuccess) {
+            LogTreeSummary( preferredAttempt );
+            return preferredAttempt.Result;
+        }
 
+        var fallbackTargets = CreateTreeFallbackRoutes( routeClient.Preference );
+        var lastAttempt = preferredAttempt;
+        MarkRouteDegraded( routeClient.Preference, $"GetTreeAsync 優先経路が失敗した。Path={preferredAttempt.PathLabel}" );
+        foreach(var fallbackTarget in fallbackTargets) {
             var fallbackAttempt = await ExecuteTreeRequestAsync(
-                _apiClientContext.HttpClient,
-                "default-retry",
+                fallbackTarget.Client,
+                fallbackTarget.Label,
                 TimeSpan.FromSeconds( TreeFallbackTimeoutSeconds ),
                 cancellationToken
             ).ConfigureAwait( false );
             LogTreeAttempt( fallbackAttempt );
             if(fallbackAttempt.Result.IsSuccess) {
-                SetTreeRoutePreference( TreeRoutePreference.Default, "IPv4 優先から default へ復帰したため default 優先を記憶する。" );
+                PromoteRoutePreference( fallbackTarget.Preference, $"GetTreeAsync フォールバック経路に成功した。Path={fallbackTarget.Label}" );
                 LogTreeSummary( fallbackAttempt );
                 return fallbackAttempt.Result;
             }
 
-            LogTreeSummary( fallbackAttempt );
-            return fallbackAttempt.Result;
+            lastAttempt = fallbackAttempt;
         }
 
-        if(routePreference == TreeRoutePreference.Default) {
-            var preferredAttempt = await ExecuteTreeRequestAsync(
-                _apiClientContext.HttpClient,
-                "default-preferred",
-                TimeSpan.FromSeconds( TreePrimaryTimeoutSeconds ),
-                cancellationToken
-            ).ConfigureAwait( false );
-            LogTreeAttempt( preferredAttempt );
-            if(preferredAttempt.Result.IsSuccess) {
-                LogTreeSummary( preferredAttempt );
-                return preferredAttempt.Result;
-            }
-
-            var fallbackAttempt = await ExecuteTreeRequestAsync(
-                _treeHttpClientProvider.Ipv4PreferredClient,
-                $"{_ipv4PathPrefix}-retry",
-                TimeSpan.FromSeconds( TreeFallbackTimeoutSeconds ),
-                cancellationToken
-            ).ConfigureAwait( false );
-            LogTreeAttempt( fallbackAttempt );
-            if(fallbackAttempt.Result.IsSuccess) {
-                SetTreeRoutePreference( TreeRoutePreference.Ipv4, "default 優先から IPv4 へ復帰したため IPv4 優先を記憶する。" );
-                LogTreeSummary( fallbackAttempt );
-                return fallbackAttempt.Result;
-            }
-
-            LogTreeSummary( fallbackAttempt );
-            return fallbackAttempt.Result;
-        }
-
-        var racedAttempt = await ExecuteTreeRaceWithoutPreferenceAsync( cancellationToken ).ConfigureAwait( false );
-        LogTreeSummary( racedAttempt );
-        return racedAttempt.Result;
+        LogTreeSummary( lastAttempt );
+        return lastAttempt.Result;
     }
 
-    /// <summary>
-    /// 優先経路が未確定のときに default と IPv4 経路を並列実行して先着成功を採用する。
-    /// </summary>
+    /// <summary>Tree取得失敗時の代替経路候補を生成する。</summary>
+    /// <param name="preferred">優先経路。</param>
+    /// <returns>再試行対象の経路一覧。</returns>
+    private IReadOnlyList<RouteClient> CreateTreeFallbackRoutes( ApiRoutePreference preferred ) => preferred switch
+    {
+        ApiRoutePreference.Ipv4 =>
+        [
+            new RouteClient( ApiRoutePreference.Default, "default-fallback", _treeHttpClientProvider.DefaultClient ),
+            new RouteClient( ApiRoutePreference.Ipv6, "ipv6-fallback", _treeHttpClientProvider.Ipv6PreferredClient ),
+        ],
+        ApiRoutePreference.Ipv6 =>
+        [
+            new RouteClient( ApiRoutePreference.Default, "default-fallback", _treeHttpClientProvider.DefaultClient ),
+            new RouteClient( ApiRoutePreference.Ipv4, "ipv4-fallback", _treeHttpClientProvider.Ipv4PreferredClient ),
+        ],
+        _ =>
+        [
+            new RouteClient( ApiRoutePreference.Ipv4, "ipv4-fallback", _treeHttpClientProvider.Ipv4PreferredClient ),
+            new RouteClient( ApiRoutePreference.Ipv6, "ipv6-fallback", _treeHttpClientProvider.Ipv6PreferredClient ),
+        ],
+    };
+
+    /// <summary>優先経路クライアントを解決する。</summary>
     /// <param name="cancellationToken">キャンセルトークン。</param>
-    /// <returns>採用した試行結果。</returns>
-    private async Task<TreeRequestAttempt> ExecuteTreeRaceWithoutPreferenceAsync( CancellationToken cancellationToken ) {
-        using var raceCts = CancellationTokenSource.CreateLinkedTokenSource( cancellationToken );
-        var defaultTask = ExecuteTreeRequestAsync(
-            _apiClientContext.HttpClient,
-            "default-race",
-            TimeSpan.FromSeconds( TreePrimaryTimeoutSeconds ),
-            raceCts.Token
-        );
-        var ipv4Task = ExecuteTreeRequestAsync(
-            _treeHttpClientProvider.Ipv4PreferredClient,
-            $"{_ipv4PathPrefix}-race",
-            TimeSpan.FromSeconds( TreeFallbackTimeoutSeconds ),
-            raceCts.Token
-        );
+    /// <returns>解決した経路クライアント。</returns>
+    private async Task<RouteClient> ResolvePreferredClientAsync( CancellationToken cancellationToken ) {
+        var now = DateTimeOffset.UtcNow;
+        var (preference, validUntil, retryAfter) = GetRouteState();
 
-        var firstCompletedTask = await Task.WhenAny( defaultTask, ipv4Task ).ConfigureAwait( false );
+        if(preference != ApiRoutePreference.None
+            && validUntil.HasValue
+            && validUntil.Value > now) {
+            return CreateRouteClient( preference );
+        }
+
+        if(retryAfter.HasValue && retryAfter.Value > now) {
+            _logger.Info( $"経路検証の再試行猶予中のため default を利用する。RetryAfter={retryAfter.Value:O}" );
+            return CreateRouteClient( ApiRoutePreference.Default );
+        }
+
+        var verifiedPreference = await VerifyRouteByHealthRaceAsync( cancellationToken ).ConfigureAwait( false );
+        return CreateRouteClient( verifiedPreference );
+    }
+
+    /// <summary>/health エンドポイントで IPv4/IPv6 の経路レースを実行して優先経路を検証する。</summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>採用する経路。</returns>
+    private async Task<ApiRoutePreference> VerifyRouteByHealthRaceAsync( CancellationToken cancellationToken ) {
+        using var verificationCts = CancellationTokenSource.CreateLinkedTokenSource( cancellationToken );
+        verificationCts.CancelAfter( HealthRaceTimeout );
+
+        var ipv4Task = TryHealthAsync( _treeHttpClientProvider.Ipv4PreferredClient, "ipv4", verificationCts.Token );
+        var ipv6Task = TryHealthAsync( _treeHttpClientProvider.Ipv6PreferredClient, "ipv6", verificationCts.Token );
+
+        var firstCompletedTask = await Task.WhenAny( ipv4Task, ipv6Task ).ConfigureAwait( false );
         var firstAttempt = await firstCompletedTask.ConfigureAwait( false );
-        LogTreeAttempt( firstAttempt );
-        if(firstAttempt.Result.IsSuccess) {
-            SetTreeRoutePreferenceByPath( firstAttempt.PathLabel, "初回レースで勝者経路を記憶する。" );
-            var loserTask = ReferenceEquals( firstCompletedTask, defaultTask ) ? ipv4Task : defaultTask;
-            await CancelAndObserveRaceLoserAsync( loserTask, raceCts ).ConfigureAwait( false );
-            _logger.Info( $"GetTreeAsync レース結果。Winner={firstAttempt.PathLabel}" );
-            return firstAttempt;
+
+        if(firstAttempt.IsSuccess) {
+            verificationCts.Cancel();
+            var preference = firstAttempt.Label == "ipv4" ? ApiRoutePreference.Ipv4 : ApiRoutePreference.Ipv6;
+            PersistRoutePreference( preference, true );
+            _logger.Info( $"/health 経路検証に成功した。Winner={firstAttempt.Label}, ElapsedMs={firstAttempt.ElapsedMs}" );
+            return preference;
         }
 
-        var secondTask = ReferenceEquals( firstCompletedTask, defaultTask ) ? ipv4Task : defaultTask;
+        var secondTask = ReferenceEquals( firstCompletedTask, ipv4Task ) ? ipv6Task : ipv4Task;
         var secondAttempt = await secondTask.ConfigureAwait( false );
-        LogTreeAttempt( secondAttempt );
-        if(secondAttempt.Result.IsSuccess) {
-            SetTreeRoutePreferenceByPath( secondAttempt.PathLabel, "初回レースで勝者経路を記憶する。" );
-            _logger.Info( $"GetTreeAsync レース結果。Winner={secondAttempt.PathLabel}" );
-            return secondAttempt;
+        if(secondAttempt.IsSuccess) {
+            var preference = secondAttempt.Label == "ipv4" ? ApiRoutePreference.Ipv4 : ApiRoutePreference.Ipv6;
+            PersistRoutePreference( preference, true );
+            _logger.Info( $"/health 経路検証に成功した。Winner={secondAttempt.Label}, ElapsedMs={secondAttempt.ElapsedMs}" );
+            return preference;
         }
 
-        _logger.Warn( $"GetTreeAsync レース結果。両経路が失敗した。First={firstAttempt.PathLabel}, Second={secondAttempt.PathLabel}" );
-        return secondAttempt;
+        PersistRoutePreference( ApiRoutePreference.None, false );
+        _logger.Warn( $"/health 経路検証で両経路が失敗した。First={firstAttempt.Label}, Second={secondAttempt.Label}" );
+        return ApiRoutePreference.Default;
+    }
+
+    /// <summary>/health を呼び出して疎通可否を返す。</summary>
+    /// <param name="client">呼び出しに使用するクライアント。</param>
+    /// <param name="label">経路ラベル。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>呼び出し結果。</returns>
+    private static async Task<HealthProbeAttempt> TryHealthAsync( HttpClient client, string label, CancellationToken cancellationToken ) {
+        var stopwatch = Stopwatch.StartNew();
+        try {
+            using var response = await client.GetAsync( "health", cancellationToken ).ConfigureAwait( false );
+            return new HealthProbeAttempt( label, response.IsSuccessStatusCode, (int)response.StatusCode, stopwatch.ElapsedMilliseconds );
+        }
+        catch(OperationCanceledException) {
+            return new HealthProbeAttempt( label, false, null, stopwatch.ElapsedMilliseconds );
+        }
+        catch {
+            return new HealthProbeAttempt( label, false, null, stopwatch.ElapsedMilliseconds );
+        }
+    }
+
+    /// <summary>検証結果を設定へ反映する。</summary>
+    /// <param name="preference">反映する優先経路。</param>
+    /// <param name="verified">検証成功かどうか。</param>
+    private void PersistRoutePreference( ApiRoutePreference preference, bool verified ) {
+        var now = DateTimeOffset.UtcNow;
+        lock(_routePreferenceGate) {
+            var settings = _appSettingsService.Settings;
+            settings.ApiRouteLastVerifiedAtUtc = now;
+
+            if(verified) {
+                settings.ApiPreferredRoute = preference;
+                settings.ApiPreferredRouteValidUntilUtc = now.Add( RoutePreferenceTtl );
+                settings.ApiRouteVerificationRetryAfterUtc = null;
+                return;
+            }
+
+            settings.ApiPreferredRoute = ApiRoutePreference.None;
+            settings.ApiPreferredRouteValidUntilUtc = null;
+            settings.ApiRouteVerificationRetryAfterUtc = now.Add( RouteVerificationRetryBackoff );
+        }
+    }
+
+    /// <summary>設定から経路状態を取得する。</summary>
+    /// <returns>経路状態。</returns>
+    private (ApiRoutePreference Preference, DateTimeOffset? ValidUntilUtc, DateTimeOffset? RetryAfterUtc) GetRouteState() {
+        lock(_routePreferenceGate) {
+            var settings = _appSettingsService.Settings;
+            return (
+                settings.ApiPreferredRoute,
+                settings.ApiPreferredRouteValidUntilUtc,
+                settings.ApiRouteVerificationRetryAfterUtc
+            );
+        }
+    }
+
+    /// <summary>優先経路に応じたクライアントを生成する。</summary>
+    /// <param name="preference">優先経路。</param>
+    /// <returns>経路クライアント。</returns>
+    private RouteClient CreateRouteClient( ApiRoutePreference preference ) => preference switch
+    {
+        ApiRoutePreference.Ipv4 => new RouteClient( ApiRoutePreference.Ipv4, "ipv4", _treeHttpClientProvider.Ipv4PreferredClient ),
+        ApiRoutePreference.Ipv6 => new RouteClient( ApiRoutePreference.Ipv6, "ipv6", _treeHttpClientProvider.Ipv6PreferredClient ),
+        _ => new RouteClient( ApiRoutePreference.Default, "default", _treeHttpClientProvider.DefaultClient ),
+    };
+
+    /// <summary>優先経路失敗時に代替経路へ順次フォールバックして実行する。</summary>
+    /// <typeparam name="T">戻り値の型。</typeparam>
+    /// <param name="operation">経路ごとの実行処理。</param>
+    /// <param name="operationName">実行名。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>実行結果。</returns>
+    private async Task<Result<T>> ExecuteWithRouteFallbackAsync<T>(
+        Func<RouteClient, CancellationToken, Task<Result<T>>> operation,
+        string operationName,
+        CancellationToken cancellationToken
+    ) {
+        var preferredRoute = await ResolvePreferredClientAsync( cancellationToken ).ConfigureAwait( false );
+        var preferredResult = await ExecuteRouteOperationSafelyAsync(
+            operation,
+            preferredRoute,
+            cancellationToken
+        ).ConfigureAwait( false );
+        if(preferredResult.IsSuccess)
+            return preferredResult;
+
+        if(!IsRouteRetryableFailure( preferredResult ))
+            return preferredResult;
+
+        MarkRouteDegraded( preferredRoute.Preference, $"{operationName} の優先経路が失敗した。Path={preferredRoute.Label}" );
+        var fallbackRoutes = CreateFallbackRoutes( preferredRoute.Preference );
+        var lastResult = preferredResult;
+        foreach(var fallbackRoute in fallbackRoutes) {
+            var fallbackResult = await ExecuteRouteOperationSafelyAsync(
+                operation,
+                fallbackRoute,
+                cancellationToken
+            ).ConfigureAwait( false );
+            if(fallbackResult.IsSuccess) {
+                PromoteRoutePreference( fallbackRoute.Preference, $"{operationName} のフォールバック経路が成功した。Path={fallbackRoute.Label}" );
+                return fallbackResult;
+            }
+
+            if(!IsRouteRetryableFailure( fallbackResult ))
+                return fallbackResult;
+
+            lastResult = fallbackResult;
+        }
+
+        return lastResult;
+    }
+
+    /// <summary>経路実行を安全に実行し、例外を失敗結果へ変換する。</summary>
+    /// <typeparam name="T">戻り値の型。</typeparam>
+    /// <param name="operation">経路実行処理。</param>
+    /// <param name="routeClient">実行経路。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>成功または失敗結果。</returns>
+    private static async Task<Result<T>> ExecuteRouteOperationSafelyAsync<T>(
+        Func<RouteClient, CancellationToken, Task<Result<T>>> operation,
+        RouteClient routeClient,
+        CancellationToken cancellationToken
+    ) {
+        try {
+            return await operation( routeClient, cancellationToken ).ConfigureAwait( false );
+        }
+        catch(Exception ex) {
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_ROUTE_OPERATION_EXCEPTION" ) );
+        }
+    }
+
+    /// <summary>優先経路に対する代替経路候補を生成する。</summary>
+    /// <param name="preferred">優先経路。</param>
+    /// <returns>代替経路候補。</returns>
+    private IReadOnlyList<RouteClient> CreateFallbackRoutes( ApiRoutePreference preferred ) => preferred switch
+    {
+        ApiRoutePreference.Ipv4 =>
+        [
+            new RouteClient( ApiRoutePreference.Default, "default-fallback", _treeHttpClientProvider.DefaultClient ),
+            new RouteClient( ApiRoutePreference.Ipv6, "ipv6-fallback", _treeHttpClientProvider.Ipv6PreferredClient ),
+        ],
+        ApiRoutePreference.Ipv6 =>
+        [
+            new RouteClient( ApiRoutePreference.Default, "default-fallback", _treeHttpClientProvider.DefaultClient ),
+            new RouteClient( ApiRoutePreference.Ipv4, "ipv4-fallback", _treeHttpClientProvider.Ipv4PreferredClient ),
+        ],
+        _ =>
+        [
+            new RouteClient( ApiRoutePreference.Ipv4, "ipv4-fallback", _treeHttpClientProvider.Ipv4PreferredClient ),
+            new RouteClient( ApiRoutePreference.Ipv6, "ipv6-fallback", _treeHttpClientProvider.Ipv6PreferredClient ),
+        ],
+    };
+
+    /// <summary>ルーティング起因の再試行対象エラーかどうかを判定する。</summary>
+    /// <param name="result">判定対象。</param>
+    /// <returns>再試行対象なら true。</returns>
+    private static bool IsRouteRetryableFailure<T>( Result<T> result ) =>
+        result.IsFailed && result.Errors.Any( IsRouteRetryableError );
+
+    /// <summary>ルーティング起因の再試行対象エラーかどうかを判定する。</summary>
+    /// <param name="error">判定対象。</param>
+    /// <returns>再試行対象なら true。</returns>
+    private static bool IsRouteRetryableError( IError error ) {
+        if(error.Metadata.TryGetValue( "code", out var codeObject )
+            && codeObject is string code) {
+            if(code is "API_HTTP_ERROR" or "API_TIMEOUT")
+                return true;
+            if(code.EndsWith( "_EXCEPTION", StringComparison.Ordinal ))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>優先経路の劣化を反映し、次回再検証可能な状態へ更新する。</summary>
+    /// <param name="failedRoute">失敗した優先経路。</param>
+    /// <param name="reason">更新理由。</param>
+    private void MarkRouteDegraded( ApiRoutePreference failedRoute, string reason ) {
+        if(failedRoute == ApiRoutePreference.None) return;
+
+        lock(_routePreferenceGate) {
+            var settings = _appSettingsService.Settings;
+            settings.ApiRouteLastVerifiedAtUtc = DateTimeOffset.UtcNow;
+            settings.ApiPreferredRoute = ApiRoutePreference.None;
+            settings.ApiPreferredRouteValidUntilUtc = null;
+            settings.ApiRouteVerificationRetryAfterUtc = null;
+        }
+
+        _logger.Warn( $"{reason} 失敗経路={failedRoute}, 優先経路を解除した。" );
+    }
+
+    /// <summary>成功した経路を優先経路として昇格する。</summary>
+    /// <param name="preference">昇格する経路。</param>
+    /// <param name="reason">更新理由。</param>
+    private void PromoteRoutePreference( ApiRoutePreference preference, string reason ) {
+        if(preference == ApiRoutePreference.None) return;
+
+        var now = DateTimeOffset.UtcNow;
+        lock(_routePreferenceGate) {
+            var settings = _appSettingsService.Settings;
+            settings.ApiRouteLastVerifiedAtUtc = now;
+            settings.ApiPreferredRoute = preference;
+            settings.ApiPreferredRouteValidUntilUtc = now.Add( RoutePreferenceTtl );
+            settings.ApiRouteVerificationRetryAfterUtc = null;
+        }
+
+        _logger.Info( $"{reason} 優先経路を更新した。Preference={preference}" );
     }
 
     /// <summary>
@@ -200,69 +419,76 @@ public class ApiService(
         var sanitizedPaths = sanitizeResult.Value;
 
         try {
-            var requestInfo = _apiClientContext.ApiClient.DownloadFiles.ToPostRequestInformation(
-                new DownloadFilesPostRequestBody
-                {
-                    Paths = [.. sanitizedPaths],
-                },
-                config => {
+            return await ExecuteWithRouteFallbackAsync(
+                async ( routeClient, token ) => {
+                    var apiClientContext = InitializeApiClientContext( routeClient.Client );
+                    var requestInfo = apiClientContext.ApiClient.DownloadFiles.ToPostRequestInformation(
+                        new DownloadFilesPostRequestBody
+                        {
+                            Paths = [.. sanitizedPaths],
+                        },
+                        config => {
+                            if(!string.IsNullOrWhiteSpace( request.ETag ))
+                                config.Headers.TryAdd( "If-None-Match", request.ETag );
+                        }
+                    );
+
+                    using var message = await apiClientContext.RequestAdapter
+                        .ConvertToNativeRequestAsync<HttpRequestMessage>( requestInfo, token )
+                        .ConfigureAwait( false );
+                    if(message is null)
+                        return Result.Fail( ResultErrorFactory.External( "Request message was null.", "API_REQUEST_BUILD_ERROR" ) );
+
+                    message.Headers.Accept.Clear();
+                    message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/zip" ) );
+                    message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/problem+json" ) );
                     if(!string.IsNullOrWhiteSpace( request.ETag ))
-                        config.Headers.TryAdd( "If-None-Match", request.ETag );
-                }
-            );
+                        message.Headers.TryAddWithoutValidation( "If-None-Match", request.ETag );
 
-            using var message = await _apiClientContext.RequestAdapter
-                .ConvertToNativeRequestAsync<HttpRequestMessage>( requestInfo, cancellationToken )
-                .ConfigureAwait( false );
-            if(message is null)
-                return Result.Fail( ResultErrorFactory.External( "Request message was null.", "API_REQUEST_BUILD_ERROR" ) );
+                    using var response = await routeClient.Client
+                        .SendAsync( message, HttpCompletionOption.ResponseHeadersRead, token )
+                        .ConfigureAwait( false );
 
-            message.Headers.Accept.Clear();
-            message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/zip" ) );
-            message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/problem+json" ) );
-            if(!string.IsNullOrWhiteSpace( request.ETag ))
-                message.Headers.TryAddWithoutValidation( "If-None-Match", request.ETag );
+                    if(response.StatusCode == HttpStatusCode.NotModified) {
+                        var cached = new ApiDownloadFilesResult(
+                            sanitizedPaths,
+                            [],
+                            0,
+                            null,
+                            null,
+                            response.Headers.ETag?.Tag,
+                            true
+                        );
 
-            using var response = await _apiClientContext.HttpClient
-                .SendAsync( message, HttpCompletionOption.ResponseHeadersRead, cancellationToken )
-                .ConfigureAwait( false );
+                        return Result.Ok( cached );
+                    }
 
-            if(response.StatusCode == HttpStatusCode.NotModified) {
-                var cached = new ApiDownloadFilesResult(
-                    sanitizedPaths,
-                    [],
-                    0,
-                    null,
-                    null,
-                    response.Headers.ETag?.Tag,
-                    true
-                );
+                    var ensureResult = await EnsureSuccessStatusCodeAsync( response, token ).ConfigureAwait( false );
+                    if(ensureResult.IsFailed)
+                        return Result.Fail( ensureResult.Errors );
 
-                return Result.Ok( cached );
-            }
+                    var content = await response.Content.ReadAsByteArrayAsync( token ).ConfigureAwait( false );
+                    var size = response.Content.Headers.ContentLength ?? content.LongLength;
+                    var contentType = response.Content.Headers.ContentType?.MediaType;
+                    var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                        ?? response.Content.Headers.ContentDisposition?.FileName?.Trim( '"' );
+                    var etag = response.Headers.ETag?.Tag;
 
-            var ensureResult = await EnsureSuccessStatusCodeAsync( response, cancellationToken ).ConfigureAwait( false );
-            if(ensureResult.IsFailed)
-                return Result.Fail( ensureResult.Errors );
+                    var result = new ApiDownloadFilesResult(
+                        sanitizedPaths,
+                        content,
+                        size,
+                        contentType,
+                        fileName,
+                        etag,
+                        false
+                    );
 
-            var content = await response.Content.ReadAsByteArrayAsync( cancellationToken ).ConfigureAwait( false );
-            var size = response.Content.Headers.ContentLength ?? content.LongLength;
-            var contentType = response.Content.Headers.ContentType?.MediaType;
-            var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
-                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim( '"' );
-            var etag = response.Headers.ETag?.Tag;
-
-            var result = new ApiDownloadFilesResult(
-                sanitizedPaths,
-                content,
-                size,
-                contentType,
-                fileName,
-                etag,
-                false
-            );
-
-            return Result.Ok( result );
+                    return Result.Ok( result );
+                },
+                "DownloadFilesAsync",
+                cancellationToken
+            ).ConfigureAwait( false );
         }
         catch(Exception ex) {
             return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_DOWNLOAD_FILES_EXCEPTION" ) );
@@ -283,60 +509,67 @@ public class ApiService(
         var sanitizedPaths = sanitizeResult.Value;
 
         try {
-            var requestInfo = _apiClientContext.ApiClient.DownloadFilePaths.ToPostRequestInformation(
-                new DownloadFilePathsPostRequestBody
-                {
-                    Paths = [.. sanitizedPaths],
-                },
-                config => {
-                    config.Headers.TryAdd( "Accept", "application/problem+json" );
+            return await ExecuteWithRouteFallbackAsync(
+                async ( routeClient, token ) => {
+                    var apiClientContext = InitializeApiClientContext( routeClient.Client );
+                    var requestInfo = apiClientContext.ApiClient.DownloadFilePaths.ToPostRequestInformation(
+                        new DownloadFilePathsPostRequestBody
+                        {
+                            Paths = [.. sanitizedPaths],
+                        },
+                        config => {
+                            config.Headers.TryAdd( "Accept", "application/problem+json" );
+                            if(!string.IsNullOrWhiteSpace( request.ETag ))
+                                config.Headers.TryAdd( "If-None-Match", request.ETag );
+                        }
+                    );
+
+                    using var message = await apiClientContext.RequestAdapter
+                        .ConvertToNativeRequestAsync<HttpRequestMessage>( requestInfo, token )
+                        .ConfigureAwait( false );
+                    if(message is null)
+                        return Result.Fail( ResultErrorFactory.External( "Request message was null.", "API_REQUEST_BUILD_ERROR" ) );
+
+                    message.Headers.Accept.Clear();
+                    message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
+                    message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/problem+json" ) );
                     if(!string.IsNullOrWhiteSpace( request.ETag ))
-                        config.Headers.TryAdd( "If-None-Match", request.ETag );
-                }
-            );
+                        message.Headers.TryAddWithoutValidation( "If-None-Match", request.ETag );
 
-            using var message = await _apiClientContext.RequestAdapter
-                .ConvertToNativeRequestAsync<HttpRequestMessage>( requestInfo, cancellationToken )
-                .ConfigureAwait( false );
-            if(message is null)
-                return Result.Fail( ResultErrorFactory.External( "Request message was null.", "API_REQUEST_BUILD_ERROR" ) );
+                    using var response = await routeClient.Client
+                        .SendAsync( message, HttpCompletionOption.ResponseHeadersRead, token )
+                        .ConfigureAwait( false );
 
-            message.Headers.Accept.Clear();
-            message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
-            message.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/problem+json" ) );
-            if(!string.IsNullOrWhiteSpace( request.ETag ))
-                message.Headers.TryAddWithoutValidation( "If-None-Match", request.ETag );
+                    if(response.StatusCode == HttpStatusCode.NotModified) {
+                        var cached = new ApiDownloadFilePathsResult( [], response.Headers.ETag?.Tag );
+                        return Result.Ok( cached );
+                    }
 
-            using var response = await _apiClientContext.HttpClient
-                .SendAsync( message, HttpCompletionOption.ResponseHeadersRead, cancellationToken )
-                .ConfigureAwait( false );
+                    var ensureResult = await EnsureSuccessStatusCodeAsync( response, token ).ConfigureAwait( false );
+                    if(ensureResult.IsFailed)
+                        return Result.Fail( ensureResult.Errors );
 
-            if(response.StatusCode == HttpStatusCode.NotModified) {
-                var cached = new ApiDownloadFilePathsResult( [], response.Headers.ETag?.Tag );
-                return Result.Ok( cached );
-            }
+                    var payloadResponse = await response.Content
+                        .ReadFromJsonAsync<DownloadFilePathsPostResponse>( SerializerOptions, token )
+                        .ConfigureAwait( false );
 
-            var ensureResult = await EnsureSuccessStatusCodeAsync( response, cancellationToken ).ConfigureAwait( false );
-            if(ensureResult.IsFailed)
-                return Result.Fail( ensureResult.Errors );
+                    if(payloadResponse is null)
+                        return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
 
-            var payloadResponse = await response.Content
-                .ReadFromJsonAsync<DownloadFilePathsPostResponse>( SerializerOptions, cancellationToken )
-                .ConfigureAwait( false );
+                    var items = payloadResponse.Files?
+                        .Where( file => file is not null && !string.IsNullOrWhiteSpace( file.Url ) && !string.IsNullOrWhiteSpace( file.Path ) )
+                        .Select( file => new ApiDownloadFilePathsItem( file.Url!, file.Path! ) )
+                        .ToArray()
+                        ?? [];
 
-            if(payloadResponse is null)
-                return Result.Fail( ResultErrorFactory.External( "Response body was null.", "API_EMPTY_RESPONSE" ) );
+                    var etag = response.Headers.ETag?.Tag ?? payloadResponse.Etag;
+                    var result = new ApiDownloadFilePathsResult( items, etag );
 
-            var items = payloadResponse.Files?
-                .Where( file => file is not null && !string.IsNullOrWhiteSpace( file.Url ) && !string.IsNullOrWhiteSpace( file.Path ) )
-                .Select( file => new ApiDownloadFilePathsItem( file.Url!, file.Path! ) )
-                .ToArray()
-                ?? [];
-
-            var etag = response.Headers.ETag?.Tag ?? payloadResponse.Etag;
-            var result = new ApiDownloadFilePathsResult( items, etag );
-
-            return Result.Ok( result );
+                    return Result.Ok( result );
+                },
+                "DownloadFilePathsAsync",
+                cancellationToken
+            ).ConfigureAwait( false );
         }
         catch(Exception ex) {
             return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_DOWNLOAD_PATHS_EXCEPTION" ) );
@@ -350,8 +583,11 @@ public class ApiService(
         CancellationToken cancellationToken = default
     ) {
         ArgumentNullException.ThrowIfNull( request );
+        RouteClient? routeClient = null;
 
         try {
+            routeClient = await ResolvePreferredClientAsync( cancellationToken ).ConfigureAwait( false );
+            var apiClientContext = InitializeApiClientContext( routeClient.Client );
             var files = (request.Files ?? [])
                 .Where( file => file is not null && !string.IsNullOrWhiteSpace( file.Path ) )
                 .Select( ToFilePayload )
@@ -359,7 +595,7 @@ public class ApiService(
                 .Select( payload => payload! )
                 .ToList();
 
-            var requestInfo = _apiClientContext.ApiClient.CreatePr.ToPostRequestInformation(
+            var requestInfo = apiClientContext.ApiClient.CreatePr.ToPostRequestInformation(
                 new CreatePrPostRequestBody
                 {
                     BranchName = request.BranchName,
@@ -370,18 +606,24 @@ public class ApiService(
                 }
             );
 
-            using var message = await _apiClientContext.RequestAdapter
+            using var message = await apiClientContext.RequestAdapter
                 .ConvertToNativeRequestAsync<HttpRequestMessage>( requestInfo, cancellationToken )
                 .ConfigureAwait( false );
             if(message is null)
                 return Result.Fail( ResultErrorFactory.External( "Request message was null.", "API_REQUEST_BUILD_ERROR" ) );
 
-            using var response = await _apiClientContext.HttpClient
+            using var response = await routeClient.Client
                 .SendAsync( message, HttpCompletionOption.ResponseHeadersRead, cancellationToken )
                 .ConfigureAwait( false );
 
-            if(!response.IsSuccessStatusCode)
-                return Result.Fail( ResultErrorFactory.External( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}", "API_HTTP_ERROR" ) );
+            if(!response.IsSuccessStatusCode) {
+                var failedResult = Result.Fail<ApiCreatePullRequestOutcome>(
+                    ResultErrorFactory.External( $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}", "API_HTTP_ERROR" )
+                );
+                if(IsRouteRetryableFailure( failedResult ))
+                    MarkRouteDegraded( routeClient.Preference, $"CreatePullRequestAsync の優先経路が失敗した。Path={routeClient.Label}" );
+                return failedResult;
+            }
 
             var result = await response.Content
                 .ReadFromJsonAsync<CreatePrPostResponse>( SerializerOptions, cancellationToken )
@@ -401,7 +643,10 @@ public class ApiService(
             return Result.Ok( outcome );
         }
         catch(Exception ex) {
-            return Result.Fail( ResultErrorFactory.Unexpected( ex, "API_CREATE_PR_EXCEPTION" ) );
+            var failedResult = Result.Fail<ApiCreatePullRequestOutcome>( ResultErrorFactory.Unexpected( ex, "API_CREATE_PR_EXCEPTION" ) );
+            if(routeClient is not null && IsRouteRetryableFailure( failedResult ))
+                MarkRouteDegraded( routeClient.Preference, $"CreatePullRequestAsync の優先経路で例外が発生した。Path={routeClient.Label}" );
+            return failedResult;
         }
     }
 
@@ -628,68 +873,6 @@ public class ApiService(
         _logger.Info( $"GetTreeAsync が失敗した。Path={attempt.PathLabel}, TotalElapsedMs={attempt.TotalElapsedMs}, Reason={reason}" );
     }
 
-    /// <summary>
-    /// レース勝者に応じて経路優先を記憶する。
-    /// </summary>
-    /// <param name="pathLabel">勝者パスラベル。</param>
-    /// <param name="reason">切り替え理由。</param>
-    private void SetTreeRoutePreferenceByPath( string pathLabel, string reason ) {
-        if(pathLabel.StartsWith( "ipv4", StringComparison.OrdinalIgnoreCase )) {
-            SetTreeRoutePreference( TreeRoutePreference.Ipv4, reason );
-            return;
-        }
-
-        SetTreeRoutePreference( TreeRoutePreference.Default, reason );
-    }
-
-    /// <summary>
-    /// 経路優先を有効化する。
-    /// </summary>
-    /// <param name="preference">有効化する優先経路。</param>
-    /// <param name="reason">切り替え理由。</param>
-    private void SetTreeRoutePreference( TreeRoutePreference preference, string reason ) {
-        lock(_treeRouteGate) {
-            _treeRoutePreference = preference;
-            _treeRoutePreferenceUntilUtc = DateTimeOffset.UtcNow.Add( Ipv4PreferenceTtl );
-        }
-
-        _logger.Warn( $"{reason} Preference={preference}, 有効期限={_treeRoutePreferenceUntilUtc:O}" );
-    }
-
-    /// <summary>
-    /// レース勝利時に敗者リクエストを取り消して完了を待機する。
-    /// </summary>
-    /// <param name="loserTask">敗者タスク。</param>
-    /// <param name="raceCts">レース用トークンソース。</param>
-    /// <returns>待機タスク。</returns>
-    private async Task CancelAndObserveRaceLoserAsync( Task<TreeRequestAttempt> loserTask, CancellationTokenSource raceCts ) {
-        raceCts.Cancel();
-        try {
-            var loserResult = await loserTask.ConfigureAwait( false );
-            LogTreeAttempt( loserResult );
-        }
-        catch(OperationCanceledException) {
-        }
-        catch(Exception ex) {
-            _logger.Debug( "GetTreeAsync レース敗者の終了待機で例外を補足した。", ex );
-        }
-    }
-
-    /// <summary>
-    /// 現在有効な経路優先を取得する。
-    /// </summary>
-    /// <returns>現在の優先経路。</returns>
-    private TreeRoutePreference GetTreeRoutePreference() {
-        lock(_treeRouteGate) {
-            if(DateTimeOffset.UtcNow > _treeRoutePreferenceUntilUtc) {
-                _treeRoutePreference = TreeRoutePreference.None;
-                _treeRoutePreferenceUntilUtc = DateTimeOffset.MinValue;
-            }
-
-            return _treeRoutePreference;
-        }
-    }
-
     /// <summary>API用のファイル変更ペイロードに変換する。</summary>
     /// <param name="file">PRに含めるファイル情報。</param>
     /// <returns>変換結果。対応外の操作は null。</returns>
@@ -795,12 +978,16 @@ public class ApiService(
         bool TimedOut
     );
 
-    /// <summary>
-    /// Tree API 呼び出しで記憶する経路優先を表す。
-    /// </summary>
-    private enum TreeRoutePreference {
-        None,
-        Default,
-        Ipv4,
-    }
+    /// <summary>/health の疎通試行結果を保持する。</summary>
+    /// <param name="Label">経路ラベル。</param>
+    /// <param name="IsSuccess">成功したかどうか。</param>
+    /// <param name="StatusCode">HTTPステータスコード。</param>
+    /// <param name="ElapsedMs">経過時間。</param>
+    private sealed record HealthProbeAttempt( string Label, bool IsSuccess, int? StatusCode, long ElapsedMs );
+
+    /// <summary>API呼び出しに使う経路クライアントを保持する。</summary>
+    /// <param name="Preference">選択した経路種別。</param>
+    /// <param name="Label">経路ラベル。</param>
+    /// <param name="Client">利用するクライアント。</param>
+    private sealed record RouteClient( ApiRoutePreference Preference, string Label, HttpClient Client );
 }

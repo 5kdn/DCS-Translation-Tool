@@ -14,6 +14,7 @@ public interface IApiService {
     Task<Result<IReadOnlyList<FileEntry>>> GetTreeAsync( CancellationToken cancellationToken = default );
 
     /// <summary>指定パス群のZIPアーカイブをダウンロードする</summary>
+    [Obsolete( "このメソッドはAPI側の非推奨に伴い、将来削除される予定です。代わりに DownloadFilePathsAsync を使用してください。" )]
     Task<Result<ApiDownloadFilesResult>> DownloadFilesAsync( ApiDownloadFilesRequest request, CancellationToken cancellationToken = default );
 
     /// <summary>APIを呼び出して複数ファイルのダウンロードリンクを取得する</summary>

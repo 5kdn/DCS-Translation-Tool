@@ -4,9 +4,14 @@ using System.Text;
 using System.Text.Json;
 
 using DcsTranslationTool.Application.Contracts;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Infrastructure.Services;
 using DcsTranslationTool.Infrastructure.Tests.TestDoubles;
+
+using DcsTranslationTool.Shared.Models;
+
+using Moq;
 
 namespace DcsTranslationTool.Infrastructure.Tests.Services;
 
@@ -132,29 +137,129 @@ public class ApiServiceTests {
     }
 
     [Fact]
-    public async Task GetTreeAsyncは専用ipv4経路とのレースで両経路を実行する() {
+    public async Task GetTreeAsyncは初回にhealthレースを実行して勝者経路を利用する() {
         // Arrange
         var defaultRequestCount = 0;
         var ipv4RequestCount = 0;
+        var ipv6RequestCount = 0;
 
         var defaultClient = CreateClient(async (_, cancellationToken) => {
             Interlocked.Increment( ref defaultRequestCount );
-            await Task.Delay( 80, cancellationToken ).ConfigureAwait( false );
+            await Task.Delay( 30, cancellationToken ).ConfigureAwait( false );
             return new HttpResponseMessage( HttpStatusCode.OK )
             {
-                Content = new StringContent( CreateTreePayload( "default", "default-sha" ), Encoding.UTF8, "application/json" ),
+                Content = new StringContent( CreateHealthPayload(), Encoding.UTF8, "application/json" ),
             };
         });
 
-        var ipv4Client = CreateClient((_, _) => {
+        var ipv4Client = CreateClient((request, _) => {
             Interlocked.Increment( ref ipv4RequestCount );
+            if(request.RequestUri?.AbsolutePath == "/tree") {
+                return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+                {
+                    Content = new StringContent( CreateTreePayload( "ipv4", "ipv4-sha" ), Encoding.UTF8, "application/json" ),
+                } );
+            }
+
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateHealthPayload(), Encoding.UTF8, "application/json" ),
+            } );
+        });
+
+        var ipv6Client = CreateClient((_, _) => {
+            Interlocked.Increment( ref ipv6RequestCount );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateHealthPayload(), Encoding.UTF8, "application/json" ),
+            } );
+        });
+
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client );
+
+        // Act
+        var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        Assert.InRange( defaultRequestCount, 0, 1 ); // health race の競合で未実行の場合がある
+        Assert.Equal( 2, ipv4RequestCount ); // health + tree
+        Assert.InRange( ipv6RequestCount, 0, 1 ); // health race の競合で未実行の場合がある
+        Assert.Equal( "ipv4", result.Value.Single().Path );
+    }
+
+    [Fact]
+    public async Task GetTreeAsyncは有効期限内でhealth再検証せずに既存優先経路を利用する() {
+        // Arrange
+        var requestCount = 0;
+        var sharedClient = CreateClient((request, _) => {
+            Interlocked.Increment( ref requestCount );
+            if(request.RequestUri?.AbsolutePath == "/health") {
+                return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+                {
+                    Content = new StringContent( CreateHealthPayload(), Encoding.UTF8, "application/json" ),
+                } );
+            }
+
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateTreePayload( "shared", "shared-sha" ), Encoding.UTF8, "application/json" ),
+            } );
+        });
+        var settings = new AppSettings
+        {
+            ApiPreferredRoute = ApiRoutePreference.Default,
+            ApiPreferredRouteValidUntilUtc = DateTimeOffset.UtcNow.AddMinutes( 30 ),
+        };
+
+        var sut = CreateSut( sharedClient, settings: settings );
+
+        // Act
+        var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        Assert.Equal( 1, requestCount ); // tree のみ
+        Assert.Equal( "shared", result.Value.Single().Path );
+    }
+
+    [Fact]
+    public async Task GetTreeAsyncはdefault失敗時に代替経路へ再試行する() {
+        // Arrange
+        var defaultRequestCount = 0;
+        var ipv4RequestCount = 0;
+        var ipv6RequestCount = 0;
+
+        var defaultClient = CreateClient((request, _) => {
+            Interlocked.Increment( ref defaultRequestCount );
+            Assert.Equal( "/tree", request.RequestUri?.AbsolutePath );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError )
+            {
+                ReasonPhrase = "default-failed",
+            } );
+        });
+        var ipv4Client = CreateClient((request, _) => {
+            Interlocked.Increment( ref ipv4RequestCount );
+            Assert.Equal( "/tree", request.RequestUri?.AbsolutePath );
             return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
             {
                 Content = new StringContent( CreateTreePayload( "ipv4", "ipv4-sha" ), Encoding.UTF8, "application/json" ),
             } );
         });
-
-        var sut = CreateSut( defaultClient, ipv4Client );
+        var ipv6Client = CreateClient((request, _) => {
+            Interlocked.Increment( ref ipv6RequestCount );
+            Assert.Equal( "/tree", request.RequestUri?.AbsolutePath );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( CreateTreePayload( "ipv6", "ipv6-sha" ), Encoding.UTF8, "application/json" ),
+            } );
+        });
+        var settings = new AppSettings
+        {
+            ApiPreferredRoute = ApiRoutePreference.Default,
+            ApiPreferredRouteValidUntilUtc = DateTimeOffset.UtcNow.AddMinutes( 30 ),
+        };
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client, settings );
 
         // Act
         var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
@@ -163,30 +268,262 @@ public class ApiServiceTests {
         Assert.True( result.IsSuccess );
         Assert.Equal( 1, defaultRequestCount );
         Assert.Equal( 1, ipv4RequestCount );
+        Assert.Equal( 0, ipv6RequestCount );
         Assert.Equal( "ipv4", result.Value.Single().Path );
+        Assert.Equal( ApiRoutePreference.Ipv4, settings.ApiPreferredRoute );
     }
 
     [Fact]
-    public async Task GetTreeAsyncは注入defaultクライアントのみでも同一ハンドラ上でレース実行する() {
+    public async Task DownloadFilePathsAsyncはhealth検証が失敗してもdefault経路で継続する() {
         // Arrange
-        var requestCount = 0;
-        var sharedClient = CreateClient((_, _) => {
-            Interlocked.Increment( ref requestCount );
-            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
-            {
-                Content = new StringContent( CreateTreePayload( "shared", "shared-sha" ), Encoding.UTF8, "application/json" ),
-            } );
-        });
+        var defaultClient = CreateClient(async (request, token) => {
+            if(request.RequestUri?.AbsolutePath == "/health") {
+                return new HttpResponseMessage( HttpStatusCode.OK )
+                {
+                    Content = new StringContent( CreateHealthPayload(), Encoding.UTF8, "application/json" ),
+                };
+            }
 
-        var sut = CreateSut( sharedClient );
+            var body = await request.Content!.ReadAsStringAsync( token ).ConfigureAwait( false );
+            using var document = JsonDocument.Parse( body );
+            var pathValues = document.RootElement
+                .GetProperty( "paths" )
+                .EnumerateArray()
+                .Select( element => element.GetString() )
+                .ToArray();
+            Assert.Equal( expected, pathValues );
+
+            const string responsePayload =
+                """
+                {
+                  "files": [
+                    { "url": "https://example.test/raw/file1", "path": "path/one" },
+                    { "url": "https://example.test/raw/file2", "path": "path/two" }
+                  ],
+                  "etag": "\"body-etag\""
+                }
+                """;
+
+            return new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( responsePayload, Encoding.UTF8, "application/json" ),
+            };
+        });
+        var ipv4Client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError ) ));
+        var ipv6Client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError ) ));
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client );
+        var request = new ApiDownloadFilePathsRequest( ["path/one", "path/two"], null );
 
         // Act
-        var result = await sut.GetTreeAsync( TestContext.Current.CancellationToken );
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
 
         // Assert
         Assert.True( result.IsSuccess );
-        Assert.Equal( 2, requestCount );
-        Assert.Equal( "shared", result.Value.Single().Path );
+        Assert.Equal( 2, result.Value.Items.Count );
+    }
+
+    [Fact]
+    public async Task DownloadFilePathsAsyncは優先経路失敗時にフォールバック成功で優先経路を更新する() {
+        // Arrange
+        var defaultRequestCount = 0;
+        var ipv4RequestCount = 0;
+        var settings = new AppSettings
+        {
+            ApiPreferredRoute = ApiRoutePreference.Ipv4,
+            ApiPreferredRouteValidUntilUtc = DateTimeOffset.UtcNow.AddMinutes( 30 ),
+        };
+
+        var defaultClient = CreateClient(async (request, token) => {
+            Interlocked.Increment( ref defaultRequestCount );
+            Assert.Equal( "/download-file-paths", request.RequestUri?.AbsolutePath );
+
+            var body = await request.Content!.ReadAsStringAsync( token ).ConfigureAwait( false );
+            using var document = JsonDocument.Parse( body );
+            var pathValues = document.RootElement
+                .GetProperty( "paths" )
+                .EnumerateArray()
+                .Select( element => element.GetString() )
+                .ToArray();
+            Assert.Equal( expected, pathValues );
+
+            const string responsePayload =
+                """
+                {
+                  "files": [
+                    { "url": "https://example.test/raw/file1", "path": "path/one" }
+                  ],
+                  "etag": "\"body-etag\""
+                }
+                """;
+            return new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( responsePayload, Encoding.UTF8, "application/json" ),
+            };
+        });
+        var ipv4Client = CreateClient((request, _) => {
+            Interlocked.Increment( ref ipv4RequestCount );
+            Assert.Equal( "/download-file-paths", request.RequestUri?.AbsolutePath );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.BadGateway )
+            {
+                ReasonPhrase = "ipv4-failed",
+            } );
+        });
+        var ipv6Client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError ) ));
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client, settings );
+        var request = new ApiDownloadFilePathsRequest( ["path/one", "path/two"], null );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        Assert.Equal( 1, ipv4RequestCount );
+        Assert.Equal( 1, defaultRequestCount );
+        Assert.Equal( ApiRoutePreference.Default, settings.ApiPreferredRoute );
+    }
+
+    [Fact]
+    public async Task DownloadFilePathsAsyncは優先経路で例外発生時もフォールバックを試行する() {
+        // Arrange
+        var defaultRequestCount = 0;
+        var ipv4RequestCount = 0;
+        var settings = new AppSettings
+        {
+            ApiPreferredRoute = ApiRoutePreference.Ipv4,
+            ApiPreferredRouteValidUntilUtc = DateTimeOffset.UtcNow.AddMinutes( 30 ),
+        };
+
+        var defaultClient = CreateClient(async (request, token) => {
+            Interlocked.Increment( ref defaultRequestCount );
+            Assert.Equal( "/download-file-paths", request.RequestUri?.AbsolutePath );
+
+            var body = await request.Content!.ReadAsStringAsync( token ).ConfigureAwait( false );
+            using var document = JsonDocument.Parse( body );
+            var pathValues = document.RootElement
+                .GetProperty( "paths" )
+                .EnumerateArray()
+                .Select( element => element.GetString() )
+                .ToArray();
+            Assert.Equal( expected, pathValues );
+
+            const string responsePayload =
+                """
+                {
+                  "files": [
+                    { "url": "https://example.test/raw/file1", "path": "path/one" }
+                  ],
+                  "etag": "\"body-etag\""
+                }
+                """;
+            return new HttpResponseMessage( HttpStatusCode.OK )
+            {
+                Content = new StringContent( responsePayload, Encoding.UTF8, "application/json" ),
+            };
+        });
+        var ipv4Client = CreateClient((request, _) => {
+            Interlocked.Increment( ref ipv4RequestCount );
+            Assert.Equal( "/download-file-paths", request.RequestUri?.AbsolutePath );
+            throw new HttpRequestException( "ipv4-transport-error" );
+        });
+        var ipv6Client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError ) ));
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client, settings );
+        var request = new ApiDownloadFilePathsRequest( ["path/one", "path/two"], null );
+
+        // Act
+        var result = await sut.DownloadFilePathsAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsSuccess );
+        Assert.Equal( 1, ipv4RequestCount );
+        Assert.Equal( 1, defaultRequestCount );
+        Assert.Equal( ApiRoutePreference.Default, settings.ApiPreferredRoute );
+    }
+
+    [Fact]
+    public async Task CreatePullRequestAsyncは優先経路失敗時にフォールバック再試行しない() {
+        // Arrange
+        var defaultRequestCount = 0;
+        var ipv4RequestCount = 0;
+        var settings = new AppSettings
+        {
+            ApiPreferredRoute = ApiRoutePreference.Ipv4,
+            ApiPreferredRouteValidUntilUtc = DateTimeOffset.UtcNow.AddMinutes( 30 ),
+        };
+
+        var defaultClient = CreateClient((request, _) => {
+            Interlocked.Increment( ref defaultRequestCount );
+            Assert.Equal( "/create-pr", request.RequestUri?.AbsolutePath );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) );
+        });
+        var ipv4Client = CreateClient((request, _) => {
+            Interlocked.Increment( ref ipv4RequestCount );
+            Assert.Equal( "/create-pr", request.RequestUri?.AbsolutePath );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.BadGateway )
+            {
+                ReasonPhrase = "ipv4-failed",
+            } );
+        });
+        var ipv6Client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError ) ));
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client, settings );
+        var request = new ApiCreatePullRequestRequest(
+            "feature/test",
+            "feat: add files",
+            "Add files",
+            "Body",
+            [new ApiPullRequestFile( ApiPullRequestFileOperation.Upsert, "content/upsert.txt", "c29tZS1jb250ZW50" )]
+        );
+
+        // Act
+        var result = await sut.CreatePullRequestAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( 1, ipv4RequestCount );
+        Assert.Equal( 0, defaultRequestCount );
+        Assert.Equal( ApiRoutePreference.None, settings.ApiPreferredRoute );
+        Assert.Null( settings.ApiPreferredRouteValidUntilUtc );
+    }
+
+    [Fact]
+    public async Task CreatePullRequestAsyncは優先経路で例外発生時に優先経路を解除する() {
+        // Arrange
+        var defaultRequestCount = 0;
+        var ipv4RequestCount = 0;
+        var settings = new AppSettings
+        {
+            ApiPreferredRoute = ApiRoutePreference.Ipv4,
+            ApiPreferredRouteValidUntilUtc = DateTimeOffset.UtcNow.AddMinutes( 30 ),
+        };
+
+        var defaultClient = CreateClient((request, _) => {
+            Interlocked.Increment( ref defaultRequestCount );
+            Assert.Equal( "/create-pr", request.RequestUri?.AbsolutePath );
+            return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK ) );
+        });
+        var ipv4Client = CreateClient((request, _) => {
+            Interlocked.Increment( ref ipv4RequestCount );
+            Assert.Equal( "/create-pr", request.RequestUri?.AbsolutePath );
+            throw new HttpRequestException( "ipv4-transport-error" );
+        });
+        var ipv6Client = CreateClient((_, _) => Task.FromResult( new HttpResponseMessage( HttpStatusCode.InternalServerError ) ));
+        var sut = CreateSut( defaultClient, ipv4Client, ipv6Client, settings );
+        var request = new ApiCreatePullRequestRequest(
+            "feature/test",
+            "feat: add files",
+            "Add files",
+            "Body",
+            [new ApiPullRequestFile( ApiPullRequestFileOperation.Upsert, "content/upsert.txt", "c29tZS1jb250ZW50" )]
+        );
+
+        // Act
+        var result = await sut.CreatePullRequestAsync( request, TestContext.Current.CancellationToken );
+
+        // Assert
+        Assert.True( result.IsFailed );
+        Assert.Equal( 1, ipv4RequestCount );
+        Assert.Equal( 0, defaultRequestCount );
+        Assert.Equal( ApiRoutePreference.None, settings.ApiPreferredRoute );
+        Assert.Null( settings.ApiPreferredRouteValidUntilUtc );
     }
 
     [Fact]
@@ -517,9 +854,16 @@ public class ApiServiceTests {
         Assert.Equal( "path/two", items[1].Path );
     }
 
-    private static ApiService CreateSut( HttpClient defaultClient, HttpClient? ipv4Client = null ) {
-        var provider = new TreeHttpClientProvider( defaultClient, ipv4Client );
-        return new ApiService( NoOpLoggingService.Instance, provider );
+    private static ApiService CreateSut(
+        HttpClient defaultClient,
+        HttpClient? ipv4Client = null,
+        HttpClient? ipv6Client = null,
+        AppSettings? settings = null
+    ) {
+        var provider = new TreeHttpClientProvider( defaultClient, ipv4Client, ipv6Client );
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock.SetupGet( x => x.Settings ).Returns( settings ?? new AppSettings() );
+        return new ApiService( appSettingsServiceMock.Object, NoOpLoggingService.Instance, provider );
     }
 
     private static string CreateTreePayload( string path, string sha ) =>
@@ -537,6 +881,14 @@ public class ApiServiceTests {
             ]
           }
           """;
+
+    private static string CreateHealthPayload() =>
+        """
+        {
+          "status": "ok",
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+        """;
 
     private static HttpClient CreateClient( Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder ) {
         var handler = new StubHttpMessageHandler( responder );

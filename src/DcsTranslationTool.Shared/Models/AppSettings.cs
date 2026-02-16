@@ -29,6 +29,10 @@ public class AppSettings : INotifyPropertyChanged {
     private string _sourceDlcCampaignDir = string.Empty;
     private string _sourceUserMissionDir = string.Empty;
     private string _translateFileDir = Path.Combine(AppContext.BaseDirectory, "TranslateFile");
+    private ApiRoutePreference _apiPreferredRoute = ApiRoutePreference.None;
+    private DateTimeOffset? _apiPreferredRouteValidUntilUtc;
+    private DateTimeOffset? _apiRouteLastVerifiedAtUtc;
+    private DateTimeOffset? _apiRouteVerificationRetryAfterUtc;
     ///<summary>このアプリのリポジトリーURL。</summary>
     private const string _repositoryUrl = "https://github.com/5kdn/DCS-Translation-Tool/";
 
@@ -90,5 +94,37 @@ public class AppSettings : INotifyPropertyChanged {
         set => Set( ref _translateFileDir, value );
     }
 
+    /// <summary>API通信で優先する経路を保持する。</summary>
+    public ApiRoutePreference ApiPreferredRoute {
+        get => _apiPreferredRoute;
+        set => Set( ref _apiPreferredRoute, value );
+    }
+
+    /// <summary>優先経路の有効期限UTCを保持する。</summary>
+    public DateTimeOffset? ApiPreferredRouteValidUntilUtc {
+        get => _apiPreferredRouteValidUntilUtc;
+        set => Set( ref _apiPreferredRouteValidUntilUtc, value );
+    }
+
+    /// <summary>優先経路を最後に検証した時刻UTCを保持する。</summary>
+    public DateTimeOffset? ApiRouteLastVerifiedAtUtc {
+        get => _apiRouteLastVerifiedAtUtc;
+        set => Set( ref _apiRouteLastVerifiedAtUtc, value );
+    }
+
+    /// <summary>優先経路の再検証を再試行できる時刻UTCを保持する。</summary>
+    public DateTimeOffset? ApiRouteVerificationRetryAfterUtc {
+        get => _apiRouteVerificationRetryAfterUtc;
+        set => Set( ref _apiRouteVerificationRetryAfterUtc, value );
+    }
+
     #endregion
+}
+
+/// <summary>API通信で利用する経路種別を表す。</summary>
+public enum ApiRoutePreference {
+    None,
+    Default,
+    Ipv4,
+    Ipv6,
 }
