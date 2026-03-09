@@ -157,9 +157,14 @@ public class ShellViewModel(
 
     /// <summary>最低限のアプリ設定を検証し、不足時に通知する</summary>
     private void ValidateAppSettingsAndNotify() {
-        if(string.IsNullOrEmpty( appSettingsService.Settings.SourceAircraftDir ) ||
-            string.IsNullOrEmpty( appSettingsService.Settings.SourceDlcCampaignDir ) ||
-            string.IsNullOrEmpty( appSettingsService.Settings.TranslateFileDir )) {
+        var settings = appSettingsService.Settings;
+        var hasMissingRequiredSetting =
+            string.IsNullOrEmpty( settings.DcsWorldInstallDir ) ||
+            string.IsNullOrEmpty( settings.TranslateFileDir ) ||
+            (settings.UseExternalAircraftInjectionDir && string.IsNullOrEmpty( settings.ExternalAircraftInjectionDir )) ||
+            (settings.UseExternalCampaignInjectionDir && string.IsNullOrEmpty( settings.ExternalCampaignInjectionDir ));
+
+        if(hasMissingRequiredSetting) {
             logger.Warn( "アプリ設定に不足がある" );
             snackbarService.Show(
                 "設定が不足しています。",

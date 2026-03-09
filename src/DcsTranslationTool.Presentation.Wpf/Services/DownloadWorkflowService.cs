@@ -102,29 +102,6 @@ public sealed class DownloadWorkflowService(
         }
         logger.Info( $"適用対象を特定した。件数={targetEntries.Count}" );
 
-        string? rootPath = request.SelectedTab.TabType switch
-        {
-            CategoryType.Aircraft => request.SourceAircraftDir,
-            CategoryType.DlcCampaigns => request.SourceDlcCampaignDir,
-            CategoryType.UserMissions => request.SourceUserMissionDir,
-            _ => throw new InvalidOperationException( $"未対応のタブ種別: {request.SelectedTab.TabType}" ),
-        };
-
-        if(string.IsNullOrWhiteSpace( rootPath )) {
-            logger.Warn( "適用先ディレクトリが設定されていないため処理を中断する。" );
-            return FailureApplyResult( "適用先ディレクトリを設定してください" );
-        }
-
-        var rootFullPath = Path.GetFullPath( rootPath );
-        if(!Directory.Exists( rootFullPath )) {
-            logger.Warn( $"適用先ディレクトリが存在しない。Directory={rootFullPath}" );
-            return FailureApplyResult( "適用先ディレクトリが存在しません" );
-        }
-
-        var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
-            ? rootFullPath
-            : rootFullPath + Path.DirectorySeparatorChar;
-
         if(string.IsNullOrWhiteSpace( request.TranslateRootPath )) {
             logger.Warn( "翻訳ディレクトリが未設定のため処理を中断する。" );
             return FailureApplyResult( "翻訳ディレクトリを設定してください" );
@@ -136,20 +113,61 @@ public sealed class DownloadWorkflowService(
             ? translateFullPath
             : translateFullPath + Path.DirectorySeparatorChar;
 
-        var applyCompleted = await this.ApplyAsync(
-            targetEntries,
-            rootFullPath,
-            rootWithSeparator,
-            translateFullPath,
-            translateRootWithSeparator,
-            showSnackbarAsync,
-            progressCallback,
-            cancellationToken
-        );
+        var resolvedTargets = new List<(IFileEntryViewModel Entry, string RootPath)>( targetEntries.Count );
+        foreach(var entry in targetEntries) {
+            var resolvedRoot = ResolveApplyRootPath( request, request.SelectedTab.TabType, entry.Path );
+            if(resolvedRoot.IsFailed) {
+                return FailureApplyResult( resolvedRoot.Message );
+            }
 
-        return applyCompleted
-            ? SuccessApplyResult()
-            : new ApplyWorkflowResult( false, [] );
+            resolvedTargets.Add( (entry, resolvedRoot.RootPath) );
+        }
+
+        var groupedTargets = resolvedTargets
+            .GroupBy( target => target.RootPath, StringComparer.OrdinalIgnoreCase )
+            .ToArray();
+
+        var processedCount = 0;
+        foreach(var groupedTarget in groupedTargets) {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var rootFullPath = Path.GetFullPath( groupedTarget.Key );
+            if(!EnsureApplyRootAvailable( request, request.SelectedTab.TabType, rootFullPath )) {
+                logger.Warn( $"適用先ディレクトリが利用できない。Directory={rootFullPath}" );
+                return FailureApplyResult( "適用先ディレクトリが存在しません" );
+            }
+
+            EnsureExternalArchivesAvailable( request, request.SelectedTab.TabType, rootFullPath, groupedTarget.Select( target => target.Entry ) );
+
+            var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
+                ? rootFullPath
+                : rootFullPath + Path.DirectorySeparatorChar;
+
+            var groupEntries = groupedTarget.Select( target => target.Entry ).ToArray();
+            var applyCompleted = await this.ApplyAsync(
+                groupEntries,
+                rootFullPath,
+                rootWithSeparator,
+                translateFullPath,
+                translateRootWithSeparator,
+                showSnackbarAsync,
+                async value => {
+                    var groupProgress = value / 100d;
+                    var overallProgress = ( processedCount + (groupEntries.Length * groupProgress) ) / targetEntries.Count * 100d;
+                    await progressCallback( overallProgress );
+                },
+                cancellationToken
+            );
+
+            if(!applyCompleted) {
+                return new ApplyWorkflowResult( false, [] );
+            }
+
+            processedCount += groupEntries.Length;
+        }
+
+        await progressCallback( 100 );
+        return SuccessApplyResult();
     }
 
     /// <inheritdoc/>
@@ -346,4 +364,294 @@ public sealed class DownloadWorkflowService(
     /// <returns>成功結果。</returns>
     private static ApplyWorkflowResult SuccessApplyResult() =>
         new( true, [] );
+
+    /// <summary>
+    /// エントリーパスと設定から適用先ルートを解決する。
+    /// </summary>
+    /// <param name="request">適用要求。</param>
+    /// <param name="categoryType">対象カテゴリ。</param>
+    /// <param name="entryPath">翻訳エントリーパス。</param>
+    /// <returns>解決結果。</returns>
+    private ResolveApplyRootResult ResolveApplyRootPath( ApplyExecutionRequest request, CategoryType categoryType, string entryPath ) {
+        switch(categoryType) {
+            case CategoryType.Aircraft:
+                return ResolveDcsWorldRootPath(
+                    request.DcsWorldInstallDir,
+                    request.UseExternalAircraftInjectionDir,
+                    request.ExternalAircraftInjectionDir,
+                    entryPath,
+                    expectedCategorySegment: "aircraft" );
+            case CategoryType.DlcCampaigns:
+                return ResolveDcsWorldRootPath(
+                    request.DcsWorldInstallDir,
+                    request.UseExternalCampaignInjectionDir,
+                    request.ExternalCampaignInjectionDir,
+                    entryPath,
+                    expectedCategorySegment: "campaigns" );
+            case CategoryType.UserMissions:
+                return string.IsNullOrWhiteSpace( request.SourceUserMissionDir )
+                    ? ResolveApplyRootResult.Fail( "適用先ディレクトリを設定してください" )
+                    : ResolveApplyRootResult.Success( request.SourceUserMissionDir );
+            default:
+                throw new InvalidOperationException( $"未対応のタブ種別: {categoryType}" );
+        }
+    }
+
+    /// <summary>
+    /// DCS World 配下カテゴリの適用先ルートを解決する。
+    /// </summary>
+    /// <param name="dcsWorldInstallDir">DCS World インストールフォルダー。</param>
+    /// <param name="useExternalInjectionDir">外部保存を有効にするかどうか。</param>
+    /// <param name="externalInjectionDir">外部保存フォルダー。</param>
+    /// <param name="entryPath">翻訳エントリーパス。</param>
+    /// <param name="expectedCategorySegment">カテゴリセグメント。</param>
+    /// <returns>解決結果。</returns>
+    private ResolveApplyRootResult ResolveDcsWorldRootPath(
+        string? dcsWorldInstallDir,
+        bool useExternalInjectionDir,
+        string? externalInjectionDir,
+        string entryPath,
+        string expectedCategorySegment
+    ) {
+        var pathSegments = entryPath.Split( '/', StringSplitOptions.RemoveEmptyEntries );
+        if(pathSegments.Length < 4 ||
+            !string.Equals( pathSegments[0], "DCSWorld", StringComparison.OrdinalIgnoreCase ) ||
+            !string.Equals( pathSegments[1], "Mods", StringComparison.OrdinalIgnoreCase ) ||
+            !string.Equals( pathSegments[2], expectedCategorySegment, StringComparison.OrdinalIgnoreCase )) {
+            logger.Warn( $"DCS World 配下エントリーのパス構造が不正である。Path={entryPath}, Category={expectedCategorySegment}" );
+            return ResolveApplyRootResult.Fail( "適用先ディレクトリを設定してください" );
+        }
+
+        if(useExternalInjectionDir) {
+            if(string.IsNullOrWhiteSpace( externalInjectionDir )) {
+                return ResolveApplyRootResult.Fail( "適用先ディレクトリを設定してください" );
+            }
+
+            var packageName = pathSegments[3];
+            var rootPath = Path.Combine(
+                externalInjectionDir,
+                $"{packageName}翻訳",
+                "Mods",
+                expectedCategorySegment );
+            return ResolveApplyRootResult.Success( rootPath );
+        }
+
+        if(string.IsNullOrWhiteSpace( dcsWorldInstallDir )) {
+            return ResolveApplyRootResult.Fail( "適用先ディレクトリを設定してください" );
+        }
+
+        return ResolveApplyRootResult.Success( Path.Combine( dcsWorldInstallDir, "Mods", expectedCategorySegment ) );
+    }
+
+    /// <summary>
+    /// 適用先ルートを利用可能状態にする。
+    /// </summary>
+    /// <param name="request">適用要求。</param>
+    /// <param name="categoryType">対象カテゴリ。</param>
+    /// <param name="rootFullPath">適用先ルート。</param>
+    /// <returns>利用可能なら <see langword="true"/>。</returns>
+    private bool EnsureApplyRootAvailable( ApplyExecutionRequest request, CategoryType categoryType, string rootFullPath ) {
+        var shouldCreateDirectory = categoryType switch
+        {
+            CategoryType.Aircraft => request.UseExternalAircraftInjectionDir,
+            CategoryType.DlcCampaigns => request.UseExternalCampaignInjectionDir,
+            CategoryType.UserMissions => false,
+            _ => false,
+        };
+
+        if(Directory.Exists( rootFullPath )) {
+            return true;
+        }
+
+        if(!shouldCreateDirectory) {
+            return false;
+        }
+
+        Directory.CreateDirectory( rootFullPath );
+        logger.Info( $"外部保存用の適用先ディレクトリを作成した。Directory={rootFullPath}" );
+        return true;
+    }
+
+    /// <summary>
+    /// 外部保存先で不足するアーカイブを DCS World から補完する。
+    /// </summary>
+    /// <param name="request">適用要求。</param>
+    /// <param name="categoryType">対象カテゴリ。</param>
+    /// <param name="rootFullPath">適用先ルート。</param>
+    /// <param name="entries">対象エントリー。</param>
+    private void EnsureExternalArchivesAvailable(
+        ApplyExecutionRequest request,
+        CategoryType categoryType,
+        string rootFullPath,
+        IEnumerable<IFileEntryViewModel> entries
+    ) {
+        var dcsWorldCategoryRoot = GetExternalArchiveSourceRootPath( request, categoryType );
+        if(dcsWorldCategoryRoot is null) {
+            return;
+        }
+
+        var rootWithSeparator = rootFullPath.EndsWith( Path.DirectorySeparatorChar )
+            ? rootFullPath
+            : rootFullPath + Path.DirectorySeparatorChar;
+
+        foreach(var archiveRelativePath in EnumerateMissingArchiveRelativePaths( rootFullPath, rootWithSeparator, entries )) {
+            var sourceArchivePath = Path.Combine( dcsWorldCategoryRoot, archiveRelativePath );
+            if(!File.Exists( sourceArchivePath )) {
+                logger.Warn( $"補完元のアーカイブが存在しないためコピーをスキップする。Source={sourceArchivePath}" );
+                continue;
+            }
+
+            var destinationArchivePath = Path.Combine( rootFullPath, archiveRelativePath );
+            var directoryPath = Path.GetDirectoryName( destinationArchivePath );
+            if(!string.IsNullOrWhiteSpace( directoryPath )) {
+                Directory.CreateDirectory( directoryPath );
+            }
+
+            File.Copy( sourceArchivePath, destinationArchivePath, overwrite: false );
+            logger.Info( $"DCS World から外部保存先へアーカイブを補完した。Source={sourceArchivePath}, Destination={destinationArchivePath}" );
+        }
+    }
+
+    /// <summary>
+    /// 外部保存先のアーカイブ補完元ルートを取得する。
+    /// </summary>
+    /// <param name="request">適用要求。</param>
+    /// <param name="categoryType">対象カテゴリ。</param>
+    /// <returns>補完元ルート。対象外の場合は <see langword="null"/>。</returns>
+    private static string? GetExternalArchiveSourceRootPath( ApplyExecutionRequest request, CategoryType categoryType ) {
+        if(string.IsNullOrWhiteSpace( request.DcsWorldInstallDir )) {
+            return null;
+        }
+
+        var dcsWorldInstallDir = Path.GetFullPath( request.DcsWorldInstallDir );
+        return categoryType switch
+        {
+            CategoryType.Aircraft when request.UseExternalAircraftInjectionDir => Path.Combine( dcsWorldInstallDir, "Mods", "aircraft" ),
+            CategoryType.DlcCampaigns when request.UseExternalCampaignInjectionDir => Path.Combine( dcsWorldInstallDir, "Mods", "campaigns" ),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// 外部保存先に存在しないアーカイブの相対パスを列挙する。
+    /// </summary>
+    /// <param name="rootFullPath">適用先ルート。</param>
+    /// <param name="rootWithSeparator">区切り文字付き適用先ルート。</param>
+    /// <param name="entries">対象エントリー。</param>
+    /// <returns>存在しないアーカイブの相対パス列。</returns>
+    private IEnumerable<string> EnumerateMissingArchiveRelativePaths(
+        string rootFullPath,
+        string rootWithSeparator,
+        IEnumerable<IFileEntryViewModel> entries
+    ) {
+        return entries
+            .Select( entry => TryGetArchiveRelativePath( entry.Path ) )
+            .Where( static relativePath => !string.IsNullOrWhiteSpace( relativePath ) )
+            .Distinct( StringComparer.OrdinalIgnoreCase )
+            .Where( relativePath =>
+                TryResolvePathWithinRoot( rootFullPath, rootWithSeparator, relativePath!, out var archivePath ) &&
+                !File.Exists( archivePath ) )
+            .Cast<string>();
+    }
+
+    /// <summary>
+    /// 翻訳エントリーからアーカイブ実体の相対パスを取得する。
+    /// </summary>
+    /// <param name="entryPath">翻訳エントリーパス。</param>
+    /// <returns>アーカイブ実体の相対パス。該当しない場合は <see langword="null"/>。</returns>
+    private string? TryGetArchiveRelativePath( string entryPath ) {
+        var parts = entryPath.Split( '/', StringSplitOptions.RemoveEmptyEntries );
+        var archiveIndex = Array.FindIndex(
+            parts,
+            static segment =>
+                segment.EndsWith( ".miz", StringComparison.OrdinalIgnoreCase ) ||
+                segment.EndsWith( ".trk", StringComparison.OrdinalIgnoreCase ) );
+        if(archiveIndex == -1) {
+            return null;
+        }
+
+        var rootSkipCount = GetRootSegmentSkipCount( parts );
+        var archiveSegments = parts.Take( archiveIndex + 1 ).Skip( rootSkipCount ).ToArray();
+        if(archiveSegments.Length == 0) {
+            logger.Warn( $"アーカイブ補完対象エントリーのパス構造が不正である。Path={entryPath}" );
+            return null;
+        }
+
+        return Path.Combine( archiveSegments );
+    }
+
+    /// <summary>
+    /// 相対パスがルート配下に収まる場合のみフルパスへ解決する。
+    /// </summary>
+    /// <param name="rootFullPath">ルートのフルパス。</param>
+    /// <param name="rootWithSeparator">区切り文字付きルート。</param>
+    /// <param name="relativePath">相対パス。</param>
+    /// <param name="resolvedPath">解決後のフルパス。</param>
+    /// <returns>ルート配下に収まる場合は <see langword="true"/>。</returns>
+    private static bool TryResolvePathWithinRoot(
+        string rootFullPath,
+        string rootWithSeparator,
+        string relativePath,
+        out string resolvedPath
+    ) {
+        resolvedPath = string.Empty;
+        if(string.IsNullOrWhiteSpace( relativePath )) {
+            return false;
+        }
+
+        var candidate = Path.GetFullPath( Path.Combine( rootFullPath, relativePath ) );
+        if(!candidate.StartsWith( rootWithSeparator, StringComparison.OrdinalIgnoreCase )) {
+            return false;
+        }
+
+        resolvedPath = candidate;
+        return true;
+    }
+
+    /// <summary>
+    /// エントリーパスから適用先ルートをスキップするセグメント数を取得する。
+    /// </summary>
+    /// <param name="segments">分解済みパスセグメント。</param>
+    /// <returns>スキップするセグメント数。</returns>
+    private static int GetRootSegmentSkipCount( string[] segments ) {
+        if(segments.Length == 0) {
+            return 0;
+        }
+
+        if(string.Equals( segments[0], "DCSWorld", StringComparison.OrdinalIgnoreCase ) &&
+            segments.Length >= 3 &&
+            string.Equals( segments[1], "Mods", StringComparison.OrdinalIgnoreCase )) {
+            return 3;
+        }
+
+        if(string.Equals( segments[0], "UserMissions", StringComparison.OrdinalIgnoreCase )) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// 適用先ルート解決結果を表す。
+    /// </summary>
+    /// <param name="IsFailed">解決失敗かどうか。</param>
+    /// <param name="RootPath">解決したルート。</param>
+    /// <param name="Message">失敗メッセージ。</param>
+    private sealed record ResolveApplyRootResult( bool IsFailed, string RootPath, string Message ) {
+        /// <summary>
+        /// 成功結果を生成する。
+        /// </summary>
+        /// <param name="rootPath">解決したルート。</param>
+        /// <returns>成功結果。</returns>
+        public static ResolveApplyRootResult Success( string rootPath ) =>
+            new( false, rootPath, string.Empty );
+
+        /// <summary>
+        /// 失敗結果を生成する。
+        /// </summary>
+        /// <param name="message">失敗メッセージ。</param>
+        /// <returns>失敗結果。</returns>
+        public static ResolveApplyRootResult Fail( string message ) =>
+            new( true, string.Empty, message );
+    }
 }

@@ -5,7 +5,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.Common;
 
 /// <summary>
 /// ディレクトリパス入力用の共通コンポーネント。
-/// ラベル、パス入力 TextBox、参照ボタンを提供する。
+/// パス入力 TextBox と参照ボタンを提供する。
 /// </summary>
 public partial class DirectoryPicker : UserControl {
     public DirectoryPicker() {
@@ -13,26 +13,6 @@ public partial class DirectoryPicker : UserControl {
     }
 
     #region DependencyProperties
-
-    /// <summary>
-    /// ラベル表示テキスト
-    /// </summary>
-    public static readonly DependencyProperty LabelTextProperty =
-        DependencyProperty.Register(
-            nameof(LabelText),
-            typeof(string),
-            typeof(DirectoryPicker),
-            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
-
-    /// <summary>
-    /// 説明文テキスト。null の場合は非表示
-    /// </summary>
-    public static readonly DependencyProperty ExplanationTextProperty =
-        DependencyProperty.Register(
-            nameof(ExplanationText),
-            typeof(string),
-            typeof(DirectoryPicker),
-            new PropertyMetadata(null));
 
     /// <summary>
     /// ディレクトリパス文字列（TwoWay）
@@ -77,22 +57,6 @@ public partial class DirectoryPicker : UserControl {
     #endregion
 
     #region Properties
-
-    /// <summary>
-    /// ラベル表示テキスト
-    /// </summary>
-    public string LabelText {
-        get => (string)GetValue( LabelTextProperty );
-        set => SetValue( LabelTextProperty, value );
-    }
-
-    /// <summary>
-    /// 説明文テキスト
-    /// </summary>
-    public string? ExplanationText {
-        get => (string?)GetValue( ExplanationTextProperty );
-        set => SetValue( ExplanationTextProperty, value );
-    }
 
     /// <summary>
     /// ディレクトリパス文字列（TwoWay）

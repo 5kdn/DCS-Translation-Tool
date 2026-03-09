@@ -25,10 +25,13 @@ public class AppSettings : INotifyPropertyChanged {
     private string _applicationTitle = "DcsTranslationTool";
     private double _shellWidth = 600;
     private double _shellHeight = 400;
-    private string _sourceAircraftDir = string.Empty;
-    private string _sourceDlcCampaignDir = string.Empty;
+    private string _dcsWorldInstallDir = string.Empty;
     private string _sourceUserMissionDir = string.Empty;
     private string _translateFileDir = Path.Combine(AppContext.BaseDirectory, "TranslateFile");
+    private bool _useExternalAircraftInjectionDir = false;
+    private string _externalAircraftInjectionDir = string.Empty;
+    private bool _useExternalCampaignInjectionDir = false;
+    private string _externalCampaignInjectionDir = string.Empty;
     private ApiRoutePreference _apiPreferredRoute = ApiRoutePreference.None;
     private DateTimeOffset? _apiPreferredRouteValidUntilUtc;
     private DateTimeOffset? _apiRouteLastVerifiedAtUtc;
@@ -74,14 +77,9 @@ public class AppSettings : INotifyPropertyChanged {
         set => Set( ref _shellHeight, value );
     }
 
-    public string SourceAircraftDir {
-        get => _sourceAircraftDir;
-        set => Set( ref _sourceAircraftDir, value );
-    }
-
-    public string SourceDlcCampaignDir {
-        get => _sourceDlcCampaignDir;
-        set => Set( ref _sourceDlcCampaignDir, value );
+    public string DcsWorldInstallDir {
+        get => _dcsWorldInstallDir;
+        set => Set( ref _dcsWorldInstallDir, value );
     }
 
     public string SourceUserMissionDir {
@@ -92,6 +90,26 @@ public class AppSettings : INotifyPropertyChanged {
     public string TranslateFileDir {
         get => _translateFileDir;
         set => Set( ref _translateFileDir, value );
+    }
+
+    public bool UseExternalAircraftInjectionDir {
+        get => _useExternalAircraftInjectionDir;
+        set => Set( ref _useExternalAircraftInjectionDir, value );
+    }
+
+    public string ExternalAircraftInjectionDir {
+        get => _externalAircraftInjectionDir;
+        set => Set( ref _externalAircraftInjectionDir, value );
+    }
+
+    public bool UseExternalCampaignInjectionDir {
+        get => _useExternalCampaignInjectionDir;
+        set => Set( ref _useExternalCampaignInjectionDir, value );
+    }
+
+    public string ExternalCampaignInjectionDir {
+        get => _externalCampaignInjectionDir;
+        set => Set( ref _externalCampaignInjectionDir, value );
     }
 
     /// <summary>API通信で優先する経路を保持する。</summary>
