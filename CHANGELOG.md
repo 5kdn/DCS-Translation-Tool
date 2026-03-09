@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.4.0...v2.0.0) (2026-03-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **settings:** SourceAircraftDir と SourceDlcCampaignDir を廃止し、DcsWorldInstallDir と外部注入先設定へ移行する
+
+### Features
+
+* **settings:** ゲームインストール基準の注入先設定に対応 ([#82](https://github.com/5kdn/DCS-Translation-Tool/issues/82)) ([6307af2](https://github.com/5kdn/DCS-Translation-Tool/commit/6307af2714b01c6e28d57d3d5f5474324578fabf))
+
 ## [1.4.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.3.1...v1.4.0) (2026-02-16)
 
 
