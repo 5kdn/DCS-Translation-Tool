@@ -16,29 +16,23 @@ public class SettingsViewModel(
 
     #region Fields
 
-    private string _sourceAircraftDir = appSettingsService.Settings.SourceAircraftDir;
-    private string _sourceDlcCampaignDir = appSettingsService.Settings.SourceDlcCampaignDir;
+    private string _dcsWorldInstallDir = appSettingsService.Settings.DcsWorldInstallDir;
     private string _sourceUserMissionDir = appSettingsService.Settings.SourceUserMissionDir;
     private string _translateFileDir = appSettingsService.Settings.TranslateFileDir;
+    private bool _useExternalAircraftInjectionDir = appSettingsService.Settings.UseExternalAircraftInjectionDir;
+    private string _externalAircraftInjectionDir = appSettingsService.Settings.ExternalAircraftInjectionDir;
+    private bool _useExternalCampaignInjectionDir = appSettingsService.Settings.UseExternalCampaignInjectionDir;
+    private string _externalCampaignInjectionDir = appSettingsService.Settings.ExternalCampaignInjectionDir;
 
     #endregion
 
     #region Properties
-    public string SourceAircraftDir {
-        get => _sourceAircraftDir;
+    public string DcsWorldInstallDir {
+        get => _dcsWorldInstallDir;
         set {
-            if(!Set( ref _sourceAircraftDir, value )) return;
-            appSettingsService.Settings.SourceAircraftDir = value;
-            logger.Info( $"SourceAircraftDir を更新する。Value={value}" );
-        }
-    }
-
-    public string SourceDlcCampaignDir {
-        get => _sourceDlcCampaignDir;
-        set {
-            if(!Set( ref _sourceDlcCampaignDir, value )) return;
-            appSettingsService.Settings.SourceDlcCampaignDir = value;
-            logger.Info( $"SourceDlcCampaignDir を更新する。Value={value}" );
+            if(!Set( ref _dcsWorldInstallDir, value )) return;
+            appSettingsService.Settings.DcsWorldInstallDir = value;
+            logger.Info( $"DcsWorldInstallDir を更新する。Value={value}" );
         }
     }
 
@@ -57,6 +51,42 @@ public class SettingsViewModel(
             if(!Set( ref _translateFileDir, value )) return;
             appSettingsService.Settings.TranslateFileDir = value;
             logger.Info( $"TranslateFileDir を更新する。Value={value}" );
+        }
+    }
+
+    public bool UseExternalAircraftInjectionDir {
+        get => _useExternalAircraftInjectionDir;
+        set {
+            if(!Set( ref _useExternalAircraftInjectionDir, value )) return;
+            appSettingsService.Settings.UseExternalAircraftInjectionDir = value;
+            logger.Info( $"UseExternalAircraftInjectionDir を更新する。Value={value}" );
+        }
+    }
+
+    public string ExternalAircraftInjectionDir {
+        get => _externalAircraftInjectionDir;
+        set {
+            if(!Set( ref _externalAircraftInjectionDir, value )) return;
+            appSettingsService.Settings.ExternalAircraftInjectionDir = value;
+            logger.Info( $"ExternalAircraftInjectionDir を更新する。Value={value}" );
+        }
+    }
+
+    public bool UseExternalCampaignInjectionDir {
+        get => _useExternalCampaignInjectionDir;
+        set {
+            if(!Set( ref _useExternalCampaignInjectionDir, value )) return;
+            appSettingsService.Settings.UseExternalCampaignInjectionDir = value;
+            logger.Info( $"UseExternalCampaignInjectionDir を更新する。Value={value}" );
+        }
+    }
+
+    public string ExternalCampaignInjectionDir {
+        get => _externalCampaignInjectionDir;
+        set {
+            if(!Set( ref _externalCampaignInjectionDir, value )) return;
+            appSettingsService.Settings.ExternalCampaignInjectionDir = value;
+            logger.Info( $"ExternalCampaignInjectionDir を更新する。Value={value}" );
         }
     }
 
@@ -101,13 +131,9 @@ public class SettingsViewModel(
         logger.Info( $"フォルダー選択を開始する。Path={path}, Key={key}" );
         if(dialogProvider.ShowFolderPicker( path, out var selected )) {
             switch(key) {
-                case "Aircraft":
-                    SourceAircraftDir = selected;
-                    logger.Info( $"SourceAircraftDir ディレクトリを設定した。Selected={selected}" );
-                    break;
-                case "DlcCampaign":
-                    SourceDlcCampaignDir = selected;
-                    logger.Info( $"SourceDlcCampaignDir ディレクトリを設定した。Selected={selected}" );
+                case "DcsWorldInstall":
+                    DcsWorldInstallDir = selected;
+                    logger.Info( $"DcsWorldInstallDir ディレクトリを設定した。Selected={selected}" );
                     break;
                 case "UserMission":
                     SourceUserMissionDir = selected;
@@ -116,6 +142,14 @@ public class SettingsViewModel(
                 case "TranslateFile":
                     TranslateFileDir = selected;
                     logger.Info( $"TranslateFileDir ディレクトリを設定した。Selected={selected}" );
+                    break;
+                case "ExternalAircraftInjection":
+                    ExternalAircraftInjectionDir = selected;
+                    logger.Info( $"ExternalAircraftInjectionDir ディレクトリを設定した。Selected={selected}" );
+                    break;
+                case "ExternalCampaignInjection":
+                    ExternalCampaignInjectionDir = selected;
+                    logger.Info( $"ExternalCampaignInjectionDir ディレクトリを設定した。Selected={selected}" );
                     break;
                 default:
                     logger.Warn( $"未対応のキーを受信した。Key={key}" );

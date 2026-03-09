@@ -144,9 +144,12 @@ public class DownloadViewModel(
         await ExecuteWithEntriesChangedSuppressedAsync( isDownload: false, async () => {
             var request = new ApplyExecutionRequest(
                 GetSelectedTab(),
-                appSettingsService.Settings.SourceAircraftDir,
-                appSettingsService.Settings.SourceDlcCampaignDir,
+                appSettingsService.Settings.DcsWorldInstallDir,
                 appSettingsService.Settings.SourceUserMissionDir,
+                appSettingsService.Settings.UseExternalAircraftInjectionDir,
+                appSettingsService.Settings.ExternalAircraftInjectionDir,
+                appSettingsService.Settings.UseExternalCampaignInjectionDir,
+                appSettingsService.Settings.ExternalCampaignInjectionDir,
                 appSettingsService.Settings.TranslateFileDir
             );
             var result = await downloadWorkflowService.ExecuteApplyAsync(

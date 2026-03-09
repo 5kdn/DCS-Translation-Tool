@@ -11,27 +11,6 @@
              d:Height="120" d:Width="500" >
 
     <StackPanel>
-        <!-- Label -->
-        <TextBlock Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" TextWrapping="Wrap"
-                   Text="{Binding LabelText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}" />
-
-        <!-- Explanation -->
-        <TextBlock Text="{Binding ExplanationText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}"
-                   TextWrapping="Wrap" >
-            <TextBlock.Style>
-                <Style TargetType="TextBlock" BasedOn="{StaticResource MaterialDesignBodySmallTextBlock}">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding ExplanationText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}" Value="{x:Null}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding ExplanationText, RelativeSource={RelativeSource AncestorType={x:Type local:DirectoryPicker}}}" Value="">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
-
         <!-- Picker -->
         <Grid>
             <Grid.ColumnDefinitions>

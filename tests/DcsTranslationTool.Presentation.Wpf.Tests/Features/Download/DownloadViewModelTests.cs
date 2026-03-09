@@ -755,7 +755,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var appSettings = new AppSettings
         {
             TranslateFileDir = _tempDir,
-            SourceAircraftDir = sourceRoot
+            DcsWorldInstallDir = sourceRoot
         };
 
         const string repoEntryPath = "DCSWorld/Mods/aircraft/A10C/L10N/Example.lua";

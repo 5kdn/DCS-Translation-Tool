@@ -24,8 +24,7 @@ public sealed class ShellViewModelTests {
     public async Task ActivateAsyncを呼び出すと初期ナビゲーションと設定不足を通知する() {
         var appSettings = new AppSettings
         {
-            SourceAircraftDir = string.Empty,
-            SourceDlcCampaignDir = string.Empty,
+            DcsWorldInstallDir = string.Empty,
             TranslateFileDir = string.Empty
         };
 
@@ -215,8 +214,7 @@ public sealed class ShellViewModelTests {
             .SetupGet( service => service.Settings )
             .Returns( new AppSettings
             {
-                SourceAircraftDir = "set",
-                SourceDlcCampaignDir = "set",
+                DcsWorldInstallDir = "set",
                 TranslateFileDir = "set"
             } );
 
@@ -284,8 +282,7 @@ public sealed class ShellViewModelTests {
             .SetupGet( service => service.Settings )
             .Returns( new AppSettings
             {
-                SourceAircraftDir = "set",
-                SourceDlcCampaignDir = "set",
+                DcsWorldInstallDir = "set",
                 TranslateFileDir = "set"
             } );
 
@@ -329,6 +326,73 @@ public sealed class ShellViewModelTests {
                 It.IsAny<object?>(),
                 It.IsAny<TimeSpan?>() ),
             Times.Never );
+    }
+
+    /// <summary>外部保存が有効で保存先未設定の場合に設定不足を通知することを検証する。</summary>
+    [StaFact]
+    public async Task ActivateAsyncは外部保存先が不足している場合に設定不足を通知する() {
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( new AppSettings
+            {
+                DcsWorldInstallDir = @"C:\DCS",
+                TranslateFileDir = @"C:\Translate",
+                UseExternalAircraftInjectionDir = true,
+                ExternalAircraftInjectionDir = string.Empty
+            } );
+
+        var eventAggregatorMock = new Mock<IEventAggregator>();
+        var loggerMock = new Mock<ILoggingService>();
+        var snackbarQueueMock = new Mock<ISnackbarMessageQueue>();
+        string? capturedMessage = null;
+        var snackbarServiceMock = new Mock<ISnackbarService>();
+        snackbarServiceMock
+            .SetupGet( service => service.MessageQueue )
+            .Returns( snackbarQueueMock.Object );
+        snackbarServiceMock
+            .Setup( service => service.Show(
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<System.Action?>(),
+                It.IsAny<object?>(),
+                It.IsAny<TimeSpan?>() ) )
+            .Callback<string, string?, System.Action?, object?, TimeSpan?>( ( message, _, _, _, _ ) => capturedMessage = message );
+
+        var navigationServiceMock = new Mock<INavigationService>();
+        navigationServiceMock
+            .SetupGet( service => service.CanGoBack )
+            .Returns( false );
+        navigationServiceMock
+            .SetupGet( service => service.CanGoForward )
+            .Returns( false );
+        navigationServiceMock
+            .Setup( service => service.NavigateToViewModel<MainViewModel>( It.IsAny<object?>() ) );
+
+        NavigatedEventHandler? navigatedHandler = null;
+        navigationServiceMock
+            .SetupAdd( service => service.Navigated += It.IsAny<NavigatedEventHandler>() )
+            .Callback<NavigatedEventHandler>( handler => navigatedHandler += handler );
+
+        var systemServiceMock = new Mock<ISystemService>();
+        var updateCheckServiceMock = new Mock<IUpdateCheckService>();
+        updateCheckServiceMock
+            .Setup( service => service.CheckForUpdateAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( UpdateCheckResult.NoUpdate );
+
+        var viewModel = new ShellViewModel(
+            appSettingsServiceMock.Object,
+            eventAggregatorMock.Object,
+            loggerMock.Object,
+            navigationServiceMock.Object,
+            snackbarServiceMock.Object,
+            systemServiceMock.Object,
+            updateCheckServiceMock.Object );
+
+        await viewModel.ActivateAsync( CancellationToken.None );
+        navigatedHandler?.Invoke( navigationServiceMock.Object, CreateNavigatedEventArgs() );
+
+        Assert.Equal( "設定が不足しています。", capturedMessage );
     }
 
     private static NavigatingCancelEventArgs CreateNavigatingEventArgs() {

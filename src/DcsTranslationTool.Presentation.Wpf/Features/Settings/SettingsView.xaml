@@ -29,31 +29,96 @@
                     <TextBlock Text="{x:Static resx:Strings_Settings.DirectorySettingsTitle}"
                                Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}" />
 
-                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.SourceAircraftDirText}"
-                                            ExplanationText="{x:Static resx:Strings_Settings.SourceAircraftDirExplanationText}"
-                                            Path="{Binding SourceAircraftDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            Key="Aircraft"
+                    <TextBlock Margin="{StaticResource SmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.DcsWorldSectionTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+
+                    <TextBlock Margin="{StaticResource SmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.DcsWorldInstallDirText}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.DcsWorldInstallDirExplanationText}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource MaterialDesignBodySmallTextBlock}" />
+                    <common:DirectoryPicker
+                                            Path="{Binding DcsWorldInstallDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="DcsWorldInstall"
                                             ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
                                             Margin="{StaticResource MediumBottomMargin}"/>
 
-                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.SourceDlcCampaignDirText}"
-                                            ExplanationText="{x:Static resx:Strings_Settings.SourceDlcCampaignDirExplanationText}"
-                                            Path="{Binding SourceDlcCampaignDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            Key="DlcCampaign"
-                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
-                                            Margin="{StaticResource MediumBottomMargin}" />
-
-                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.SourceUserMissionDirText}"
-                                            ExplanationText="{x:Static resx:Strings_Settings.SourceUserMissionDirExplanationText}"
+                    <TextBlock Text="{x:Static resx:Strings_Settings.SourceUserMissionDirText}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.SourceUserMissionDirExplanationText}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource MaterialDesignBodySmallTextBlock}" />
+                    <common:DirectoryPicker
                                             Path="{Binding SourceUserMissionDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Key="UserMission"
                                             ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
                                             Margin="{StaticResource MediumBottomMargin}" />
 
-                    <common:DirectoryPicker LabelText="{x:Static resx:Strings_Settings.TranslateFileDirText}"
-                                            ExplanationText="{x:Static resx:Strings_Settings.SourceTranslateFileDirExplanationText}"
+                    <TextBlock Margin="{StaticResource MediumTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.ExternalInjectionTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.ExternalInjectionDescription}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource MaterialDesignBodySmallTextBlock}" />
+
+                    <CheckBox Margin="0,8,0,0"
+                              Padding="0"
+                              VerticalContentAlignment="Center"
+                              IsChecked="{Binding UseExternalAircraftInjectionDir, Mode=TwoWay}">
+                        <TextBlock Text="{x:Static resx:Strings_Settings.ExternalAircraftInjectionCheckBoxText}"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    </CheckBox>
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.ExternalAircraftInjectionDirExplanationText}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource MaterialDesignBodySmallTextBlock}" />
+                    <common:DirectoryPicker
+                                            Path="{Binding ExternalAircraftInjectionDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="ExternalAircraftInjection"
+                                            IsEnabled="{Binding UseExternalAircraftInjectionDir}"
+                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
+                                            Margin="{StaticResource XSmallTopMargin}" />
+
+                    <CheckBox Margin="0,16,0,0"
+                              Padding="0"
+                              VerticalContentAlignment="Center"
+                              IsChecked="{Binding UseExternalCampaignInjectionDir, Mode=TwoWay}">
+                        <TextBlock Text="{x:Static resx:Strings_Settings.ExternalCampaignInjectionCheckBoxText}"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    </CheckBox>
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.ExternalCampaignInjectionDirExplanationText}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource MaterialDesignBodySmallTextBlock}" />
+                    <common:DirectoryPicker
+                                            Path="{Binding ExternalCampaignInjectionDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            Key="ExternalCampaignInjection"
+                                            IsEnabled="{Binding UseExternalCampaignInjectionDir}"
+                                            ButtonText="{x:Static resx:Strings_Settings.SelectButton}"
+                                            Margin="{StaticResource XSmallTopMargin}" />
+
+                    <TextBlock Margin="{StaticResource MediumTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.DcsTranslationToolSectionTitle}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+
+                    <TextBlock Margin="{StaticResource SmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.TranslateFileDirText}"
+                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                    <TextBlock Margin="{StaticResource XSmallTopMargin}"
+                               Text="{x:Static resx:Strings_Settings.SourceTranslateFileDirExplanationText}"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource MaterialDesignBodySmallTextBlock}" />
+                    <common:DirectoryPicker
                                             Path="{Binding TranslateFileDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                             Key="TranslateFile"
+                                            Margin="{StaticResource XSmallTopMargin}"
                                             ButtonText="{x:Static resx:Strings_Settings.SelectButton}" />
                 </StackPanel>
                 <!-- About -->

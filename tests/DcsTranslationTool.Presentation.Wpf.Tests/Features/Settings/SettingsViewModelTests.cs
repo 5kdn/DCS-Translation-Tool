@@ -58,9 +58,9 @@ public sealed class SettingsViewModelTests {
             message => Assert.Equal( string.Empty, message ) );
     }
 
-    /// <summary>Browse を呼び出した際に TranslateFileDir を更新することを検証する。</summary>
+    /// <summary>Browse を呼び出した際に DcsWorldInstallDir を更新することを検証する。</summary>
     [StaFact]
-    public void Browseを呼び出すとTranslateFileDirを更新する() {
+    public void Browseを呼び出すとDcsWorldInstallDirを更新する() {
         var appSettings = new AppSettings();
         var appSettingsServiceMock = new Mock<IAppSettingsService>();
         appSettingsServiceMock
@@ -99,10 +99,10 @@ public sealed class SettingsViewModelTests {
             loggerMock.Object,
             systemServiceMock.Object );
 
-        viewModel.Browse( @"C:\Start", "TranslateFile" );
+        viewModel.Browse( @"C:\Start", "DcsWorldInstall" );
 
-        Assert.Equal( selectedPath, viewModel.TranslateFileDir );
-        Assert.Equal( selectedPath, appSettings.TranslateFileDir );
+        Assert.Equal( selectedPath, viewModel.DcsWorldInstallDir );
+        Assert.Equal( selectedPath, appSettings.DcsWorldInstallDir );
     }
 
     /// <summary>Browse をキャンセルした際に設定値が変化しないことを検証する。</summary>
@@ -110,7 +110,7 @@ public sealed class SettingsViewModelTests {
     public void Browseをキャンセルすると設定値を保持する() {
         var appSettings = new AppSettings
         {
-            TranslateFileDir = @"D:\Existing"
+            ExternalAircraftInjectionDir = @"D:\Existing"
         };
         var appSettingsServiceMock = new Mock<IAppSettingsService>();
         appSettingsServiceMock
@@ -149,10 +149,56 @@ public sealed class SettingsViewModelTests {
             loggerMock.Object,
             systemServiceMock.Object );
 
-        viewModel.Browse( @"C:\Start", "TranslateFile" );
+        viewModel.Browse( @"C:\Start", "ExternalAircraftInjection" );
 
-        Assert.Equal( @"D:\Existing", viewModel.TranslateFileDir );
-        Assert.Equal( @"D:\Existing", appSettings.TranslateFileDir );
+        Assert.Equal( @"D:\Existing", viewModel.ExternalAircraftInjectionDir );
+        Assert.Equal( @"D:\Existing", appSettings.ExternalAircraftInjectionDir );
+    }
+
+    /// <summary>外部保存設定を更新した際に AppSettings へ反映することを検証する。</summary>
+    [StaFact]
+    public void 外部保存設定を更新するとAppSettingsへ反映する() {
+        var appSettings = new AppSettings();
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( appSettings );
+
+        var applicationInfoServiceMock = new Mock<IApplicationInfoService>();
+        applicationInfoServiceMock
+            .Setup( service => service.GetVersion() )
+            .Returns( new Version( 1, 0 ) );
+
+        var dialogProviderMock = new Mock<IDialogProvider>();
+        var eventAggregatorMock = new Mock<IEventAggregator>();
+        eventAggregatorMock
+            .Setup( aggregator => aggregator.PublishAsync(
+                It.IsAny<object>(),
+                It.IsAny<Func<Func<Task>, Task>>(),
+                It.IsAny<CancellationToken>() ) )
+            .Returns( Task.CompletedTask );
+
+        var loggerMock = new Mock<ILoggingService>();
+        var systemServiceMock = new Mock<ISystemService>();
+
+        var viewModel = new SettingsViewModel(
+            applicationInfoServiceMock.Object,
+            appSettingsServiceMock.Object,
+            dialogProviderMock.Object,
+            eventAggregatorMock.Object,
+            loggerMock.Object,
+            systemServiceMock.Object )
+        {
+            UseExternalAircraftInjectionDir = true,
+            ExternalAircraftInjectionDir = @"D:\Mods\Aircraft",
+            UseExternalCampaignInjectionDir = true,
+            ExternalCampaignInjectionDir = @"D:\Mods\Campaigns"
+        };
+
+        Assert.True( appSettings.UseExternalAircraftInjectionDir );
+        Assert.Equal( @"D:\Mods\Aircraft", appSettings.ExternalAircraftInjectionDir );
+        Assert.True( appSettings.UseExternalCampaignInjectionDir );
+        Assert.Equal( @"D:\Mods\Campaigns", appSettings.ExternalCampaignInjectionDir );
     }
 
 }
