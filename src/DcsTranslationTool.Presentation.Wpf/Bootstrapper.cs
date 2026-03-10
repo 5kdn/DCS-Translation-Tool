@@ -8,6 +8,7 @@ using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Features.Translation;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -56,6 +57,7 @@ public class Bootstrapper : BootstrapperBase {
         container.PerRequest<SettingsViewModel>();
         container.PerRequest<DownloadViewModel>();
         container.PerRequest<UploadViewModel>();
+        container.PerRequest<TranslationViewModel>();
         container.PerRequest<CreatePullRequestViewModel>();
     }
 

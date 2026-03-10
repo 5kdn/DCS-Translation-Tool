@@ -11,7 +11,8 @@
 
     <Grid x:Name="ButtonsGrid">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="2*" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -50,6 +51,26 @@
                 </Viewbox>
                 <Viewbox Grid.Row="1">
                     <TextBlock Text="{x:Static resx:Strings_Upload.Title}"/>
+                </Viewbox>
+            </Grid>
+        </Button>
+
+        <Button Grid.Column="2"
+                Height="Auto"
+                MaxHeight="600" MaxWidth="600"
+                MinHeight="300" MinWidth="100"
+                Margin="{StaticResource SmallMargin}"
+                cal:Message.Attach="NavToTranslation()">
+            <Grid Margin="{StaticResource MediumMargin}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Viewbox>
+                    <md:PackIcon Kind="Translate"/>
+                </Viewbox>
+                <Viewbox Grid.Row="1">
+                    <TextBlock Text="{x:Static resx:Strings_Translation.Title}"/>
                 </Viewbox>
             </Grid>
         </Button>

@@ -27,6 +27,11 @@
             <AutoGen>True</AutoGen>
             <DependentUpon>Strings.Shared.resx</DependentUpon>
         </Compile>
+        <Compile Update="Strings.Translation.Designer.cs">
+          <DesignTime>True</DesignTime>
+          <AutoGen>True</AutoGen>
+          <DependentUpon>Strings.Translation.resx</DependentUpon>
+        </Compile>
         <Compile Update="Strings.Upload.Designer.cs">
           <DesignTime>True</DesignTime>
           <AutoGen>True</AutoGen>
@@ -50,6 +55,10 @@
         <EmbeddedResource Update="Strings.Shared.resx">
             <Generator>PublicResXFileCodeGenerator</Generator>
             <LastGenOutput>Strings.Shared.Designer.cs</LastGenOutput>
+        </EmbeddedResource>
+        <EmbeddedResource Update="Strings.Translation.resx">
+          <Generator>PublicResXFileCodeGenerator</Generator>
+          <LastGenOutput>Strings.Translation.Designer.cs</LastGenOutput>
         </EmbeddedResource>
         <EmbeddedResource Update="Strings.Upload.resx">
           <Generator>PublicResXFileCodeGenerator</Generator>
