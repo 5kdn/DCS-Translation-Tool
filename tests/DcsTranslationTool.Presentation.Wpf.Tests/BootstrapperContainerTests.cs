@@ -113,6 +113,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<FileEntryService>( Get<IFileEntryService>() );
             Assert.IsType<FileService>( Get<IFileService>() );
             Assert.IsType<FileContentInspector>( Get<IFileContentInspector>() );
+            Assert.IsType<TranslationArchiveDiscoveryService>( Get<ITranslationArchiveDiscoveryService>() );
             Assert.IsType<ApplicationInfoService>( Get<IApplicationInfoService>() );
             Assert.IsType<EnvironmentProvider>( Get<IEnvironmentProvider>() );
             Assert.IsType<ProcessLauncher>( Get<IProcessLauncher>() );
