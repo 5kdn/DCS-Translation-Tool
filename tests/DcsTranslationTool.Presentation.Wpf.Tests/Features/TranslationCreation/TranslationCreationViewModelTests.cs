@@ -32,6 +32,16 @@ public sealed class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public void 初期状態では選択項目詳細は空文字になる() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        Assert.Null( viewModel.SelectedDictionaryItem );
+        Assert.Equal( string.Empty, viewModel.SelectedOriginal );
+        Assert.Equal( string.Empty, viewModel.SelectedTranslated );
+    }
+
+    [Fact]
     public async Task ActivateAsyncはdictionary項目一覧を読み込む() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
@@ -53,6 +63,90 @@ public sealed class TranslationCreationViewModelTests {
         Assert.True( viewModel.HideEmptyOriginal );
         Assert.Equal( "o1", viewModel.DictionaryItems[0].Original );
         Assert.Equal( string.Empty, viewModel.DictionaryItems[0].Translated );
+    }
+
+    [Fact]
+    public async Task SelectedDictionaryItem設定時に詳細表示が追従する() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" ) { Translated = "t1" },
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_2", "o2" ) { Translated = "t2" }
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems[1];
+
+        Assert.Equal( "o2", viewModel.SelectedOriginal );
+        Assert.Equal( "t2", viewModel.SelectedTranslated );
+    }
+
+    [Fact]
+    public async Task SelectedTranslated更新時に選択項目へ反映する() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+        viewModel.SelectedTranslated = "translated";
+
+        Assert.Equal( "translated", viewModel.DictionaryItems.Single().Translated );
+        Assert.Equal( "translated", viewModel.SelectedTranslated );
+    }
+
+    [Fact]
+    public async Task 選択中項目のTranslated変更時にSelectedTranslated変更通知を発火する() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+        var notifiedProperties = new List<string>();
+
+        viewModel.PropertyChanged += ( _, e ) => {
+            if(e.PropertyName is not null) {
+                notifiedProperties.Add( e.PropertyName );
+            }
+        };
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+
+        notifiedProperties.Clear();
+        viewModel.DictionaryItems.Single().Translated = "translated";
+
+        Assert.Contains( nameof( TranslationCreationViewModel.SelectedTranslated ), notifiedProperties );
+    }
+
+    [Fact]
+    public async Task SelectedDictionaryItemをnullにすると詳細表示は空文字へ戻る() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" ) { Translated = "t1" }
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+        viewModel.SelectedDictionaryItem = null;
+
+        Assert.Equal( string.Empty, viewModel.SelectedOriginal );
+        Assert.Equal( string.Empty, viewModel.SelectedTranslated );
     }
 
     [Fact]
@@ -286,6 +380,20 @@ public sealed class TranslationCreationViewModelTests {
         context.TranslationDictionaryServiceMock
             .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
             .Returns( Result.Fail<IReadOnlyList<TranslationDictionaryItem>>( ResultErrorFactory.NotFound( "not found", "TEST" ) ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+
+        Assert.False( viewModel.HasDictionaryItems );
+        Assert.Equal( Strings_Translation.CreateTranslationDictionaryLoadFailedMessage, viewModel.StatusMessage );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはdictionary読込サービス例外時も状態メッセージを設定する() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Throws( new InvalidOperationException( "boom" ) );
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );

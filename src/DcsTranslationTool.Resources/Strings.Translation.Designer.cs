@@ -115,11 +115,29 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   Original に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationOriginalLabelText {
+            get {
+                return ResourceManager.GetString("CreateTranslationOriginalLabelText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   未翻訳のみ表示 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationShowOnlyUntranslatedFilterText {
             get {
                 return ResourceManager.GetString("CreateTranslationShowOnlyUntranslatedFilterText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Translated に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationTranslatedLabelText {
+            get {
+                return ResourceManager.GetString("CreateTranslationTranslatedLabelText", resourceCulture);
             }
         }
         

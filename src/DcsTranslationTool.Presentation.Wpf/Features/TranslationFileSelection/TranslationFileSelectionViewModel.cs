@@ -7,6 +7,7 @@ using Caliburn.Micro;
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
@@ -174,12 +175,24 @@ public sealed class TranslationFileSelectionViewModel(
             return;
         }
 
+        TranslationCreationViewModel translationCreationViewModel;
+
         try {
-            logger.Info( $"翻訳作成ウィンドウを表示する。Archive={archiveFullPath}" );
-            await windowManager.ShowWindowAsync( translationCreationViewModelFactory.Create( archiveFullPath ) );
+            logger.Info( $"翻訳作成 ViewModel を生成する。Archive={archiveFullPath}" );
+            translationCreationViewModel = translationCreationViewModelFactory.Create( archiveFullPath );
         }
         catch(Exception ex) {
-            logger.Error( "翻訳作成ウィンドウの表示に失敗した。", ex );
+            logger.Error( $"翻訳作成 ViewModel の生成に失敗した。Archive={archiveFullPath}", ex );
+            snackbarService.Show( Strings_Translation.CreateTranslationWindowOpenFailedMessage );
+            return;
+        }
+
+        try {
+            logger.Info( $"翻訳作成ウィンドウを表示する。Archive={archiveFullPath}" );
+            await windowManager.ShowWindowAsync( translationCreationViewModel );
+        }
+        catch(Exception ex) {
+            logger.Error( $"翻訳作成ウィンドウの表示に失敗した。Archive={archiveFullPath}", ex );
             snackbarService.Show( Strings_Translation.CreateTranslationWindowOpenFailedMessage );
         }
     }

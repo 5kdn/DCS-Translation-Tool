@@ -106,4 +106,10 @@
   <data name="CreateTranslationHideEmptyOriginalFilterText" xml:space="preserve">
     <value>空欄を非表示</value>
   </data>
+  <data name="CreateTranslationOriginalLabelText" xml:space="preserve">
+    <value>Original</value>
+  </data>
+  <data name="CreateTranslationTranslatedLabelText" xml:space="preserve">
+    <value>Translated</value>
+  </data>
 </root>

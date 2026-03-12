@@ -23,6 +23,7 @@ public sealed class TranslationCreationViewModel(
     ITranslationDictionaryService translationDictionaryService
 ) : Screen {
     private ObservableCollection<TranslationDictionaryItemRowViewModel> _dictionaryItems = [];
+    private TranslationDictionaryItemRowViewModel? _selectedDictionaryItem;
     private bool _isLoading;
     private string _statusMessage = string.Empty;
     private bool _showOnlyUntranslated;
@@ -64,6 +65,45 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     public ICollectionView FilteredDictionaryItemsView { get; private set; } =
         CollectionViewSource.GetDefaultView( Array.Empty<object>() );
+
+    /// <summary>
+    /// 選択中の dictionary 項目を取得または設定する。
+    /// </summary>
+    public TranslationDictionaryItemRowViewModel? SelectedDictionaryItem {
+        get => _selectedDictionaryItem;
+        set {
+            if(!Set( ref _selectedDictionaryItem, value )) {
+                return;
+            }
+
+            NotifyOfPropertyChange( nameof( SelectedOriginal ) );
+            NotifyOfPropertyChange( nameof( SelectedTranslated ) );
+        }
+    }
+
+    /// <summary>
+    /// 選択中項目の Original を取得する。
+    /// </summary>
+    public string SelectedOriginal => SelectedDictionaryItem?.Original ?? string.Empty;
+
+    /// <summary>
+    /// 選択中項目の Translated を取得または設定する。
+    /// </summary>
+    public string SelectedTranslated {
+        get => SelectedDictionaryItem?.Translated ?? string.Empty;
+        set {
+            if(SelectedDictionaryItem is null) {
+                return;
+            }
+
+            if(string.Equals( SelectedDictionaryItem.Translated, value, StringComparison.Ordinal )) {
+                return;
+            }
+
+            SelectedDictionaryItem.Translated = value;
+            NotifyOfPropertyChange();
+        }
+    }
 
     /// <summary>
     /// 読み込み中かどうかを取得または設定する。
@@ -141,12 +181,14 @@ public sealed class TranslationCreationViewModel(
     }
 
     /// <summary>
-    /// アクティブ化時に dictionary を読み込む。
+    /// アクティブ化完了時に dictionary を読み込む。
     /// </summary>
     /// <param name="cancellationToken">キャンセルトークン。</param>
     /// <returns>非同期タスク。</returns>
-    protected override Task OnActivateAsync( CancellationToken cancellationToken ) =>
-        LoadDictionaryAsync( cancellationToken );
+    protected override async Task OnActivatedAsync( CancellationToken cancellationToken ) {
+        await base.OnActivatedAsync( cancellationToken );
+        await LoadDictionaryAsync( cancellationToken );
+    }
 
     private Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
         cancellationToken.ThrowIfCancellationRequested();
@@ -160,6 +202,7 @@ public sealed class TranslationCreationViewModel(
             if(result.IsFailed) {
                 StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadFailedMessage;
                 DictionaryItems = [];
+                SelectedDictionaryItem = null;
                 return Task.CompletedTask;
             }
 
@@ -169,9 +212,17 @@ public sealed class TranslationCreationViewModel(
                     .ThenBy( item => item.Key, StringComparer.Ordinal )
                     .Select( item => new TranslationDictionaryItemRowViewModel( item ) )
             ];
+            SelectedDictionaryItem = null;
             StatusMessage = DictionaryItems.Count == 0
                 ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
                 : string.Empty;
+            return Task.CompletedTask;
+        }
+        catch(Exception ex) {
+            logger.Error( $"TranslationCreationViewModel の dictionary 読込中に例外が発生した。Archive={ArchiveFullPath}", ex );
+            DictionaryItems = [];
+            SelectedDictionaryItem = null;
+            StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadFailedMessage;
             return Task.CompletedTask;
         }
         finally {
@@ -242,6 +293,10 @@ public sealed class TranslationCreationViewModel(
 
     private void OnDictionaryItemPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
         if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.Translated )) {
+            if(ReferenceEquals( sender, SelectedDictionaryItem )) {
+                NotifyOfPropertyChange( nameof( SelectedTranslated ) );
+            }
+
             RefreshFilter();
         }
     }

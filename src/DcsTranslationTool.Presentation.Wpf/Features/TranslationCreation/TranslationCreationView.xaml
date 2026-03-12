@@ -81,6 +81,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="2*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -119,6 +121,7 @@
                       IsReadOnly="True"
                       HeadersVisibility="Column"
                       ItemsSource="{Binding FilteredDictionaryItemsView}"
+                      SelectedItem="{Binding SelectedDictionaryItem, Mode=TwoWay}"
                       Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Key"
@@ -132,6 +135,46 @@
                                         Width="3*" />
                 </DataGrid.Columns>
             </DataGrid>
+
+            <Grid Grid.Row="5"
+                  Margin="{StaticResource SmallTopMargin}"
+                  Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
+                           Margin="{StaticResource SmallBottomMargin}"
+                           Text="{x:Static resx:Strings_Translation.CreateTranslationOriginalLabelText}"
+                           Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+                <TextBlock Grid.Row="0"
+                           Grid.Column="1"
+                           Margin="{StaticResource SmallLeftMargin}"
+                           Text="{x:Static resx:Strings_Translation.CreateTranslationTranslatedLabelText}"
+                           Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+
+                <TextBox Grid.Row="1"
+                         Grid.Column="0"
+                         Text="{Binding SelectedOriginal, Mode=OneWay}"
+                         IsReadOnly="True"
+                         IsReadOnlyCaretVisible="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Margin="{StaticResource SmallLeftMargin}"
+                         Text="{Binding SelectedTranslated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" />
+            </Grid>
         </Grid>
     </Grid>
 </Window>

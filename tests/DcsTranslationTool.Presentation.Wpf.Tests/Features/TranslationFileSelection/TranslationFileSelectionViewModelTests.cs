@@ -278,6 +278,105 @@ public sealed class TranslationFileSelectionViewModelTests {
     }
 
     [StaFact]
+    public async Task CreateTranslationはファクトリ失敗時にsnackbarと詳細ログを出す() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Mission1.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+                        "A10C/Mission1.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz,
+                        true )
+                ] );
+        context.TranslationCreationViewModelFactoryMock
+            .Setup( factory => factory.Create( It.IsAny<string>() ) )
+            .Throws( new InvalidOperationException( "factory failed" ) );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var moduleNode = Assert.Single( aircraftTab.Root.Children );
+        var fileNode = Assert.Single( moduleNode.Children );
+        fileNode.IsSelected = true;
+
+        await viewModel.CreateTranslation();
+
+        context.SnackbarServiceMock.Verify( service => service.Show(
+            Strings_Translation.CreateTranslationWindowOpenFailedMessage,
+            It.IsAny<string?>(),
+            It.IsAny<System.Action?>(),
+            It.IsAny<object?>(),
+            It.IsAny<TimeSpan?>() ), Times.Once );
+        context.LoggerMock.Verify(
+            service => service.Error(
+                It.Is<string>( message => message.Contains( "ViewModel の生成に失敗", StringComparison.Ordinal ) && message.Contains( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz", StringComparison.Ordinal ) ),
+                It.IsAny<Exception>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<int>() ),
+            Times.Once );
+    }
+
+    [StaFact]
+    public async Task CreateTranslationはウィンドウ表示失敗時にsnackbarと詳細ログを出す() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Mission1.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+                        "A10C/Mission1.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz,
+                        true )
+                ] );
+        context.TranslationCreationViewModelFactoryMock
+            .Setup( factory => factory.Create( It.IsAny<string>() ) )
+            .Returns<string>( path => new TranslationCreationViewModel(
+                path,
+                context.LoggerMock.Object,
+                context.TranslationDictionaryServiceMock.Object ) );
+        context.WindowManagerMock
+            .Setup( manager => manager.ShowWindowAsync(
+                It.IsAny<object>(),
+                It.IsAny<object?>(),
+                It.IsAny<IDictionary<string, object>?>() ) )
+            .ThrowsAsync( new InvalidOperationException( "window failed" ) );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var moduleNode = Assert.Single( aircraftTab.Root.Children );
+        var fileNode = Assert.Single( moduleNode.Children );
+        fileNode.IsSelected = true;
+
+        await viewModel.CreateTranslation();
+
+        context.SnackbarServiceMock.Verify( service => service.Show(
+            Strings_Translation.CreateTranslationWindowOpenFailedMessage,
+            It.IsAny<string?>(),
+            It.IsAny<System.Action?>(),
+            It.IsAny<object?>(),
+            It.IsAny<TimeSpan?>() ), Times.Once );
+        context.LoggerMock.Verify(
+            service => service.Error(
+                It.Is<string>( message => message.Contains( "ウィンドウの表示に失敗", StringComparison.Ordinal ) && message.Contains( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz", StringComparison.Ordinal ) ),
+                It.IsAny<Exception>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<int>() ),
+            Times.Once );
+    }
+
+    [StaFact]
     public async Task trkファイル選択時にCanCreateTranslationがtrueになる() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
