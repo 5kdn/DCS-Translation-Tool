@@ -29,7 +29,7 @@ public sealed class TranslationCreationViewTests {
             .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
             .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
                 [
-                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "original" )
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "line1\r\nline2" ) { Translated = "translated1\r\ntranslated2" }
                 ] ) );
 
         var viewModel = new TranslationCreationViewModel(
@@ -38,12 +38,31 @@ public sealed class TranslationCreationViewTests {
             dictionaryServiceMock.Object );
         view.DataContext = viewModel;
         await Caliburn.Micro.ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
 
         view.Show();
         view.UpdateLayout();
         view.Close();
 
         Assert.NotNull( view );
+    }
+
+    public static TheoryData<string, int[]> GetNewlineMarkerIndicesTestData => new()
+    {
+        { string.Empty, [] },
+        { "single line", [] },
+        { "line1\nline2", [5] },
+        { "line1\r\nline2", [5] },
+        { "\nline2\n", [0, 6] },
+        { "line1\rline2", [5] }
+    };
+
+    [Theory]
+    [MemberData( nameof( GetNewlineMarkerIndicesTestData ) )]
+    public void 改行マーカー位置抽出はCRLFとLFを正しく扱う( string text, int[] expectedIndices ) {
+        var actual = TextBoxNewlineMarkerAdorner.GetNewlineMarkerIndices( text );
+
+        Assert.Equal( expectedIndices, actual );
     }
 
     private static void EnsureApplicationResources() {

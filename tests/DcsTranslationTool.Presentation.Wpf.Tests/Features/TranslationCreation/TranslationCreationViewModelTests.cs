@@ -104,6 +104,49 @@ public sealed class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public void RowViewModelはOriginalの改行をDataGrid表示用にエスケープする() {
+        var rowViewModel = new TranslationDictionaryItemRowViewModel(
+            new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "first line\r\n\r\nsecond line" ) );
+
+        Assert.Equal( @"first line\n\nsecond line", rowViewModel.OriginalDisplayText );
+    }
+
+    [Fact]
+    public void RowViewModelはLF改行をDataGrid表示用にエスケープする() {
+        var rowViewModel = new TranslationDictionaryItemRowViewModel(
+            new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "first line\n\nsecond line" ) );
+
+        Assert.Equal( @"first line\n\nsecond line", rowViewModel.OriginalDisplayText );
+    }
+
+    [Fact]
+    public void RowViewModelはTranslated更新時にDataGrid表示用文字列へ反映する() {
+        var rowViewModel = new TranslationDictionaryItemRowViewModel(
+            new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "original" ) );
+
+        rowViewModel.Translated = "first line\r\nsecond line";
+
+        Assert.Equal( @"first line\nsecond line", rowViewModel.TranslatedDisplayText );
+    }
+
+    [Fact]
+    public void RowViewModelはCR改行もDataGrid表示用にLF表記へ正規化する() {
+        var rowViewModel = new TranslationDictionaryItemRowViewModel(
+            new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "first line\rsecond line" ) );
+
+        Assert.Equal( @"first line\nsecond line", rowViewModel.OriginalDisplayText );
+    }
+
+    [Fact]
+    public void RowViewModelは改行なし文字列をそのままDataGrid表示する() {
+        var rowViewModel = new TranslationDictionaryItemRowViewModel(
+            new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "single line" ) );
+
+        Assert.Equal( "single line", rowViewModel.OriginalDisplayText );
+        Assert.Equal( string.Empty, rowViewModel.TranslatedDisplayText );
+    }
+
+    [Fact]
     public async Task 選択中項目のTranslated変更時にSelectedTranslated変更通知を発火する() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
@@ -195,6 +238,34 @@ public sealed class TranslationCreationViewModelTests {
                 "DictKey_other_b",
                 "AnotherKey_a",
                 "OtherKey_z"
+            ],
+            viewModel.DictionaryItems.Select( item => item.Key ).ToArray() );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncは同一グループ内を自然順で並べる() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_10", "o10" ),
+                    new TranslationDictionaryItem( "DictKey_sortie_2", "o2" ),
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" ),
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_10", "d10" ),
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_2", "d2" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+
+        Assert.Equal(
+            [
+                "DictKey_sortie_1",
+                "DictKey_sortie_2",
+                "DictKey_sortie_10",
+                "DictKey_descriptionFoo_2",
+                "DictKey_descriptionFoo_10"
             ],
             viewModel.DictionaryItems.Select( item => item.Key ).ToArray() );
     }

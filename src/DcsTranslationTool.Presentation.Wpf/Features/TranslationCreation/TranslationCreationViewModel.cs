@@ -209,7 +209,7 @@ public sealed class TranslationCreationViewModel(
             DictionaryItems = [
                 .. result.Value
                     .OrderBy( GetDictionaryItemSortOrder )
-                    .ThenBy( item => item.Key, StringComparer.Ordinal )
+                    .ThenBy( item => item.Key, TranslationCreationNaturalKeyComparer.Instance )
                     .Select( item => new TranslationDictionaryItemRowViewModel( item ) )
             ];
             SelectedDictionaryItem = null;

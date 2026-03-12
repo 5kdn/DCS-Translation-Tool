@@ -67,8 +67,8 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
         Dictionary<string, TranslationDictionaryItem> itemsByKey = new( StringComparer.Ordinal );
 
         foreach(Match match in DictionaryEntryRegex().Matches( content )) {
-            var key = Regex.Unescape( match.Groups["key"].Value );
-            var value = Regex.Unescape( match.Groups["value"].Value );
+            var key = UnescapeLuaString( match.Groups["key"].Value );
+            var value = UnescapeLuaString( match.Groups["value"].Value );
             itemsByKey[key] = new TranslationDictionaryItem( key, value );
         }
 
@@ -78,6 +78,69 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     [GeneratedRegex( @"dictionary\s*=\s*\{(?<content>[\s\S]*)\}", RegexOptions.CultureInvariant )]
     private static partial Regex DictionaryBlockRegex();
 
-    [GeneratedRegex( @"\[\s*""(?<key>(?:\\.|[^""\\])*)""\s*\]\s*=\s*""(?<value>(?:\\.|[^""\\])*)""", RegexOptions.CultureInvariant )]
+    [GeneratedRegex( @"\[\s*""(?<key>(?:\\(?:\r\n|\r|\n|.)|[^""\\])*)""\s*\]\s*=\s*""(?<value>(?:\\(?:\r\n|\r|\n|.)|[^""\\])*)""", RegexOptions.CultureInvariant )]
     private static partial Regex DictionaryEntryRegex();
+
+    private static string UnescapeLuaString( string value ) {
+        if(string.IsNullOrEmpty( value )) {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder( value.Length );
+        for(var index = 0; index < value.Length; index++) {
+            var current = value[index];
+            if(current != '\\') {
+                builder.Append( current );
+                continue;
+            }
+
+            if(index + 1 >= value.Length) {
+                builder.Append( current );
+                continue;
+            }
+
+            var next = value[index + 1];
+            switch(next) {
+                case '\\':
+                    builder.Append( '\\' );
+                    index++;
+                    break;
+                case '"':
+                    builder.Append( '"' );
+                    index++;
+                    break;
+                case 'n':
+                    builder.Append( '\n' );
+                    index++;
+                    break;
+                case 'r':
+                    builder.Append( '\r' );
+                    index++;
+                    break;
+                case 't':
+                    builder.Append( '\t' );
+                    index++;
+                    break;
+                case '\n':
+                    builder.Append( '\n' );
+                    index++;
+                    break;
+                case '\r':
+                    builder.Append( '\r' );
+                    index++;
+                    if(index + 1 < value.Length && value[index + 1] == '\n') {
+                        builder.Append( '\n' );
+                        index++;
+                    }
+
+                    break;
+                default:
+                    builder.Append( next );
+                    index++;
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
 }

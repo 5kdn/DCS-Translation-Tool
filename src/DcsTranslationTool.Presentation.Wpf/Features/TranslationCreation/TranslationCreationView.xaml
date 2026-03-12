@@ -128,10 +128,10 @@
                                         Binding="{Binding Key}"
                                         Width="2*" />
                     <DataGridTextColumn Header="Original"
-                                        Binding="{Binding Original}"
+                                        Binding="{Binding OriginalDisplayText}"
                                         Width="3*" />
                     <DataGridTextColumn Header="Translated"
-                                        Binding="{Binding Translated}"
+                                        Binding="{Binding TranslatedDisplayText}"
                                         Width="3*" />
                 </DataGrid.Columns>
             </DataGrid>
@@ -162,6 +162,7 @@
                 <TextBox Grid.Row="1"
                          Grid.Column="0"
                          Text="{Binding SelectedOriginal, Mode=OneWay}"
+                         local:TextBoxNewlineMarker.IsEnabled="True"
                          IsReadOnly="True"
                          IsReadOnlyCaretVisible="True"
                          AcceptsReturn="True"
@@ -171,6 +172,7 @@
                          Grid.Column="1"
                          Margin="{StaticResource SmallLeftMargin}"
                          Text="{Binding SelectedTranslated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         local:TextBoxNewlineMarker.IsEnabled="True"
                          AcceptsReturn="True"
                          TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" />

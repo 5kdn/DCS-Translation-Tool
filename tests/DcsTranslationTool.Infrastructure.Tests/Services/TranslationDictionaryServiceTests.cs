@@ -93,6 +93,53 @@ dictionary = {
         Assert.Equal( string.Empty, item.Translated );
     }
 
+    [Fact]
+    public void LoadDictionaryはLua文字列の行継続で改行コードを保持して読み込む() {
+        var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", """
+dictionary =
+{
+    ["DictKey_10"] = "Target marked with yellow smoke.\
+\
+ You are cleared in. Out.",
+} -- end of dictionary
+""" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadDictionary( archivePath );
+
+        var item = Assert.Single( result.Value );
+        Assert.Equal( "DictKey_10", item.Key );
+        Assert.Equal(
+            "Target marked with yellow smoke."
+            + Environment.NewLine
+            + Environment.NewLine
+            + " You are cleared in. Out.",
+            item.Original );
+    }
+
+    [Theory]
+    [InlineData( "\\n", "\n" )]
+    [InlineData( "\\r", "\r" )]
+    [InlineData( "\\t", "\t" )]
+    [InlineData( "\\\\", "\\" )]
+    [InlineData( "\\\"", "\"" )]
+    [InlineData( "\\\n", "\n" )]
+    [InlineData( "\\\r", "\r" )]
+    [InlineData( "\\\r\n", "\r\n" )]
+    public void LoadDictionaryはLua文字列の主要escapeを復元する( string escapedValue, string expectedValue ) {
+        var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", $$"""
+dictionary = {
+    ["key"] = "{{escapedValue}}"
+}
+""" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadDictionary( archivePath );
+
+        var item = Assert.Single( result.Value );
+        Assert.Equal( expectedValue, item.Original );
+    }
+
     private string CreateArchive( string entryPath, string content ) {
         var archivePath = Path.Combine( _tempDirectory, $"{Guid.NewGuid():N}.miz" );
         using var archive = ZipFile.Open( archivePath, ZipArchiveMode.Create );
