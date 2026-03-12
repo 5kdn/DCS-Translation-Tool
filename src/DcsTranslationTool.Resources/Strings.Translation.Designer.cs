@@ -61,6 +61,33 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   翻訳を作成 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationButtonContent {
+            get {
+                return ResourceManager.GetString("CreateTranslationButtonContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   翻訳作成ウィンドウを開けませんでした に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationWindowOpenFailedMessage {
+            get {
+                return ResourceManager.GetString("CreateTranslationWindowOpenFailedMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   翻訳を作成 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationWindowTitle {
+            get {
+                return ResourceManager.GetString("CreateTranslationWindowTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   このカテゴリに翻訳対象アーカイブはありません。 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string EmptyMessage {

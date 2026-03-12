@@ -107,6 +107,11 @@
                                      Text="{x:Static resx:Strings_Translation.OpenDirectoryButtonContent}"
                                      IsEnabled="{Binding CanOpenDirectory}"
                                      cal:Message.Attach="[Event Click] = [Action OpenDirectory]" />
+                <common:ActionButton IconKind="Translate"
+                                     Margin="{StaticResource SmallLeftMargin}"
+                                     Text="{x:Static resx:Strings_Translation.CreateTranslationButtonContent}"
+                                     IsEnabled="{Binding CanCreateTranslation}"
+                                     cal:Message.Attach="[Event Click] = [Action CreateTranslation]" />
             </StackPanel>
         </Grid>
     </Grid>

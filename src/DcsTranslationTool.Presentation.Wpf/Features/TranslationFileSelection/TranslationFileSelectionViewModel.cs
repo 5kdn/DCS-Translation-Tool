@@ -7,6 +7,7 @@ using Caliburn.Micro;
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
@@ -26,6 +27,7 @@ public sealed class TranslationFileSelectionViewModel(
     ILoggingService logger,
     ISnackbarService snackbarService,
     ISystemService systemService,
+    IWindowManager windowManager,
     ITranslationArchiveDiscoveryService translationArchiveDiscoveryService
 ) : Screen, IActivate {
     private ObservableCollection<TabItemViewModel> _tabs = [];
@@ -83,6 +85,11 @@ public sealed class TranslationFileSelectionViewModel(
     /// フォルダーを開く操作が可能かどうかを取得する。
     /// </summary>
     public bool CanOpenDirectory => !IsLoading && GetSelectedNode() is not null;
+
+    /// <summary>
+    /// 翻訳作成ウィンドウを表示可能かどうかを取得する。
+    /// </summary>
+    public bool CanCreateTranslation => !IsLoading && GetSelectedArchiveFullPath() is not null;
 
     /// <summary>
     /// 現在表示すべき状態メッセージを取得する。
@@ -153,6 +160,27 @@ public sealed class TranslationFileSelectionViewModel(
         catch(Exception ex) {
             logger.Error( "選択ノードのディレクトリを開く処理に失敗した。", ex );
             snackbarService.Show( Strings_Translation.OpenDirectoryFailedMessage );
+        }
+    }
+
+    /// <summary>
+    /// 翻訳作成ウィンドウを表示する。
+    /// </summary>
+    /// <returns>非同期タスク。</returns>
+    public async Task CreateTranslation() {
+        var archiveFullPath = GetSelectedArchiveFullPath();
+        if(archiveFullPath is null) {
+            logger.Warn( "選択ノードが存在しないため翻訳作成ウィンドウ表示を中断する。" );
+            return;
+        }
+
+        try {
+            logger.Info( $"翻訳作成ウィンドウを表示する。Archive={archiveFullPath}" );
+            await windowManager.ShowWindowAsync( new TranslationCreationViewModel( archiveFullPath ) );
+        }
+        catch(Exception ex) {
+            logger.Error( "翻訳作成ウィンドウの表示に失敗した。", ex );
+            snackbarService.Show( Strings_Translation.CreateTranslationWindowOpenFailedMessage );
         }
     }
 
@@ -344,6 +372,7 @@ public sealed class TranslationFileSelectionViewModel(
     private void NotifySelectionState() {
         NotifyOfPropertyChange( nameof( HasSelectedEntry ) );
         NotifyOfPropertyChange( nameof( CanOpenDirectory ) );
+        NotifyOfPropertyChange( nameof( CanCreateTranslation ) );
         NotifyOfPropertyChange( nameof( IsCurrentTabEmpty ) );
         NotifyOfPropertyChange( nameof( CurrentStatusMessage ) );
         NotifyOfPropertyChange( nameof( HasCurrentStatusMessage ) );
@@ -365,6 +394,25 @@ public sealed class TranslationFileSelectionViewModel(
     private IFileEntryViewModel? GetSelectedNode() {
         var root = GetSelectedTab()?.Root;
         return root is null ? null : FindSelectedNodeRecursive( root );
+    }
+
+    /// <summary>
+    /// 翻訳作成対象のアーカイブ絶対パスを取得する。
+    /// </summary>
+    /// <returns>対象絶対パス。対象外または未選択時は <see langword="null"/>。</returns>
+    private string? GetSelectedArchiveFullPath() {
+        var selectedNode = GetSelectedNode();
+        if(selectedNode is null
+            || selectedNode.IsDirectory
+            || string.IsNullOrWhiteSpace( selectedNode.Model.LocalSha )) {
+            return null;
+        }
+
+        var extension = Path.GetExtension( selectedNode.Name );
+        return extension.Equals( ".miz", StringComparison.OrdinalIgnoreCase )
+            || extension.Equals( ".trk", StringComparison.OrdinalIgnoreCase )
+            ? selectedNode.Model.LocalSha
+            : null;
     }
 
     /// <summary>

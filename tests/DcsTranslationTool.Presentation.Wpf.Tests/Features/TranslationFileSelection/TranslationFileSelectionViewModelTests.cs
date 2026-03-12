@@ -1,6 +1,9 @@
+using Caliburn.Micro;
+
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
@@ -118,6 +121,7 @@ public sealed class TranslationFileSelectionViewModelTests {
 
         Assert.True( viewModel.HasSelectedEntry );
         Assert.True( viewModel.CanOpenDirectory );
+        Assert.True( viewModel.CanCreateTranslation );
     }
 
     [StaFact]
@@ -178,6 +182,32 @@ public sealed class TranslationFileSelectionViewModelTests {
     }
 
     [StaFact]
+    public async Task ディレクトリノード選択時はCanCreateTranslationがfalseになる() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Mission1.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+                        "A10C/Mission1.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz,
+                        true )
+                ] );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var moduleNode = Assert.Single( aircraftTab.Root.Children );
+        moduleNode.IsSelected = true;
+
+        Assert.False( viewModel.CanCreateTranslation );
+    }
+
+    [StaFact]
     public async Task 未選択時はCanOpenDirectoryがfalseになる() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
@@ -197,6 +227,73 @@ public sealed class TranslationFileSelectionViewModelTests {
         await viewModel.ActivateAsync( CancellationToken.None );
 
         Assert.False( viewModel.CanOpenDirectory );
+        Assert.False( viewModel.CanCreateTranslation );
+    }
+
+    [StaFact]
+    public async Task ノード選択時にCreateTranslationはウィンドウを表示する() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Mission1.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+                        "A10C/Mission1.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz,
+                        true )
+                ] );
+        context.WindowManagerMock
+            .Setup( manager => manager.ShowWindowAsync(
+                It.IsAny<object>(),
+                It.IsAny<object?>(),
+                It.IsAny<IDictionary<string, object>?>() ) )
+            .Returns( Task.CompletedTask );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var moduleNode = Assert.Single( aircraftTab.Root.Children );
+        var fileNode = Assert.Single( moduleNode.Children );
+        fileNode.IsSelected = true;
+
+        await viewModel.CreateTranslation();
+
+        context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
+            It.Is<object>( model => IsTranslationCreationViewModelWithArchiveFullPath( model, @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ) ),
+            It.IsAny<object?>(),
+            It.IsAny<IDictionary<string, object>?>() ), Times.Once );
+    }
+
+    [StaFact]
+    public async Task trkファイル選択時にCanCreateTranslationがtrueになる() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Campaign1.trk",
+                        @"C:\DCSWorld\Mods\campaigns\RedFlag\Campaign1.trk",
+                        "RedFlag/Campaign1.trk",
+                        TranslationArchiveCategory.DlcCampaigns,
+                        TranslationArchiveType.Trk,
+                        true )
+                ] );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var campaignTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.DlcCampaigns );
+        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( campaignTab );
+        var campaignNode = Assert.Single( campaignTab.Root.Children );
+        var fileNode = Assert.Single( campaignNode.Children );
+        fileNode.IsSelected = true;
+
+        Assert.True( viewModel.CanCreateTranslation );
     }
 
     [StaFact]
@@ -215,6 +312,10 @@ public sealed class TranslationFileSelectionViewModelTests {
             service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ),
             Times.Never );
     }
+
+    private static bool IsTranslationCreationViewModelWithArchiveFullPath( object model, string expectedArchiveFullPath ) =>
+        model is TranslationCreationViewModel translationCreationViewModel
+        && translationCreationViewModel.ArchiveFullPath == expectedArchiveFullPath;
 
     private sealed class TranslationFileSelectionViewModelTestContext {
         private readonly AppSettings _settings;
@@ -240,6 +341,7 @@ public sealed class TranslationFileSelectionViewModelTests {
         internal Mock<ILoggingService> LoggerMock { get; } = new();
         internal Mock<ISnackbarService> SnackbarServiceMock { get; } = new();
         internal Mock<ISystemService> SystemServiceMock { get; } = new();
+        internal Mock<IWindowManager> WindowManagerMock { get; } = new();
         internal Mock<ITranslationArchiveDiscoveryService> DiscoveryServiceMock { get; } = new();
 
         internal TranslationFileSelectionViewModel CreateViewModel() =>
@@ -249,6 +351,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                 LoggerMock.Object,
                 SnackbarServiceMock.Object,
                 SystemServiceMock.Object,
+                WindowManagerMock.Object,
                 DiscoveryServiceMock.Object );
     }
 }

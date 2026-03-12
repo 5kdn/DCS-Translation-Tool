@@ -79,4 +79,13 @@
   <data name="OpenDirectoryFailedMessage" xml:space="preserve">
     <value>フォルダーを開けませんでした</value>
   </data>
+  <data name="CreateTranslationButtonContent" xml:space="preserve">
+    <value>翻訳を作成</value>
+  </data>
+  <data name="CreateTranslationWindowTitle" xml:space="preserve">
+    <value>翻訳を作成</value>
+  </data>
+  <data name="CreateTranslationWindowOpenFailedMessage" xml:space="preserve">
+    <value>翻訳作成ウィンドウを開けませんでした</value>
+  </data>
 </root>
