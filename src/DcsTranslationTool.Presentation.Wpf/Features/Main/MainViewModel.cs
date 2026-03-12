@@ -1,7 +1,7 @@
 using Caliburn.Micro;
 
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
-using DcsTranslationTool.Presentation.Wpf.Features.Translation;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Main;
@@ -22,9 +22,9 @@ public class MainViewModel(
         navigationService.NavigateToViewModel<UploadViewModel>();
     }
 
-    public void NavToTranslation() {
-        logger.Info( "TranslationViewModel へ遷移する。" );
-        navigationService.NavigateToViewModel<TranslationViewModel>();
+    public void NavToTranslationFileSelection() {
+        logger.Info( "TranslationFileSelectionViewModel へ遷移する。" );
+        navigationService.NavigateToViewModel<TranslationFileSelectionViewModel>();
     }
 
     #endregion

@@ -12,7 +12,7 @@ using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
-using DcsTranslationTool.Presentation.Wpf.Features.Translation;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -97,7 +97,7 @@ public sealed class BootstrapperContainerTests {
             Container.PerRequest<SettingsViewModel>();
             Container.PerRequest<DownloadViewModel>();
             Container.PerRequest<UploadViewModel>();
-            Container.PerRequest<TranslationViewModel>();
+            Container.PerRequest<TranslationFileSelectionViewModel>();
             Container.PerRequest<CreatePullRequestViewModel>();
         }
 
@@ -137,7 +137,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<SettingsViewModel>( Get<SettingsViewModel>() );
             Assert.IsType<DownloadViewModel>( Get<DownloadViewModel>() );
             Assert.IsType<UploadViewModel>( Get<UploadViewModel>() );
-            Assert.IsType<TranslationViewModel>( Get<TranslationViewModel>() );
+            Assert.IsType<TranslationFileSelectionViewModel>( Get<TranslationFileSelectionViewModel>() );
         }
 
         private T Get<T>() where T : class {

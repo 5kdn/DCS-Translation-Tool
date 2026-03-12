@@ -39,7 +39,7 @@
                 MinHeight="300"
                 Tag="{x:Static md:PackIconKind.Translate}"
                 Content="{x:Static resx:Strings_Translation.Title}"
-                cal:Message.Attach="NavToTranslation()">
+                cal:Message.Attach="NavToTranslationFileSelection()">
         </Button>
     </Grid>
 
