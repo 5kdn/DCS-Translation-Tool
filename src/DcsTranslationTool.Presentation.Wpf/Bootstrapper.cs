@@ -8,6 +8,7 @@ using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
@@ -50,6 +51,7 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
         container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
         container.Singleton<ISnackbarService, SnackbarService>();
+        container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
         // ViewModels
         container.Singleton<ShellViewModel>();

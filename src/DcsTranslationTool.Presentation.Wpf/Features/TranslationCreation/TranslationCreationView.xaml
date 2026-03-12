@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation"
+        xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
         xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
         Style="{StaticResource MaterialDesignWindow}"
@@ -14,6 +15,10 @@
         Width="800"
         Height="600"
         d:DataContext="{d:DesignInstance Type=local:TranslationCreationViewModel}">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
 
     <WindowChrome.WindowChrome>
         <WindowChrome
@@ -74,6 +79,8 @@
               Margin="{StaticResource MediumMargin}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -81,6 +88,50 @@
                        Text="{Binding ArchiveFullPath}"
                        TextWrapping="Wrap"
                        Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+
+            <TextBlock Grid.Row="1"
+                       Margin="{StaticResource SmallTopMargin}"
+                       Text="{Binding StatusMessage}"
+                       Visibility="{Binding HasStatusMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                       Foreground="{DynamicResource MaterialDesignBodySecondary}" />
+
+            <StackPanel Grid.Row="2"
+                        Margin="{StaticResource SmallTopMargin}"
+                        Orientation="Horizontal">
+                <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationShowOnlyUntranslatedFilterText}"
+                          Margin="{StaticResource SmallRightMargin}"
+                          IsChecked="{Binding ShowOnlyUntranslated, Mode=TwoWay}" />
+                <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationHidePossibleNonTranslationTargetsFilterText}"
+                          Margin="{StaticResource SmallRightMargin}"
+                          IsChecked="{Binding HidePossibleNonTranslationTargets, Mode=TwoWay}" />
+                <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationHideEmptyOriginalFilterText}"
+                          Margin="{StaticResource SmallRightMargin}"
+                          IsChecked="{Binding HideEmptyOriginal, Mode=TwoWay}" />
+            </StackPanel>
+
+            <DataGrid Grid.Row="3"
+                      Margin="{StaticResource SmallTopMargin}"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      CanUserSortColumns="False"
+                      IsReadOnly="True"
+                      HeadersVisibility="Column"
+                      ItemsSource="{Binding FilteredDictionaryItemsView}"
+                      Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Key"
+                                        Binding="{Binding Key}"
+                                        Width="2*" />
+                    <DataGridTextColumn Header="Original"
+                                        Binding="{Binding Original}"
+                                        Width="3*" />
+                    <DataGridTextColumn Header="Translated"
+                                        Binding="{Binding Translated}"
+                                        Width="3*" />
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
     </Grid>
 </Window>

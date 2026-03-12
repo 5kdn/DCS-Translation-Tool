@@ -7,7 +7,6 @@ using Caliburn.Micro;
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
@@ -27,6 +26,7 @@ public sealed class TranslationFileSelectionViewModel(
     ILoggingService logger,
     ISnackbarService snackbarService,
     ISystemService systemService,
+    ITranslationCreationViewModelFactory translationCreationViewModelFactory,
     IWindowManager windowManager,
     ITranslationArchiveDiscoveryService translationArchiveDiscoveryService
 ) : Screen, IActivate {
@@ -176,7 +176,7 @@ public sealed class TranslationFileSelectionViewModel(
 
         try {
             logger.Info( $"翻訳作成ウィンドウを表示する。Archive={archiveFullPath}" );
-            await windowManager.ShowWindowAsync( new TranslationCreationViewModel( archiveFullPath ) );
+            await windowManager.ShowWindowAsync( translationCreationViewModelFactory.Create( archiveFullPath ) );
         }
         catch(Exception ex) {
             logger.Error( "翻訳作成ウィンドウの表示に失敗した。", ex );

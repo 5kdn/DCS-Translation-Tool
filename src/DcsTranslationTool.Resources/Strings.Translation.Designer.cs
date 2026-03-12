@@ -70,6 +70,60 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   dictionary に項目がありません。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationDictionaryEmptyMessage {
+            get {
+                return ResourceManager.GetString("CreateTranslationDictionaryEmptyMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   dictionary の読み込みに失敗しました。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationDictionaryLoadFailedMessage {
+            get {
+                return ResourceManager.GetString("CreateTranslationDictionaryLoadFailedMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   dictionary を読み込んでいます。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationDictionaryLoadingMessage {
+            get {
+                return ResourceManager.GetString("CreateTranslationDictionaryLoadingMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   空欄を非表示 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationHideEmptyOriginalFilterText {
+            get {
+                return ResourceManager.GetString("CreateTranslationHideEmptyOriginalFilterText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   対象外を非表示 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationHidePossibleNonTranslationTargetsFilterText {
+            get {
+                return ResourceManager.GetString("CreateTranslationHidePossibleNonTranslationTargetsFilterText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   未翻訳のみ表示 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationShowOnlyUntranslatedFilterText {
+            get {
+                return ResourceManager.GetString("CreateTranslationShowOnlyUntranslatedFilterText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   翻訳作成ウィンドウを開けませんでした に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationWindowOpenFailedMessage {

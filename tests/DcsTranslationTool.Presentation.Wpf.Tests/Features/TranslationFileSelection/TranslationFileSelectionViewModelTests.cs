@@ -251,6 +251,12 @@ public sealed class TranslationFileSelectionViewModelTests {
                 It.IsAny<object?>(),
                 It.IsAny<IDictionary<string, object>?>() ) )
             .Returns( Task.CompletedTask );
+        context.TranslationCreationViewModelFactoryMock
+            .Setup( factory => factory.Create( It.IsAny<string>() ) )
+            .Returns<string>( path => new TranslationCreationViewModel(
+                path,
+                context.LoggerMock.Object,
+                context.TranslationDictionaryServiceMock.Object ) );
 
         var viewModel = context.CreateViewModel();
         await viewModel.ActivateAsync( CancellationToken.None );
@@ -262,6 +268,9 @@ public sealed class TranslationFileSelectionViewModelTests {
 
         await viewModel.CreateTranslation();
 
+        context.TranslationCreationViewModelFactoryMock.Verify(
+            factory => factory.Create( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ),
+            Times.Once );
         context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
             It.Is<object>( model => IsTranslationCreationViewModelWithArchiveFullPath( model, @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ) ),
             It.IsAny<object?>(),
@@ -341,6 +350,8 @@ public sealed class TranslationFileSelectionViewModelTests {
         internal Mock<ILoggingService> LoggerMock { get; } = new();
         internal Mock<ISnackbarService> SnackbarServiceMock { get; } = new();
         internal Mock<ISystemService> SystemServiceMock { get; } = new();
+        internal Mock<ITranslationCreationViewModelFactory> TranslationCreationViewModelFactoryMock { get; } = new();
+        internal Mock<ITranslationDictionaryService> TranslationDictionaryServiceMock { get; } = new();
         internal Mock<IWindowManager> WindowManagerMock { get; } = new();
         internal Mock<ITranslationArchiveDiscoveryService> DiscoveryServiceMock { get; } = new();
 
@@ -351,6 +362,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                 LoggerMock.Object,
                 SnackbarServiceMock.Object,
                 SystemServiceMock.Object,
+                TranslationCreationViewModelFactoryMock.Object,
                 WindowManagerMock.Object,
                 DiscoveryServiceMock.Object );
     }

@@ -28,6 +28,8 @@ public class CompositionRegistrationTests {
         var hashCacheService1 = container.GetInstance( typeof( IFileEntryHashCacheService ), null );
         var hashCacheService2 = container.GetInstance( typeof( IFileEntryHashCacheService ), null );
         var updateCheckService = container.GetInstance( typeof( IUpdateCheckService ), null );
+        var translationDictionaryService1 = container.GetInstance( typeof( ITranslationDictionaryService ), null );
+        var translationDictionaryService2 = container.GetInstance( typeof( ITranslationDictionaryService ), null );
         var zipService1 = container.GetInstance( typeof( IZipService ), null );
         var zipService2 = container.GetInstance( typeof( IZipService ), null );
 
@@ -41,6 +43,8 @@ public class CompositionRegistrationTests {
         Assert.Same( hashCacheService1, hashCacheService2 );
         Assert.IsType<FileEntryHashCacheService>( hashCacheService1 );
         Assert.IsType<UpdateCheckService>( updateCheckService );
+        Assert.Same( translationDictionaryService1, translationDictionaryService2 );
+        Assert.IsType<TranslationDictionaryService>( translationDictionaryService1 );
         Assert.Same( zipService1, zipService2 );
         Assert.NotNull( NLogManager.Configuration );
     }

@@ -12,6 +12,7 @@ using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
@@ -88,6 +89,7 @@ public sealed class BootstrapperContainerTests {
             Container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
             Container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
             Container.Singleton<ISnackbarService, SnackbarService>();
+            Container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
             var navigationServiceMock = new Mock<INavigationService>();
             Container.Instance( navigationServiceMock.Object );
@@ -130,6 +132,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<FileEntryTreeService>( Get<IFileEntryTreeService>() );
             Assert.IsType<PathSafetyGuard>( Get<IPathSafetyGuard>() );
             Assert.IsType<SnackbarService>( Get<ISnackbarService>() );
+            Assert.IsType<TranslationCreationViewModelFactory>( Get<ITranslationCreationViewModelFactory>() );
             Assert.IsType<WindowManager>( Get<IWindowManager>() );
             Assert.IsType<EventAggregator>( Get<IEventAggregator>() );
 
