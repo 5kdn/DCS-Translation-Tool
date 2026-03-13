@@ -25,6 +25,16 @@ public sealed record ConfirmationDialogParameters {
     public string CancelButtonText { get; init; } = "キャンセル";
 
     /// <summary>
+    /// 補助ボタンに表示する文言を取得する。
+    /// </summary>
+    public string SecondaryButtonText { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 補助ボタンを表示するかどうかを取得する。
+    /// </summary>
+    public bool HasSecondaryButton => !string.IsNullOrWhiteSpace( SecondaryButtonText );
+
+    /// <summary>
     /// 表示対象のダイアログホスト識別子を取得する。
     /// </summary>
     public string DialogIdentifier { get; init; } = "RootDialogHost";

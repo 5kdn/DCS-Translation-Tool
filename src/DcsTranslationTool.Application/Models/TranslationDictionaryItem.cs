@@ -20,4 +20,9 @@ public sealed class TranslationDictionaryItem( string key, string original ) {
     /// 翻訳文を取得または設定する。
     /// </summary>
     public string Translated { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 項目が有効かどうかを取得または設定する。
+    /// </summary>
+    public bool IsEnabled { get; set; } = true;
 }

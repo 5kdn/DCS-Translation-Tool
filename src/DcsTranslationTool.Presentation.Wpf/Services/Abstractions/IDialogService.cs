@@ -8,6 +8,13 @@ namespace DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 /// </summary>
 public interface IDialogService {
     /// <summary>
+    /// ダイアログを表示して選択結果を取得する。
+    /// </summary>
+    /// <param name="parameters">表示に利用する引数。</param>
+    /// <returns>選択結果。</returns>
+    Task<ConfirmationDialogResult> ConfirmationDialogShowAsync( ConfirmationDialogParameters parameters );
+
+    /// <summary>
     /// ダイアログを表示して結果を取得する。
     /// </summary>
     /// <param name="parameters">表示に利用する引数。</param>

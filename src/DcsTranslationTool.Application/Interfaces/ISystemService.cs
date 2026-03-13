@@ -5,6 +5,12 @@ namespace DcsTranslationTool.Application.Interfaces;
 /// </summary>
 public interface ISystemService {
     /// <summary>
+    /// 指定したテキストをクリップボードへ設定する。
+    /// </summary>
+    /// <param name="text">クリップボードへ設定するテキスト。</param>
+    void SetClipboardText( string text );
+
+    /// <summary>
     /// 既定のブラウザーで URL を開く。
     /// </summary>
     /// <param name="url">開くURL</param>
@@ -26,4 +32,9 @@ public interface ISystemService {
     /// </exception>
     void OpenDirectory( string path );
 
+    /// <summary>
+    /// 現在日時を取得する。
+    /// </summary>
+    /// <returns>現在日時を返す。</returns>
+    DateTimeOffset GetCurrentDateTimeOffset();
 }

@@ -97,8 +97,62 @@
   <data name="CreateTranslationDictionaryEmptyMessage" xml:space="preserve">
     <value>dictionary に項目がありません。</value>
   </data>
+  <data name="CreateTranslationDictionaryExportFailedMessage" xml:space="preserve">
+    <value>dictionary の書き出しに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationDictionaryExportSucceededMessage" xml:space="preserve">
+    <value>dictionary を書き出しました: {0}</value>
+  </data>
+  <data name="CreateTranslationDictionaryExportingMessage" xml:space="preserve">
+    <value>dictionary を書き出しています。</value>
+  </data>
   <data name="CreateTranslationShowOnlyUntranslatedFilterText" xml:space="preserve">
     <value>未翻訳のみ表示</value>
+  </data>
+  <data name="CreateTranslationShowEnabledItemsFilterText" xml:space="preserve">
+    <value>有効状態の項目を表示</value>
+  </data>
+  <data name="CreateTranslationShowDisabledItemsFilterText" xml:space="preserve">
+    <value>無効状態の項目を表示</value>
+  </data>
+  <data name="CreateTranslationDataGridEnabledHeaderText" xml:space="preserve">
+    <value>有効</value>
+  </data>
+  <data name="CreateTranslationDataGridKeyHeaderText" xml:space="preserve">
+    <value>キー</value>
+  </data>
+  <data name="CreateTranslationDataGridOriginalHeaderText" xml:space="preserve">
+    <value>原文</value>
+  </data>
+  <data name="CreateTranslationDataGridTranslatedHeaderText" xml:space="preserve">
+    <value>翻訳</value>
+  </data>
+  <data name="CreateTranslationCopyButtonContent" xml:space="preserve">
+    <value>コピー</value>
+  </data>
+  <data name="CreateTranslationExportButtonContent" xml:space="preserve">
+    <value>書き出し</value>
+  </data>
+  <data name="CreateTranslationImportPoSplitButtonContent" xml:space="preserve">
+    <value>POから読み込み</value>
+  </data>
+  <data name="CreateTranslationImportDictionaryButtonContent" xml:space="preserve">
+    <value>dictionaryから読み込み</value>
+  </data>
+  <data name="CreateTranslationExportPoSplitButtonContent" xml:space="preserve">
+    <value>POに書き出し</value>
+  </data>
+  <data name="CreateTranslationImportCsvButtonContent" xml:space="preserve">
+    <value>CSVから読み込み</value>
+  </data>
+  <data name="CreateTranslationExportCsvButtonContent" xml:space="preserve">
+    <value>CSVに書き出し</value>
+  </data>
+  <data name="CreateTranslationImportPoButtonContent" xml:space="preserve">
+    <value>poファイルから読み込み</value>
+  </data>
+  <data name="CreateTranslationExportPoButtonContent" xml:space="preserve">
+    <value>poファイルに書き出し</value>
   </data>
   <data name="CreateTranslationHidePossibleNonTranslationTargetsFilterText" xml:space="preserve">
     <value>対象外を非表示</value>
@@ -108,6 +162,99 @@
   </data>
   <data name="CreateTranslationOriginalLabelText" xml:space="preserve">
     <value>Original</value>
+  </data>
+  <data name="CreateTranslationCsvExportFailedMessage" xml:space="preserve">
+    <value>CSV ファイルの書き出しに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationCsvExportSucceededMessage" xml:space="preserve">
+    <value>CSV ファイルを書き出しました: {0}</value>
+  </data>
+  <data name="CreateTranslationCsvExportingMessage" xml:space="preserve">
+    <value>CSV ファイルを書き出しています。</value>
+  </data>
+  <data name="CreateTranslationCsvImportFailedMessage" xml:space="preserve">
+    <value>CSV ファイルの読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationCsvImportingMessage" xml:space="preserve">
+    <value>CSV ファイルを読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationCsvImportOverwriteConfirmationMessage" xml:space="preserve">
+    <value>翻訳テキスト（Translated）が存在します。CSV ファイルの内容で上書きしますか？</value>
+  </data>
+  <data name="CreateTranslationCsvImportOverwriteConfirmationTitle" xml:space="preserve">
+    <value>上書き確認</value>
+  </data>
+  <data name="CreateTranslationCsvImportPartialConfirmationMessage" xml:space="preserve">
+    <value>CSV ファイルの行が現在の dictionary と完全一致しませんでした。一致した (Key, Original) は {0} 件です。一致した行のみ取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationCsvImportPartialConfirmationTitle" xml:space="preserve">
+    <value>部分取り込み確認</value>
+  </data>
+  <data name="CreateTranslationCsvImportPartialSucceededMessage" xml:space="preserve">
+    <value>CSV ファイルから {0} 件を取り込みました: {1}</value>
+  </data>
+  <data name="CreateTranslationCsvImportSucceededMessage" xml:space="preserve">
+    <value>CSV ファイルを読み込みました: {0}</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportFailedMessage" xml:space="preserve">
+    <value>dictionary ファイルの読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportingMessage" xml:space="preserve">
+    <value>dictionary ファイルを読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportOverwriteConfirmationMessage" xml:space="preserve">
+    <value>翻訳テキスト（Translated）が存在します。dictionary ファイルの内容で上書きしますか？</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportOverwriteConfirmationTitle" xml:space="preserve">
+    <value>上書き確認</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportPartialConfirmationMessage" xml:space="preserve">
+    <value>読み込んだdictionaryファイルが古くなっています。注意して適用してください。一致した key は {0} 件です。一致した項目のみ取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportPartialConfirmationTitle" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportPartialSucceededMessage" xml:space="preserve">
+    <value>dictionary ファイルから {0} 件を取り込みました: {1}</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportSucceededMessage" xml:space="preserve">
+    <value>dictionary ファイルを読み込みました: {0}</value>
+  </data>
+  <data name="CreateTranslationPoExportFailedMessage" xml:space="preserve">
+    <value>PO ファイルの書き出しに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationPoExportSucceededMessage" xml:space="preserve">
+    <value>PO ファイルを書き出しました: {0}</value>
+  </data>
+  <data name="CreateTranslationPoExportingMessage" xml:space="preserve">
+    <value>PO ファイルを書き出しています。</value>
+  </data>
+  <data name="CreateTranslationPoImportFailedMessage" xml:space="preserve">
+    <value>PO ファイルの読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationPoImportingMessage" xml:space="preserve">
+    <value>PO ファイルを読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationPoImportOverwriteConfirmationMessage" xml:space="preserve">
+    <value>翻訳テキスト（Translated）が存在します。PO ファイルの内容で上書きしますか？</value>
+  </data>
+  <data name="CreateTranslationPoImportOverwriteConfirmationTitle" xml:space="preserve">
+    <value>上書き確認</value>
+  </data>
+  <data name="CreateTranslationPoImportPartialConfirmationMessage" xml:space="preserve">
+    <value>PO ファイルのエントリーが現在の dictionary と完全一致しませんでした。一致した (msgctxt, msgid) は {0} 件です。一致したエントリーのみ取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationPoImportPartialConfirmationTitle" xml:space="preserve">
+    <value>部分取り込み確認</value>
+  </data>
+  <data name="CreateTranslationPoImportPartialSucceededMessage" xml:space="preserve">
+    <value>PO ファイルから {0} 件を取り込みました: {1}</value>
+  </data>
+  <data name="CreateTranslationPoImportSucceededMessage" xml:space="preserve">
+    <value>PO ファイルを読み込みました: {0}</value>
+  </data>
+  <data name="CreateTranslationOriginalCopiedMessage" xml:space="preserve">
+    <value>原文をコピーしました</value>
   </data>
   <data name="CreateTranslationTranslatedLabelText" xml:space="preserve">
     <value>Translated</value>

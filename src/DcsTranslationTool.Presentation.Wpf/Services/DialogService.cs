@@ -27,7 +27,7 @@ public sealed class DialogService(
     IWindowManager windowManager
 ) : IDialogService {
     /// <inheritdoc/>
-    public async Task<bool> ContinueCancelDialogShowAsync( ConfirmationDialogParameters parameters ) {
+    public async Task<ConfirmationDialogResult> ConfirmationDialogShowAsync( ConfirmationDialogParameters parameters ) {
         ArgumentNullException.ThrowIfNull( parameters );
         logger.Info( $"確認ダイアログを表示する。Title={parameters.Title}, Identifier={parameters.DialogIdentifier}" );
         var dialog = new ConfirmationDialog
@@ -35,14 +35,22 @@ public sealed class DialogService(
             DataContext = parameters
         };
         var result = await DialogHost.Show( dialog, parameters.DialogIdentifier );
-        var isConfirmed = result switch
+        var dialogResult = result switch
         {
-            true => true,
-            string str when bool.TryParse( str, out var parsed ) => parsed,
-            _ => false
+            ConfirmationDialogResult confirmationDialogResult => confirmationDialogResult,
+            true => ConfirmationDialogResult.Confirm,
+            false => ConfirmationDialogResult.Cancel,
+            string value when Enum.TryParse<ConfirmationDialogResult>( value, true, out var parsed ) => parsed,
+            _ => ConfirmationDialogResult.Cancel
         };
-        logger.Info( $"確認ダイアログが閉じられた。Confirmed={isConfirmed}" );
-        return isConfirmed;
+        logger.Info( $"確認ダイアログが閉じられた。Result={dialogResult}" );
+        return dialogResult;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> ContinueCancelDialogShowAsync( ConfirmationDialogParameters parameters ) {
+        var result = await ConfirmationDialogShowAsync( parameters );
+        return result == ConfirmationDialogResult.Confirm;
     }
 
     /// <inheritdoc/>

@@ -11,7 +11,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// </summary>
 /// <param name="textBox">対象 TextBox。</param>
 internal sealed class TextBoxNewlineMarkerAdorner( TextBox textBox ) : Adorner( textBox ) {
-    private static readonly string MarkerText = @"\n";
+    private const string MarkerText = @"\";
     private readonly TextBox _textBox = textBox;
 
     /// <summary>
@@ -53,13 +53,20 @@ internal sealed class TextBoxNewlineMarkerAdorner( TextBox textBox ) : Adorner( 
 
         var markerText = CreateMarkerText();
         var availableWidth = Math.Max( 0, _textBox.ActualWidth - _textBox.Padding.Right - markerText.WidthIncludingTrailingWhitespace - 4 );
-        foreach(var newlineIndex in GetNewlineMarkerIndices( _textBox.Text )) {
-            var markerOrigin = GetMarkerOrigin( newlineIndex, markerText.WidthIncludingTrailingWhitespace, availableWidth );
-            if(markerOrigin is null) {
-                continue;
-            }
+        var clipRect = GetClipRect();
+        drawingContext.PushClip( new RectangleGeometry( clipRect ) );
+        try {
+            foreach(var newlineIndex in GetNewlineMarkerIndices( _textBox.Text )) {
+                var markerOrigin = GetMarkerOrigin( newlineIndex, availableWidth );
+                if(markerOrigin is null) {
+                    continue;
+                }
 
-            drawingContext.DrawText( markerText, markerOrigin.Value );
+                drawingContext.DrawText( markerText, markerOrigin.Value );
+            }
+        }
+        finally {
+            drawingContext.Pop();
         }
     }
 
@@ -77,7 +84,7 @@ internal sealed class TextBoxNewlineMarkerAdorner( TextBox textBox ) : Adorner( 
             VisualTreeHelper.GetDpi( this ).PixelsPerDip );
     }
 
-    private Point? GetMarkerOrigin( int newlineIndex, double markerWidth, double availableWidth ) {
+    private Point? GetMarkerOrigin( int newlineIndex, double availableWidth ) {
         var lineIndex = _textBox.GetLineIndexFromCharacterIndex( newlineIndex );
         if(lineIndex < 0) {
             return null;
@@ -102,5 +109,13 @@ internal sealed class TextBoxNewlineMarkerAdorner( TextBox textBox ) : Adorner( 
 
         x = Math.Max( _textBox.Padding.Left, Math.Min( x, availableWidth ) );
         return new Point( x, y );
+    }
+
+    private Rect GetClipRect() {
+        var left = Math.Max( 0, _textBox.Padding.Left );
+        var top = Math.Max( 0, _textBox.Padding.Top );
+        var right = Math.Max( left, _textBox.ActualWidth - _textBox.Padding.Right );
+        var bottom = Math.Max( top, _textBox.ActualHeight - _textBox.Padding.Bottom );
+        return new Rect( new Point( left, top ), new Point( right, bottom ) );
     }
 }

@@ -41,12 +41,29 @@ public sealed class TranslationDictionaryItemRowViewModel( TranslationDictionary
     }
 
     /// <summary>
+    /// 項目が有効かどうかを取得または設定する。
+    /// </summary>
+    public bool IsEnabled {
+        get => model.IsEnabled;
+        set {
+            if(model.IsEnabled == value) {
+                return;
+            }
+
+            model.IsEnabled = value;
+            NotifyOfPropertyChange();
+        }
+    }
+
+    /// <summary>
     /// DataGrid 表示用の翻訳文を取得する。
     /// </summary>
     public string TranslatedDisplayText => EscapeLineBreaks( Translated );
 
-    private static string EscapeLineBreaks( string value ) => value
-        .Replace( "\r\n", @"\n", StringComparison.Ordinal )
-        .Replace( "\r", @"\n", StringComparison.Ordinal )
-        .Replace( "\n", @"\n", StringComparison.Ordinal );
+    private static string EscapeLineBreaks( string value ) => NormalizeLineEndings( value )
+        .Replace( "\n", @"\", StringComparison.Ordinal );
+
+    private static string NormalizeLineEndings( string value ) => value
+        .Replace( "\r\n", "\n", StringComparison.Ordinal )
+        .Replace( '\r', '\n' );
 }

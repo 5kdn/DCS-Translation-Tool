@@ -255,6 +255,11 @@ public sealed class TranslationFileSelectionViewModelTests {
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
             .Returns<string>( path => new TranslationCreationViewModel(
                 path,
+                context.AppSettingsServiceMock.Object,
+                context.ApplicationInfoServiceMock.Object,
+                context.DialogServiceMock.Object,
+                context.DialogProviderMock.Object,
+                context.SystemServiceMock.Object,
                 context.LoggerMock.Object,
                 context.TranslationDictionaryServiceMock.Object ) );
 
@@ -341,6 +346,11 @@ public sealed class TranslationFileSelectionViewModelTests {
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
             .Returns<string>( path => new TranslationCreationViewModel(
                 path,
+                context.AppSettingsServiceMock.Object,
+                context.ApplicationInfoServiceMock.Object,
+                context.DialogServiceMock.Object,
+                context.DialogProviderMock.Object,
+                context.SystemServiceMock.Object,
                 context.LoggerMock.Object,
                 context.TranslationDictionaryServiceMock.Object ) );
         context.WindowManagerMock
@@ -377,7 +387,7 @@ public sealed class TranslationFileSelectionViewModelTests {
     }
 
     [StaFact]
-    public async Task trkファイル選択時にCanCreateTranslationがtrueになる() {
+    public async Task Trkファイル選択時にCanCreateTranslationがtrueになる() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
             .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
@@ -445,6 +455,9 @@ public sealed class TranslationFileSelectionViewModelTests {
         }
 
         internal Mock<IAppSettingsService> AppSettingsServiceMock { get; } = new();
+        internal Mock<IApplicationInfoService> ApplicationInfoServiceMock { get; } = new();
+        internal Mock<IDialogService> DialogServiceMock { get; } = new();
+        internal Mock<IDialogProvider> DialogProviderMock { get; } = new();
         internal Mock<IDispatcherService> DispatcherServiceMock { get; } = new();
         internal Mock<ILoggingService> LoggerMock { get; } = new();
         internal Mock<ISnackbarService> SnackbarServiceMock { get; } = new();

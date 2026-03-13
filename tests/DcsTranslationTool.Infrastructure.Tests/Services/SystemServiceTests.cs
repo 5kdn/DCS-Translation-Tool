@@ -196,4 +196,15 @@ public sealed class SystemServiceTests() {
             directory.Delete( true );
         }
     }
+
+    [Fact]
+    public void GetCurrentDateTimeOffsetは現在日時を返す() {
+        var sut = CreateSut();
+        var before = DateTimeOffset.Now.AddSeconds( -1 );
+
+        var actual = sut.GetCurrentDateTimeOffset();
+
+        var after = DateTimeOffset.Now.AddSeconds( 1 );
+        Assert.InRange( actual, before, after );
+    }
 }

@@ -157,6 +157,38 @@ public sealed class AppSettingsServiceTests : IDisposable {
         Assert.True( new FileInfo( path ).Length > 0 );
     }
 
+    [Fact]
+    public async Task SaveAsyncはTranslationCreationDictionaryPaneRatioを保存して再読込できる() {
+        // Arrange
+        await using(var sut = CreateService()) {
+            sut.Settings.TranslationCreationDictionaryPaneRatio = 3.5;
+
+            // Act
+            await sut.SaveAsync( TestContext.Current.CancellationToken );
+        }
+
+        // Assert
+        await using var reloaded = CreateService();
+        Assert.Equal( 3.5, reloaded.Settings.TranslationCreationDictionaryPaneRatio );
+    }
+
+    [Fact]
+    public async Task SaveAsyncはTranslationCreationWindowSizeを保存して再読込できる() {
+        // Arrange
+        await using(var sut = CreateService()) {
+            sut.Settings.TranslationCreationWindowWidth = 1440;
+            sut.Settings.TranslationCreationWindowHeight = 960;
+
+            // Act
+            await sut.SaveAsync( TestContext.Current.CancellationToken );
+        }
+
+        // Assert
+        await using var reloaded = CreateService();
+        Assert.Equal( 1440, reloaded.Settings.TranslationCreationWindowWidth );
+        Assert.Equal( 960, reloaded.Settings.TranslationCreationWindowHeight );
+    }
+
     #endregion
 
     #region DisposeAsync

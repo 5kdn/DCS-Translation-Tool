@@ -6,18 +6,36 @@
         xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation"
         xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
         xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:cal="http://www.caliburnproject.org"
         mc:Ignorable="d"
         Style="{StaticResource MaterialDesignWindow}"
         Background="{StaticResource MaterialDesign.Brush.Background}"
         FontFamily="/Assets/Fonts/#Zen kaku Gothic New"
         FontWeight="Medium"
         Title="{Binding WindowTitle}"
-        Width="800"
-        Height="600"
+        d:Width="1200"
+        d:Height="900"
+        PreviewKeyDown="Window_PreviewKeyDown"
         d:DataContext="{d:DesignInstance Type=local:TranslationCreationViewModel}">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="DictionaryRowTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBodySecondary}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DictionaryRowCopyOverlayStyle" TargetType="FrameworkElement">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <WindowChrome.WindowChrome>
@@ -29,154 +47,278 @@
             UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
-    <Grid x:Name="RootLayout">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <Grid Grid.Row="0"
-              Height="30"
-              Background="{StaticResource MaterialDesign.Brush.Primary}"
-              MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Grid.Column="0"
-                       Margin="{StaticResource MediumXMargin}"
-                       VerticalAlignment="Center"
-                       Text="{Binding WindowTitle}"
-                       Style="{StaticResource MaterialDesignTitleMediumTextBlock}"
-                       Foreground="{StaticResource MaterialDesign.Brush.Background}" />
-
-            <StackPanel Grid.Column="1"
-                        Orientation="Horizontal"
-                        WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button Content="{md:PackIcon Kind=WindowMinimize}"
-                        Style="{StaticResource NavigationButtonStyle}"
-                        Click="MinimizeWindowButton_Click" />
-                <Button Click="ToggleMaximizeWindowButton_Click">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource NavigationButtonStyle}">
-                            <Setter Property="Content" Value="{md:PackIcon Kind=WindowMaximize}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
-                                    <Setter Property="Content" Value="{md:PackIcon Kind=WindowRestore}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-                <Button Content="{md:PackIcon Kind=Close}"
-                        Style="{StaticResource CloseButtonStyle}"
-                        Click="CloseWindowButton_Click" />
-            </StackPanel>
-        </Grid>
-
-        <Grid Grid.Row="1"
-              Margin="{StaticResource MediumMargin}">
+    <md:DialogHost Identifier="{x:Static local:TranslationCreationDialogHostIdentifiers.Confirmation}">
+        <Grid x:Name="RootLayout">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="2*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
-                       Text="{Binding ArchiveFullPath}"
-                       TextWrapping="Wrap"
-                       Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
-
-            <TextBlock Grid.Row="1"
-                       Margin="{StaticResource SmallTopMargin}"
-                       Text="{Binding StatusMessage}"
-                       Visibility="{Binding HasStatusMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
-                       Foreground="{DynamicResource MaterialDesignBodySecondary}" />
-
-            <StackPanel Grid.Row="2"
-                        Margin="{StaticResource SmallTopMargin}"
-                        Orientation="Horizontal">
-                <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationShowOnlyUntranslatedFilterText}"
-                          Margin="{StaticResource SmallRightMargin}"
-                          IsChecked="{Binding ShowOnlyUntranslated, Mode=TwoWay}" />
-                <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationHidePossibleNonTranslationTargetsFilterText}"
-                          Margin="{StaticResource SmallRightMargin}"
-                          IsChecked="{Binding HidePossibleNonTranslationTargets, Mode=TwoWay}" />
-                <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationHideEmptyOriginalFilterText}"
-                          Margin="{StaticResource SmallRightMargin}"
-                          IsChecked="{Binding HideEmptyOriginal, Mode=TwoWay}" />
-            </StackPanel>
-
-            <DataGrid Grid.Row="3"
-                      Margin="{StaticResource SmallTopMargin}"
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      CanUserReorderColumns="False"
-                      CanUserSortColumns="False"
-                      IsReadOnly="True"
-                      HeadersVisibility="Column"
-                      ItemsSource="{Binding FilteredDictionaryItemsView}"
-                      SelectedItem="{Binding SelectedDictionaryItem, Mode=TwoWay}"
-                      Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Key"
-                                        Binding="{Binding Key}"
-                                        Width="2*" />
-                    <DataGridTextColumn Header="Original"
-                                        Binding="{Binding OriginalDisplayText}"
-                                        Width="3*" />
-                    <DataGridTextColumn Header="Translated"
-                                        Binding="{Binding TranslatedDisplayText}"
-                                        Width="3*" />
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <Grid Grid.Row="5"
-                  Margin="{StaticResource SmallTopMargin}"
-                  Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid Grid.Row="0"
+                  Height="30"
+                  Background="{StaticResource MaterialDesign.Brush.Primary}"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Margin="{StaticResource MediumXMargin}"
+                           VerticalAlignment="Center"
+                           Text="{Binding WindowTitle}"
+                           Style="{StaticResource MaterialDesignTitleMediumTextBlock}"
+                           Foreground="{StaticResource MaterialDesign.Brush.Background}" />
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="{md:PackIcon Kind=WindowMinimize}"
+                            Style="{StaticResource NavigationButtonStyle}"
+                            Click="MinimizeWindowButton_Click" />
+                    <Button Click="ToggleMaximizeWindowButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavigationButtonStyle}">
+                                <Setter Property="Content" Value="{md:PackIcon Kind=WindowMaximize}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
+                                        <Setter Property="Content" Value="{md:PackIcon Kind=WindowRestore}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="{md:PackIcon Kind=Close}"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Click="CloseWindowButton_Click" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1"
+                  Margin="{StaticResource MediumMargin}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition x:Name="DictionaryDataGridRowDefinition"
+                                   Height="2*"
+                                   MinHeight="180" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition x:Name="DictionaryDetailsRowDefinition"
+                                   Height="*"
+                                   MinHeight="140" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0"
-                           Grid.Column="0"
-                           Margin="{StaticResource SmallBottomMargin}"
-                           Text="{x:Static resx:Strings_Translation.CreateTranslationOriginalLabelText}"
-                           Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
-                <TextBlock Grid.Row="0"
-                           Grid.Column="1"
-                           Margin="{StaticResource SmallLeftMargin}"
-                           Text="{x:Static resx:Strings_Translation.CreateTranslationTranslatedLabelText}"
-                           Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+                           Text="{Binding ArchiveFullPath}"
+                           TextWrapping="Wrap"
+                           Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
 
-                <TextBox Grid.Row="1"
-                         Grid.Column="0"
-                         Text="{Binding SelectedOriginal, Mode=OneWay}"
-                         local:TextBoxNewlineMarker.IsEnabled="True"
-                         IsReadOnly="True"
-                         IsReadOnlyCaretVisible="True"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" />
-                <TextBox Grid.Row="1"
-                         Grid.Column="1"
-                         Margin="{StaticResource SmallLeftMargin}"
-                         Text="{Binding SelectedTranslated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         local:TextBoxNewlineMarker.IsEnabled="True"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" />
+                <TextBlock Grid.Row="1"
+                           Margin="{StaticResource SmallTopMargin}"
+                           Text="{Binding StatusMessage}"
+                           Visibility="{Binding HasStatusMessage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                           Foreground="{DynamicResource MaterialDesignBodySecondary}" />
+
+                <StackPanel Grid.Row="2" Margin="{StaticResource SmallTopMargin}">
+                    <!--フィルター-->
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ShowEnabledItemsCheckBox"
+                                  Content="{x:Static resx:Strings_Translation.CreateTranslationShowEnabledItemsFilterText}"
+                                  Margin="{StaticResource SmallRightMargin}"
+                                  IsChecked="{Binding ShowEnabledItems, Mode=TwoWay}" />
+                        <CheckBox x:Name="ShowDisabledItemsCheckBox"
+                                  Content="{x:Static resx:Strings_Translation.CreateTranslationShowDisabledItemsFilterText}"
+                                  Margin="{StaticResource SmallRightMargin}"
+                                  IsChecked="{Binding ShowDisabledItems, Mode=TwoWay}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationShowOnlyUntranslatedFilterText}"
+                                  Margin="{StaticResource SmallRightMargin}"
+                                  IsChecked="{Binding ShowOnlyUntranslated, Mode=TwoWay}" />
+                        <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationHidePossibleNonTranslationTargetsFilterText}"
+                                  Margin="{StaticResource SmallRightMargin}"
+                                  IsChecked="{Binding HidePossibleNonTranslationTargets, Mode=TwoWay}" />
+                        <CheckBox Content="{x:Static resx:Strings_Translation.CreateTranslationHideEmptyOriginalFilterText}"
+                                  Margin="{StaticResource SmallRightMargin}"
+                                  IsChecked="{Binding HideEmptyOriginal, Mode=TwoWay}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <DataGrid Grid.Row="3"
+                          x:Name="DictionaryDataGrid"
+                          Margin="{StaticResource SmallTopMargin}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserReorderColumns="False"
+                          CanUserSortColumns="False"
+                          IsReadOnly="False"
+                          HeadersVisibility="Column"
+                          ItemsSource="{Binding FilteredDictionaryItemsView}"
+                          SelectedItem="{Binding SelectedDictionaryItem, Mode=TwoWay}"
+                          Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridEnabledHeaderText}" Width="Auto">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridKeyHeaderText}"
+                                            Binding="{Binding Key}"
+                                            ElementStyle="{StaticResource DictionaryRowTextStyle}"
+                                            IsReadOnly="True"
+                                            Width="2*" />
+                        <DataGridTemplateColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridOriginalHeaderText}"
+                                                IsReadOnly="True"
+                                                Width="3*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <TextBlock Text="{Binding OriginalDisplayText}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Style="{StaticResource DictionaryRowTextStyle}" />
+                                        <Border HorizontalAlignment="Right"
+                                                Background="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=Background}"
+                                                Style="{StaticResource DictionaryRowCopyOverlayStyle}">
+                                            <Button x:Name="PART_CopyOriginalButton"
+                                                    Content="{x:Static resx:Strings_Translation.CreateTranslationCopyButtonContent}"
+                                                    Padding="12,2"
+                                                    Margin="4,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    cal:Action.TargetWithoutContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    cal:Message.Attach="[Event Click] = [Action CopyOriginalToClipboard($dataContext)]" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridTranslatedHeaderText}"
+                                            Binding="{Binding TranslatedDisplayText}"
+                                            ElementStyle="{StaticResource DictionaryRowTextStyle}"
+                                            IsReadOnly="True"
+                                            Width="3*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <GridSplitter Grid.Row="4"
+                              x:Name="DictionaryPaneGridSplitter"
+                              Height="8"
+                              Margin="0,8,0,8"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Center"
+                              ResizeDirection="Rows"
+                              ResizeBehavior="PreviousAndNext"
+                              Background="{DynamicResource MaterialDesignDivider}"
+                              Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              DragCompleted="DictionaryPaneGridSplitter_DragCompleted" />
+
+                <Grid Grid.Row="5"
+                      Margin="{StaticResource SmallTopMargin}"
+                      Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               x:Name="SelectedOriginalLabel"
+                               Text="{x:Static resx:Strings_Translation.CreateTranslationDataGridOriginalHeaderText}"
+                               Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="1"
+                               x:Name="SelectedTranslatedLabel"
+                               Margin="{StaticResource SmallLeftMargin}"
+                               Text="{x:Static resx:Strings_Translation.CreateTranslationDataGridTranslatedHeaderText}"
+                               Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
+
+                    <TextBox Grid.Row="1"
+                             Grid.Column="0"
+                             Text="{Binding SelectedOriginal, Mode=OneWay}"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             local:TextBoxNewlineMarker.IsEnabled="True"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="True"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                    <TextBox Grid.Row="1"
+                             Grid.Column="1"
+                             x:Name="SelectedTranslatedTextBox"
+                             Margin="{StaticResource SmallLeftMargin}"
+                             Text="{Binding SelectedTranslated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding CanEditSelectedTranslated}"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             local:TextBoxNewlineMarker.IsEnabled="True"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </Grid>
+
+                <StackPanel Grid.Row="6"
+                            Margin="{StaticResource MediumTopMargin}"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <md:SplitButton x:Name="ImportSplitButton"
+                                    Margin="{StaticResource SmallRightMargin}"
+                                    Content="{Binding ImportSplitButtonContent}"
+                                    IsEnabled="{Binding CanImport}"
+                                    Style="{StaticResource MaterialDesignOutlinedSplitButton}"
+                                    cal:Message.Attach="[Event Click] = [Action ExecuteImportAsync]">
+                        <md:SplitButton.PopupContent>
+                            <StackPanel>
+                                <Button Content="{x:Static resx:Strings_Translation.CreateTranslationImportDictionaryButtonContent}"
+                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                        cal:Message.Attach="[Event Click] = [Action SelectImportDictionaryAsync]" />
+                                <Button Content="{x:Static resx:Strings_Translation.CreateTranslationImportPoSplitButtonContent}"
+                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                        cal:Message.Attach="[Event Click] = [Action SelectImportPoAsync]" />
+                                <Button Content="{x:Static resx:Strings_Translation.CreateTranslationImportCsvButtonContent}"
+                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                        cal:Message.Attach="[Event Click] = [Action SelectImportCsvAsync]" />
+                            </StackPanel>
+                        </md:SplitButton.PopupContent>
+                    </md:SplitButton>
+                    <md:SplitButton x:Name="ExportSplitButton"
+                                    Content="{Binding ExportSplitButtonContent}"
+                                    IsEnabled="{Binding CanExport}"
+                                    Style="{StaticResource MaterialDesignSplitButton}"
+                                    cal:Message.Attach="[Event Click] = [Action ExecuteExportAsync]">
+                        <md:SplitButton.PopupContent>
+                            <StackPanel>
+                                <Button Content="{x:Static resx:Strings_Translation.CreateTranslationExportButtonContent}"
+                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                        cal:Message.Attach="[Event Click] = [Action SelectExportDictionaryAsync]" />
+                                <Button Content="{x:Static resx:Strings_Translation.CreateTranslationExportPoSplitButtonContent}"
+                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                        cal:Message.Attach="[Event Click] = [Action SelectExportPoAsync]" />
+                                <Button Content="{x:Static resx:Strings_Translation.CreateTranslationExportCsvButtonContent}"
+                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                        cal:Message.Attach="[Event Click] = [Action SelectExportCsvAsync]" />
+                            </StackPanel>
+                        </md:SplitButton.PopupContent>
+                    </md:SplitButton>
+                </StackPanel>
             </Grid>
+
+            <md:Snackbar x:Name="ExportSnackbar"
+                         Grid.Row="1"
+                         Margin="{StaticResource MediumMargin}"
+                         VerticalAlignment="Bottom"
+                         HorizontalAlignment="Stretch"
+                         MessageQueue="{Binding MessageQueue}"
+                         Style="{DynamicResource SnackbarStyle}" />
         </Grid>
-    </Grid>
+    </md:DialogHost>
 </Window>
