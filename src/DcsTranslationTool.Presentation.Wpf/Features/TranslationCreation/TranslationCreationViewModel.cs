@@ -856,7 +856,8 @@ public sealed class TranslationCreationViewModel(
         return key.StartsWith( "DictKey_WptName_", StringComparison.Ordinal )
             || key.StartsWith( "DictKey_ActionComment_", StringComparison.Ordinal )
             || key.StartsWith( "DictKey_GroupName_", StringComparison.Ordinal )
-            || key.StartsWith( "DictKey_UnitName_", StringComparison.Ordinal );
+            || key.StartsWith( "DictKey_UnitName_", StringComparison.Ordinal )
+            || LuaCodeStringDetector.IsLuaCodeString( original );
     }
 
     private static TranslationDictionaryItem InitializeDictionaryItem( TranslationDictionaryItem item ) =>

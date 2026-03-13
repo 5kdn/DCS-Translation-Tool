@@ -2061,6 +2061,75 @@ dictionary = {
     }
 
     [Fact]
+    public async Task ActivateAsyncはLuaコード文字列の行を対象外候補として初期非表示にする() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "Mission briefing." ),
+                    new TranslationDictionaryItem( "DictKey_script_1", "trigger.action.outText('x', 10)" ),
+                    new TranslationDictionaryItem( "DictKey_script_2", "Unit.getByName('A') ~= nil" ),
+                    new TranslationDictionaryItem( "DictKey_script_3", "goto label\n::label::\nreturn" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+
+        Assert.Equal(
+            ["DictKey_sortie_1"],
+            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+        Assert.True( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_sortie_1" ).IsEnabled );
+        Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_1" ).IsEnabled );
+        Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_2" ).IsEnabled );
+        Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_3" ).IsEnabled );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはコメントのみのLua文字列を新ルールでは対象外候補にしない() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "Mission briefing." ),
+                    new TranslationDictionaryItem( "DictKey_comment_1", "-- comment only" ),
+                    new TranslationDictionaryItem( "DictKey_comment_2", "--[[comment block]]" ),
+                    new TranslationDictionaryItem( "DictKey_comment_3", "--[=[comment block]=]" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+
+        Assert.Equal(
+            ["DictKey_sortie_1", "DictKey_comment_1", "DictKey_comment_2", "DictKey_comment_3"],
+            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+        Assert.All( viewModel.DictionaryItems, item => Assert.True( item.IsEnabled ) );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはコメントを除いた残りがLuaなら対象外候補にする() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "Mission briefing." ),
+                    new TranslationDictionaryItem( "DictKey_script_1", "-- comment only\ntrigger.action.outText('x', 10)" ),
+                    new TranslationDictionaryItem( "DictKey_plain_1", "Pilot, check in on channel 2." )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+
+        Assert.Equal(
+            ["DictKey_sortie_1", "DictKey_plain_1"],
+            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+        Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_1" ).IsEnabled );
+        Assert.True( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_plain_1" ).IsEnabled );
+    }
+
+    [Fact]
     public async Task 初期無効化された行を選択するとTranslated編集不可になる() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
