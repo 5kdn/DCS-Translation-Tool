@@ -5,15 +5,31 @@ using FluentResults;
 namespace DcsTranslationTool.Application.Interfaces;
 
 /// <summary>
-/// アーカイブ内 dictionary の読込機能を提供するサービスである。
+/// アーカイブ内 dictionary の読込機能を提供するサービス。
 /// </summary>
 public interface ITranslationDictionaryService {
+    /// <summary>
+    /// アーカイブ内に指定エントリが存在するかどうかを判定する。
+    /// </summary>
+    /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
+    /// <param name="entryPath">確認対象のアーカイブ内パス。</param>
+    /// <returns>存在判定結果。</returns>
+    Result<bool> HasArchiveEntry( string archiveFullPath, string entryPath );
+
     /// <summary>
     /// アーカイブから dictionary を読み込む。
     /// </summary>
     /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
     /// <returns>dictionary 項目一覧を含む結果。</returns>
     Result<IReadOnlyList<TranslationDictionaryItem>> LoadDictionary( string archiveFullPath );
+
+    /// <summary>
+    /// アーカイブ内の指定 dictionary を読み込む。
+    /// </summary>
+    /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
+    /// <param name="entryPath">対象 dictionary のアーカイブ内パス。</param>
+    /// <returns>dictionary 項目一覧を含む結果。</returns>
+    Result<IReadOnlyList<TranslationDictionaryItem>> LoadDictionary( string archiveFullPath, string entryPath );
 
     /// <summary>
     /// アーカイブから元テキストを保持した編集用 dictionary を読み込む。

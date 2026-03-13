@@ -34,7 +34,16 @@ public sealed class DialogService(
         {
             DataContext = parameters
         };
-        var result = await DialogHost.Show( dialog, parameters.DialogIdentifier );
+        object? result;
+
+        try {
+            result = await DialogHost.Show( dialog, parameters.DialogIdentifier );
+        }
+        catch(InvalidOperationException ex) {
+            logger.Error( $"確認ダイアログ表示に失敗した。Identifier={parameters.DialogIdentifier}", ex );
+            throw;
+        }
+
         var dialogResult = result switch
         {
             ConfirmationDialogResult confirmationDialogResult => confirmationDialogResult,

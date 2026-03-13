@@ -41,6 +41,7 @@ public sealed class TranslationCreationViewModel(
     ILoggingService logger,
     ITranslationDictionaryService translationDictionaryService
 ) : Screen {
+    private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string DictionaryOpenFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
     private const string DictionarySaveFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
     private const string CsvFileFilter = "CSV files|*.csv|すべてのファイル|*.*";
@@ -57,6 +58,7 @@ public sealed class TranslationCreationViewModel(
     private bool _showOnlyUntranslated;
     private bool _hidePossibleNonTranslationTargets = true;
     private bool _hideEmptyOriginal = true;
+    private bool _hasProcessedJapaneseDictionaryPrompt;
     private IReadOnlyList<TranslationDictionaryItem> _loadedDictionaryItems = [];
 
     /// <summary>
@@ -426,6 +428,69 @@ public sealed class TranslationCreationViewModel(
         await LoadDictionaryAsync( cancellationToken );
     }
 
+    /// <summary>
+    /// ウィンドウ表示後に埋め込みJP dictionary の確認と取り込みを行う。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
+    internal async Task HandleWindowLoadedAsync( CancellationToken cancellationToken = default ) {
+        if(_hasProcessedJapaneseDictionaryPrompt) {
+            return;
+        }
+
+        _hasProcessedJapaneseDictionaryPrompt = true;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var hasJapaneseDictionaryResult = translationDictionaryService.HasArchiveEntry( ArchiveFullPath, JapaneseDictionaryEntryPath );
+        if(hasJapaneseDictionaryResult is null) {
+            logger.Warn( $"JP dictionary 存在確認結果が null のため警告処理をスキップする。Archive={ArchiveFullPath}" );
+            return;
+        }
+
+        if(hasJapaneseDictionaryResult.IsFailed) {
+            logger.Warn( $"JP dictionary 存在確認に失敗したため警告処理をスキップする。Archive={ArchiveFullPath}" );
+            return;
+        }
+
+        if(!hasJapaneseDictionaryResult.Value || _loadedDictionaryItems.Count == 0) {
+            return;
+        }
+
+        if(!await ConfirmArchiveContainsJapaneseDictionaryAsync()) {
+            logger.Info( $"既存JP dictionary 警告でキャンセルされたためウィンドウを閉じる。Archive={ArchiveFullPath}" );
+            await TryCloseAsync( false );
+            return;
+        }
+
+        if(!await ConfirmJapaneseDictionaryImportAsync()) {
+            return;
+        }
+
+        var japaneseSourceResult = translationDictionaryService.LoadDictionary( ArchiveFullPath, JapaneseDictionaryEntryPath );
+        if(japaneseSourceResult.IsFailed) {
+            logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={ArchiveFullPath}" );
+            return;
+        }
+
+        var japaneseSourceItems = japaneseSourceResult.Value
+            .Select( item => new TranslationDictionaryItem( item.Key, item.Original )
+            {
+                Translated = item.Original
+            } )
+            .ToArray();
+        var importAnalysis = AnalyzeDictionaryImport( japaneseSourceItems );
+        if(!importAnalysis.IsFullMatch && !await ConfirmDictionaryPartialImportAsync( importAnalysis.Matches.Count )) {
+            logger.Info( $"JP dictionary 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, MatchCount={importAnalysis.Matches.Count}" );
+            return;
+        }
+
+        foreach(var match in importAnalysis.Matches) {
+            match.Row.Translated = match.Translated;
+        }
+
+        logger.Info( $"JP dictionary の初期取り込みが完了した。Archive={ArchiveFullPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
+    }
+
     private Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -436,15 +501,7 @@ public sealed class TranslationCreationViewModel(
         try {
             var result = translationDictionaryService.LoadDictionary( ArchiveFullPath );
             if(result.IsFailed) {
-                _loadedDictionaryItems = [];
-                StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadFailedMessage;
-                DictionaryItems = [];
-                SelectedDictionaryItem = null;
-                NotifyOfPropertyChange( nameof( CanExport ) );
-                NotifyOfPropertyChange( nameof( CanImport ) );
-                NotifyOfPropertyChange( nameof( CanImportDictionary ) );
-                NotifyOfPropertyChange( nameof( CanImportCsv ) );
-                NotifyOfPropertyChange( nameof( CanImportPo ) );
+                SetDictionaryLoadFailedState();
                 return Task.CompletedTask;
             }
 
@@ -475,15 +532,7 @@ public sealed class TranslationCreationViewModel(
         }
         catch(Exception ex) {
             logger.Error( $"TranslationCreationViewModel の dictionary 読込中に例外が発生した。Archive={ArchiveFullPath}", ex );
-            _loadedDictionaryItems = [];
-            DictionaryItems = [];
-            SelectedDictionaryItem = null;
-            StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadFailedMessage;
-            NotifyOfPropertyChange( nameof( CanExport ) );
-            NotifyOfPropertyChange( nameof( CanImport ) );
-            NotifyOfPropertyChange( nameof( CanImportDictionary ) );
-            NotifyOfPropertyChange( nameof( CanImportCsv ) );
-            NotifyOfPropertyChange( nameof( CanImportPo ) );
+            SetDictionaryLoadFailedState();
             return Task.CompletedTask;
         }
         finally {
@@ -1128,6 +1177,32 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    private async Task<bool> ConfirmArchiveContainsJapaneseDictionaryAsync() {
+        var result = await dialogService.ConfirmationDialogShowAsync(
+            new ConfirmationDialogParameters
+            {
+                Title = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle,
+                Message = GetJapaneseDictionaryEmbeddedMessage(),
+                ConfirmButtonText = "継続",
+                CancelButtonText = "キャンセル",
+                DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
+            } );
+        return result == ConfirmationDialogResult.Confirm;
+    }
+
+    private async Task<bool> ConfirmJapaneseDictionaryImportAsync() {
+        var result = await dialogService.ConfirmationDialogShowAsync(
+            new ConfirmationDialogParameters
+            {
+                Title = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationTitle,
+                Message = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage,
+                ConfirmButtonText = "取り込む",
+                CancelButtonText = "取り込まない",
+                DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
+            } );
+        return result == ConfirmationDialogResult.Confirm;
+    }
+
     private async Task<bool> ConfirmPoPartialImportAsync( int matchedCount ) {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1269,6 +1344,32 @@ public sealed class TranslationCreationViewModel(
     private static string NormalizeTranslationPairValue( string value ) => value
         .Replace( "\r\n", "\n", StringComparison.Ordinal )
         .Replace( '\r', '\n' );
+
+    private string GetJapaneseDictionaryEmbeddedMessage() =>
+        string.Format(
+            GetArchiveTypeSpecificJapaneseDictionaryEmbeddedMessage(),
+            ArchiveFullPath );
+
+    private string GetArchiveTypeSpecificJapaneseDictionaryEmbeddedMessage() =>
+        Path.GetExtension( ArchiveFullPath ).Equals( ".trk", StringComparison.OrdinalIgnoreCase )
+            ? Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage
+            : Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage;
+
+    private void SetDictionaryLoadFailedState() {
+        _loadedDictionaryItems = [];
+        StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadFailedMessage;
+        DictionaryItems = [];
+        SelectedDictionaryItem = null;
+        NotifyDictionaryAvailabilityChanged();
+    }
+
+    private void NotifyDictionaryAvailabilityChanged() {
+        NotifyOfPropertyChange( nameof( CanExport ) );
+        NotifyOfPropertyChange( nameof( CanImport ) );
+        NotifyOfPropertyChange( nameof( CanImportDictionary ) );
+        NotifyOfPropertyChange( nameof( CanImportCsv ) );
+        NotifyOfPropertyChange( nameof( CanImportPo ) );
+    }
 
     private void ShowExportSucceededSnackbar( string exportPath ) {
         var exportDirectoryPath = Path.GetDirectoryName( exportPath );

@@ -71,6 +71,58 @@ dictionary = {
     }
 
     [Fact]
+    public void HasArchiveEntryは指定エントリが存在するときtrueを返す() {
+        var archivePath = CreateArchive( "l10n/JP/dictionary", "dictionary = {}" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.HasArchiveEntry( archivePath, "l10n/JP/dictionary" );
+
+        Assert.True( result.IsSuccess );
+        Assert.True( result.Value );
+    }
+
+    [Fact]
+    public void HasArchiveEntryは大文字小文字差異を吸収する() {
+        var archivePath = CreateArchive( "L10N/jp/dictionary", "dictionary = {}" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.HasArchiveEntry( archivePath, "l10n/JP/dictionary" );
+
+        Assert.True( result.IsSuccess );
+        Assert.True( result.Value );
+    }
+
+    [Fact]
+    public void HasArchiveEntryはエントリが存在しないときfalseを返す() {
+        var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", "dictionary = {}" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.HasArchiveEntry( archivePath, "l10n/JP/dictionary" );
+
+        Assert.True( result.IsSuccess );
+        Assert.False( result.Value );
+    }
+
+    [Fact]
+    public void LoadDictionaryは指定エントリから項目一覧を読み込む() {
+        var archivePath = CreateArchive( "l10n/JP/dictionary", """
+dictionary = {
+    ["key2"] = "value2",
+    ["key1"] = "value1"
+}
+""" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadDictionary( archivePath, "l10n/JP/dictionary" );
+
+        Assert.True( result.IsSuccess );
+        Assert.Collection(
+            result.Value,
+            item => Assert.Equal( "key1", item.Key ),
+            item => Assert.Equal( "key2", item.Key ) );
+    }
+
+    [Fact]
     public void LoadDictionaryは不正なLuaのとき空一覧を返す() {
         var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", "broken" );
         var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 
@@ -22,6 +23,7 @@ public partial class TranslationCreationView : Window {
         InitializeComponent();
         DataContextChanged += Window_DataContextChanged;
         Loaded += Window_Loaded;
+        ContentRendered += Window_ContentRendered;
         Closing += Window_Closing;
     }
 
@@ -73,6 +75,18 @@ public partial class TranslationCreationView : Window {
     private void Window_Loaded( object sender, RoutedEventArgs e ) {
         ApplyWindowSize();
         ApplyDictionaryPaneRatio();
+    }
+
+    private async void Window_ContentRendered( object? sender, EventArgs e ) {
+        ContentRendered -= Window_ContentRendered;
+
+        if(DataContext is not TranslationCreationViewModel viewModel) {
+            return;
+        }
+
+        await Dispatcher.InvokeAsync(
+            async () => await viewModel.HandleWindowLoadedAsync(),
+            DispatcherPriority.ContextIdle );
     }
 
     private void Window_Closing( object? sender, CancelEventArgs e ) {

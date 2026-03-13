@@ -94,6 +94,21 @@
   <data name="CreateTranslationDictionaryLoadFailedMessage" xml:space="preserve">
     <value>dictionary の読み込みに失敗しました。</value>
   </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage" xml:space="preserve">
+    <value>この dictionary を Translated の初期値として取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationTitle" xml:space="preserve">
+    <value>取り込み確認</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage" xml:space="preserve">
+    <value>{0} ファイルには既に日本語のdictionaryファイルが含まれています。継続しますか？</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage" xml:space="preserve">
+    <value>{0} ファイルには既に日本語のdictionaryファイルが含まれています。継続しますか？</value>
+  </data>
   <data name="CreateTranslationDictionaryEmptyMessage" xml:space="preserve">
     <value>dictionary に項目がありません。</value>
   </data>

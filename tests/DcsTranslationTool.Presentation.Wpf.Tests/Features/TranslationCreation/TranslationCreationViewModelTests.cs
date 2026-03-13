@@ -103,6 +103,205 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public async Task ActivateAsyncはJPdictionaryがないとき警告を表示しない() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ), Times.Never );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはJPdictionary警告でキャンセルされたときDEFAULTdictionary読込後に閉じる() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok( true ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" )
+                ] ) );
+        context.DialogServiceMock
+            .Setup( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        context.TranslationDictionaryServiceMock.Verify( service => service.LoadDictionary( It.IsAny<string>() ), Times.Once );
+        context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync(
+            It.Is<ConfirmationDialogParameters>( parameters =>
+                parameters.Title == Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle
+                && parameters.Message == string.Format( Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage, @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" )
+                && parameters.ConfirmButtonText == "継続"
+                && parameters.CancelButtonText == "キャンセル" ) ), Times.Once );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはJPdictionaryをソースにしないときDEFAULTdictionaryを読み込む() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok( true ) );
+        context.DialogServiceMock
+            .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm )
+            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        Assert.Single( viewModel.DictionaryItems );
+        Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
+        context.TranslationDictionaryServiceMock.Verify( service => service.LoadDictionary( It.IsAny<string>(), It.IsAny<string>() ), Times.Never );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはJPdictionaryが全件一致するときTranslatedへ取り込む() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok( true ) );
+        context.DialogServiceMock
+            .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" ),
+                    new TranslationDictionaryItem( "DictKey_sortie_2", "o2" )
+                ] ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "jp1" ),
+                    new TranslationDictionaryItem( "DictKey_sortie_2", "jp2" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        Assert.Equal( "jp1", viewModel.DictionaryItems[0].Translated );
+        Assert.Equal( "jp2", viewModel.DictionaryItems[1].Translated );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはJPdictionaryが完全一致しないとき一致keyだけを取り込む() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok( true ) );
+        context.DialogServiceMock
+            .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" ),
+                    new TranslationDictionaryItem( "DictKey_sortie_2", "o2" )
+                ] ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "jp1" ),
+                    new TranslationDictionaryItem( "DictKey_other", "skip" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        Assert.Equal( "jp1", viewModel.DictionaryItems[0].Translated );
+        Assert.Equal( string.Empty, viewModel.DictionaryItems[1].Translated );
+        context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync(
+            It.Is<ConfirmationDialogParameters>( parameters =>
+                parameters.Title == Strings_Translation.CreateTranslationDictionaryImportPartialConfirmationTitle
+                && parameters.Message == string.Format( Strings_Translation.CreateTranslationDictionaryImportPartialConfirmationMessage, 1 ) ) ), Times.Once );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはJPdictionaryの部分取り込み確認でキャンセルされたときDEFAULTdictionaryで開く() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok( true ) );
+        context.DialogServiceMock
+            .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm )
+            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" )
+                ] ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_other", "skip" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
+    }
+
+    [Fact]
+    public async Task ActivateAsyncはTrkでJPdictionary警告文言を切り替える() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), "l10n/JP/dictionary" ) )
+            .Returns( Result.Ok( true ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" )
+                ] ) );
+        context.DialogServiceMock
+            .Setup( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+        var viewModel = context.CreateViewModel( @"C:\Tracks\Mission1.trk" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync(
+            It.Is<ConfirmationDialogParameters>( parameters =>
+                parameters.Message == string.Format( Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage, @"C:\Tracks\Mission1.trk" ) ) ), Times.Once );
+    }
+
+    [Fact]
     public async Task TranslateFileDir未設定時はCanExportがfalseになる() {
         var context = new TranslationCreationViewModelTestContext( new AppSettings
         {
@@ -2138,6 +2337,9 @@ dictionary = {
             SystemServiceMock
                 .Setup( service => service.GetCurrentDateTimeOffset() )
                 .Returns( PoRevisionDate );
+            TranslationDictionaryServiceMock
+                .Setup( service => service.HasArchiveEntry( It.IsAny<string>(), It.IsAny<string>() ) )
+                .Returns( Result.Ok( false ) );
         }
 
         internal string TempDirectory { get; }

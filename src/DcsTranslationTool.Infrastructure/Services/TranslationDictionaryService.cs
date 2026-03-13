@@ -22,6 +22,39 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     private const string ObsoletePoPrefix = "#~ ";
 
     /// <inheritdoc />
+    public Result<bool> HasArchiveEntry( string archiveFullPath, string entryPath ) {
+        var archiveValidationResult = ValidateArchivePath( archiveFullPath );
+        if(archiveValidationResult.IsFailed) {
+            return Result.Fail( archiveValidationResult.Errors );
+        }
+
+        if(string.IsNullOrWhiteSpace( entryPath )) {
+            logger.Warn( "アーカイブエントリ確認でエントリパスが指定されなかった。" );
+            return Result.Fail( ResultErrorFactory.Validation( "アーカイブ内パスが空です", "DICTIONARY_ENTRY_PATH_REQUIRED" ) );
+        }
+
+        try {
+            using var archive = ZipFile.OpenRead( archiveFullPath );
+            var normalizedEntryPath = NormalizeArchiveEntryPath( entryPath );
+            var exists = archive.Entries.Any( value =>
+                string.Equals(
+                    NormalizeArchiveEntryPath( value.FullName ),
+                    normalizedEntryPath,
+                    StringComparison.OrdinalIgnoreCase ) );
+            logger.Info( $"アーカイブエントリ存在確認を行った。Archive={archiveFullPath}, Entry={normalizedEntryPath}, Exists={exists}" );
+            return Result.Ok( exists );
+        }
+        catch(InvalidDataException ex) {
+            logger.Error( $"アーカイブエントリ確認時に zip 構造が不正だった。Archive={archiveFullPath}, Entry={entryPath}", ex );
+            return Result.Fail( ResultErrorFactory.External( "アーカイブ構造が不正です", "DICTIONARY_ARCHIVE_INVALID", ex ) );
+        }
+        catch(Exception ex) {
+            logger.Error( $"アーカイブエントリ確認に失敗した。Archive={archiveFullPath}, Entry={entryPath}", ex );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "DICTIONARY_ENTRY_CHECK_EXCEPTION" ) );
+        }
+    }
+
+    /// <inheritdoc />
     public Result<IReadOnlyList<TranslationDictionaryItem>> LoadDictionary( string archiveFullPath ) {
         var editableResult = LoadEditableDictionary( archiveFullPath );
         return editableResult.IsFailed
@@ -30,42 +63,16 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     }
 
     /// <inheritdoc />
+    public Result<IReadOnlyList<TranslationDictionaryItem>> LoadDictionary( string archiveFullPath, string entryPath ) {
+        var editableResult = LoadEditableDictionary( archiveFullPath, entryPath );
+        return editableResult.IsFailed
+            ? Result.Fail( editableResult.Errors )
+            : Result.Ok<IReadOnlyList<TranslationDictionaryItem>>( editableResult.Value.Items );
+    }
+
+    /// <inheritdoc />
     public Result<EditableTranslationDictionary> LoadEditableDictionary( string archiveFullPath ) {
-        if(string.IsNullOrWhiteSpace( archiveFullPath )) {
-            logger.Warn( "dictionary 読込でアーカイブパスが指定されなかった。" );
-            return Result.Fail( ResultErrorFactory.Validation( "アーカイブ絶対パスが空です", "DICTIONARY_ARCHIVE_REQUIRED" ) );
-        }
-
-        if(!File.Exists( archiveFullPath )) {
-            logger.Warn( $"dictionary 読込対象のアーカイブが存在しない。Path={archiveFullPath}" );
-            return Result.Fail( ResultErrorFactory.NotFound( $"ファイルが存在しません: {archiveFullPath}", "DICTIONARY_ARCHIVE_NOT_FOUND" ) );
-        }
-
-        try {
-            using var archive = ZipFile.OpenRead( archiveFullPath );
-            var entry = archive.Entries.FirstOrDefault( value =>
-                string.Equals( value.FullName, DictionaryEntryPath, StringComparison.OrdinalIgnoreCase ) );
-
-            if(entry is null) {
-                logger.Warn( $"dictionary エントリが存在しない。Archive={archiveFullPath}" );
-                return Result.Fail( ResultErrorFactory.NotFound( "dictionary エントリが存在しません", "DICTIONARY_ENTRY_NOT_FOUND" ) );
-            }
-
-            using var stream = entry.Open();
-            using var reader = new StreamReader( stream, Encoding.UTF8, true );
-            var luaText = NormalizeLineEndings( reader.ReadToEnd() );
-            var editableDictionary = ParseEditableDictionary( luaText );
-            logger.Info( $"dictionary を読み込んだ。Archive={archiveFullPath}, Count={editableDictionary.Items.Count}" );
-            return Result.Ok( editableDictionary );
-        }
-        catch(InvalidDataException ex) {
-            logger.Error( $"dictionary 読込時に zip 構造が不正だった。Archive={archiveFullPath}", ex );
-            return Result.Fail( ResultErrorFactory.External( "アーカイブ構造が不正です", "DICTIONARY_ARCHIVE_INVALID", ex ) );
-        }
-        catch(Exception ex) {
-            logger.Error( $"dictionary 読込に失敗した。Archive={archiveFullPath}", ex );
-            return Result.Fail( ResultErrorFactory.Unexpected( ex, "DICTIONARY_LOAD_EXCEPTION" ) );
-        }
+        return LoadEditableDictionary( archiveFullPath, DictionaryEntryPath );
     }
 
     /// <inheritdoc />
@@ -96,6 +103,62 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
             logger.Error( $"dictionary ファイル読込に失敗した。Path={path}", ex );
             return Result.Fail( ResultErrorFactory.Unexpected( ex, "DICTIONARY_FILE_LOAD_EXCEPTION" ) );
         }
+    }
+
+    private Result<EditableTranslationDictionary> LoadEditableDictionary( string archiveFullPath, string entryPath ) {
+        var archiveValidationResult = ValidateArchivePath( archiveFullPath );
+        if(archiveValidationResult.IsFailed) {
+            return Result.Fail( archiveValidationResult.Errors );
+        }
+
+        if(string.IsNullOrWhiteSpace( entryPath )) {
+            logger.Warn( "dictionary 読込でアーカイブ内パスが指定されなかった。" );
+            return Result.Fail( ResultErrorFactory.Validation( "アーカイブ内パスが空です", "DICTIONARY_ENTRY_PATH_REQUIRED" ) );
+        }
+
+        try {
+            using var archive = ZipFile.OpenRead( archiveFullPath );
+            var normalizedEntryPath = NormalizeArchiveEntryPath( entryPath );
+            var entry = archive.Entries.FirstOrDefault( value =>
+                string.Equals(
+                    NormalizeArchiveEntryPath( value.FullName ),
+                    normalizedEntryPath,
+                    StringComparison.OrdinalIgnoreCase ) );
+
+            if(entry is null) {
+                logger.Warn( $"dictionary エントリが存在しない。Archive={archiveFullPath}, Entry={normalizedEntryPath}" );
+                return Result.Fail( ResultErrorFactory.NotFound( "dictionary エントリが存在しません", "DICTIONARY_ENTRY_NOT_FOUND" ) );
+            }
+
+            using var stream = entry.Open();
+            using var reader = new StreamReader( stream, Encoding.UTF8, true );
+            var luaText = NormalizeLineEndings( reader.ReadToEnd() );
+            var editableDictionary = ParseEditableDictionary( luaText );
+            logger.Info( $"dictionary を読み込んだ。Archive={archiveFullPath}, Entry={normalizedEntryPath}, Count={editableDictionary.Items.Count}" );
+            return Result.Ok( editableDictionary );
+        }
+        catch(InvalidDataException ex) {
+            logger.Error( $"dictionary 読込時に zip 構造が不正だった。Archive={archiveFullPath}, Entry={entryPath}", ex );
+            return Result.Fail( ResultErrorFactory.External( "アーカイブ構造が不正です", "DICTIONARY_ARCHIVE_INVALID", ex ) );
+        }
+        catch(Exception ex) {
+            logger.Error( $"dictionary 読込に失敗した。Archive={archiveFullPath}, Entry={entryPath}", ex );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "DICTIONARY_LOAD_EXCEPTION" ) );
+        }
+    }
+
+    private Result ValidateArchivePath( string archiveFullPath ) {
+        if(string.IsNullOrWhiteSpace( archiveFullPath )) {
+            logger.Warn( "dictionary 読込でアーカイブパスが指定されなかった。" );
+            return Result.Fail( ResultErrorFactory.Validation( "アーカイブ絶対パスが空です", "DICTIONARY_ARCHIVE_REQUIRED" ) );
+        }
+
+        if(File.Exists( archiveFullPath )) {
+            return Result.Ok();
+        }
+
+        logger.Warn( $"dictionary 読込対象のアーカイブが存在しない。Path={archiveFullPath}" );
+        return Result.Fail( ResultErrorFactory.NotFound( $"ファイルが存在しません: {archiveFullPath}", "DICTIONARY_ARCHIVE_NOT_FOUND" ) );
     }
 
     /// <inheritdoc />
@@ -796,6 +859,9 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     private static string NormalizeLineEndings( string value ) => value
         .Replace( "\r\n", "\n", StringComparison.Ordinal )
         .Replace( '\r', '\n' );
+
+    private static string NormalizeArchiveEntryPath( string value ) =>
+        value.Replace( "\\", "/", StringComparison.Ordinal );
 
     private static bool IsCommentedOutLine( string content, int matchIndex ) {
         var lineStartIndex = content.LastIndexOf( '\n', Math.Max( 0, matchIndex - 1 ) );
