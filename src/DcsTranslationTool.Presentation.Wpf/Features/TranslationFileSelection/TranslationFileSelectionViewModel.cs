@@ -373,7 +373,9 @@ public sealed class TranslationFileSelectionViewModel(
         }
         else if(_selectedNodes.TryGetValue( categoryType, out var selectedNode )
             && ReferenceEquals( selectedNode, node )) {
-            _selectedNodes[categoryType] = null;
+            _selectedNodes[categoryType] = node.IsDirectory
+                ? FindSelectedFileDescendant( node )
+                : null;
         }
 
         logger.Info( $"TranslationFileSelection の選択状態が変化した。SelectedIndex={SelectedTabIndex}" );
@@ -409,6 +411,26 @@ public sealed class TranslationFileSelectionViewModel(
         GetSelectedTab() is { TabType: var tabType } && _selectedNodes.TryGetValue( tabType, out var node )
             ? node
             : null;
+
+    /// <summary>
+    /// 指定ディレクトリ配下で選択状態のファイルを探索する。
+    /// </summary>
+    /// <param name="node">探索起点ノード。</param>
+    /// <returns>選択状態のファイルノード。存在しない場合は <see langword="null"/>。</returns>
+    private static IFileEntryViewModel? FindSelectedFileDescendant( IFileEntryViewModel node ) {
+        foreach(var child in node.Children) {
+            if(child.IsSelected && !child.IsDirectory) {
+                return child;
+            }
+
+            var descendant = FindSelectedFileDescendant( child );
+            if(descendant is not null) {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// 翻訳作成対象のアーカイブ絶対パスを取得する。

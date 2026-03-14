@@ -1,12 +1,18 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reflection;
+
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
+using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Resources;
 using DcsTranslationTool.Shared.Models;
 
@@ -219,7 +225,6 @@ public sealed class TranslationFileSelectionViewModelTests {
         context.SystemServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C" ), Times.Once );
     }
 
-    [StaFact]
     public async Task ディレクトリノード選択時はCanCreateTranslationがfalseになる() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
@@ -317,7 +322,6 @@ public sealed class TranslationFileSelectionViewModelTests {
             It.IsAny<IDictionary<string, object>?>() ), Times.Once );
     }
 
-    [StaFact]
     public async Task CreateTranslationはファクトリ失敗時にsnackbarと詳細ログを出す() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
@@ -463,9 +467,156 @@ public sealed class TranslationFileSelectionViewModelTests {
             Times.Never );
     }
 
+    [StaFact]
+    public async Task ディレクトリ解除時に選択済み子ファイルへ昇格してCanCreateTranslationがtrueになる() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var scenario = CreateManualSelectionScenario( viewModel );
+        SimulateDirectoryToFileSelectionTransition( viewModel, scenario );
+
+        Assert.True( viewModel.HasSelectedEntry );
+        Assert.True( viewModel.CanCreateTranslation );
+    }
+
+    [StaFact]
+    public async Task ディレクトリ解除時に選択済み子ファイルへ昇格してOpenDirectoryはファイルパスで開く() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var scenario = CreateManualSelectionScenario( viewModel );
+        SimulateDirectoryToFileSelectionTransition( viewModel, scenario );
+
+        viewModel.OpenDirectory();
+
+        context.SystemServiceMock.Verify( service => service.OpenDirectory( scenario.FilePath ), Times.Once );
+    }
+
+    [StaFact]
+    public async Task ディレクトリ解除時に選択済み子ファイルへ昇格してCreateTranslationはファイルパスを使う() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.WindowManagerMock
+            .Setup( manager => manager.ShowWindowAsync(
+                It.IsAny<object>(),
+                It.IsAny<object?>(),
+                It.IsAny<IDictionary<string, object>?>() ) )
+            .Returns( Task.CompletedTask );
+        context.TranslationCreationViewModelFactoryMock
+            .Setup( factory => factory.Create( It.IsAny<string>() ) )
+            .Returns<string>( path => new TranslationCreationViewModel(
+                path,
+                context.AppSettingsServiceMock.Object,
+                context.ApplicationInfoServiceMock.Object,
+                context.DialogServiceMock.Object,
+                context.DialogProviderMock.Object,
+                context.SystemServiceMock.Object,
+                context.LoggerMock.Object,
+                context.TranslationDictionaryServiceMock.Object ) );
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var scenario = CreateManualSelectionScenario( viewModel );
+        SimulateDirectoryToFileSelectionTransition( viewModel, scenario );
+
+        await viewModel.CreateTranslation();
+
+        context.TranslationCreationViewModelFactoryMock.Verify( factory => factory.Create( scenario.FilePath ), Times.Once );
+        context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
+            It.Is<object>( model => IsTranslationCreationViewModelWithArchiveFullPath( model, scenario.FilePath ) ),
+            It.IsAny<object?>(),
+            It.IsAny<IDictionary<string, object>?>() ), Times.Once );
+    }
+
     private static bool IsTranslationCreationViewModelWithArchiveFullPath( object model, string expectedArchiveFullPath ) =>
         model is TranslationCreationViewModel translationCreationViewModel
         && translationCreationViewModel.ArchiveFullPath == expectedArchiveFullPath;
+
+    private static ManualSelectionScenario CreateManualSelectionScenario( TranslationFileSelectionViewModel viewModel ) {
+        const string directoryPath = @"C:\DCSWorld\Mods\aircraft\A10C";
+        const string filePath = @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz";
+        var directoryNode = new ManualFileEntryViewModel( "A10C", "A10C", true, directoryPath );
+        var fileNode = new ManualFileEntryViewModel( "Mission1.miz", "A10C/Mission1.miz", false, filePath );
+        directoryNode.Children.Add( fileNode );
+
+        RegisterSelectionSubscription( viewModel, CategoryType.Aircraft, directoryNode );
+        RegisterSelectionSubscription( viewModel, CategoryType.Aircraft, fileNode );
+        return new ManualSelectionScenario( directoryNode, fileNode, filePath );
+    }
+
+    private static void SimulateDirectoryToFileSelectionTransition( TranslationFileSelectionViewModel viewModel, ManualSelectionScenario scenario ) {
+        scenario.DirectoryNode.SetSelected( true );
+        InvokeNodePropertyChanged( viewModel, scenario.DirectoryNode );
+
+        scenario.FileNode.SetSelected( true );
+        InvokeNodePropertyChanged( viewModel, scenario.FileNode );
+
+        scenario.DirectoryNode.SetSelected( false );
+        InvokeNodePropertyChanged( viewModel, scenario.DirectoryNode );
+    }
+
+    private static void RegisterSelectionSubscription( TranslationFileSelectionViewModel viewModel, CategoryType categoryType, IFileEntryViewModel node ) {
+        var method = typeof( TranslationFileSelectionViewModel ).GetMethod( "RegisterSelectionSubscription", BindingFlags.Instance | BindingFlags.NonPublic )
+            ?? throw new MissingMethodException( typeof( TranslationFileSelectionViewModel ).FullName, "RegisterSelectionSubscription" );
+        method.Invoke( viewModel, [categoryType, node] );
+    }
+
+    private static void InvokeNodePropertyChanged( TranslationFileSelectionViewModel viewModel, IFileEntryViewModel node ) {
+        var method = typeof( TranslationFileSelectionViewModel ).GetMethod( "OnNodePropertyChanged", BindingFlags.Instance | BindingFlags.NonPublic )
+            ?? throw new MissingMethodException( typeof( TranslationFileSelectionViewModel ).FullName, "OnNodePropertyChanged" );
+        method.Invoke( viewModel, [node, new PropertyChangedEventArgs( nameof( IFileEntryViewModel.IsSelected ) )] );
+    }
+
+    private sealed record ManualSelectionScenario(
+        ManualFileEntryViewModel DirectoryNode,
+        ManualFileEntryViewModel FileNode,
+        string FilePath );
+
+    private sealed class ManualFileEntryViewModel( string name, string path, bool isDirectory, string localSha ) : PropertyChangedBase, IFileEntryViewModel {
+        public event EventHandler<bool?>? CheckStateChanged {
+            add {
+            }
+            remove {
+            }
+        }
+
+        public string Name { get; } = name;
+
+        public string Path { get; } = path;
+
+        public bool IsDirectory { get; } = isDirectory;
+
+        public FileEntry Model { get; } = new LocalFileEntry( name, path, isDirectory, localSha );
+
+        public FileChangeType? ChangeType => FileChangeType.Modified;
+
+        public bool CanCheck => true;
+
+        public bool? CheckState { get; set; }
+
+        public bool IsSelected { get; set; }
+
+        public bool IsExpanded { get; set; }
+
+        public bool IsVisible { get; set; } = true;
+
+        public ObservableCollection<IFileEntryViewModel> Children { get; set; } = [];
+
+        public void SetSelectRecursive( bool value ) => IsSelected = value;
+
+        public List<FileEntry> GetCheckedModelRecursive( bool fileOnly = false ) => [];
+
+        public List<IFileEntryViewModel> GetCheckedViewModelRecursive() => [];
+
+        public void Dispose() {
+        }
+
+        internal void SetSelected( bool value ) {
+            IsSelected = value;
+            NotifyOfPropertyChange( nameof( IsSelected ) );
+        }
+    }
 
     private sealed class TranslationFileSelectionViewModelTestContext {
         private readonly AppSettings _settings;
