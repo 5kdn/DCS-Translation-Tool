@@ -47,13 +47,17 @@
                 <TabControl.ContentTemplate>
                     <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
                         <Grid>
-                            <TreeView ItemsSource="{Binding Root.Children}"
+                            <TreeView x:Name="TreeViewControl"
+                                      Style="{StaticResource MaterialDesignTreeView}"
+                                      ItemsSource="{Binding Root.Children}"
                                       Margin="{StaticResource XSmallTopMargin}"
                                       VirtualizingStackPanel.IsVirtualizing="True"
                                       VirtualizingStackPanel.VirtualizationMode="Recycling"
                                       ScrollViewer.CanContentScroll="True">
                                 <TreeView.ItemContainerStyle>
-                                    <Style TargetType="TreeViewItem">
+                                    <Style TargetType="TreeViewItem"
+                                           BasedOn="{StaticResource MaterialDesignTreeViewItem}">
+                                        <Setter Property="md:TreeViewAssist.ShowSelection" Value="True" />
                                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                                         <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
                                         <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
