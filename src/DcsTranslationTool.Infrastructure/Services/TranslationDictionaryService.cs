@@ -445,25 +445,34 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
         contentStartIndex = -1;
         contentEndIndex = -1;
 
-        var dictionaryIndex = luaText.IndexOf( "dictionary", StringComparison.Ordinal );
-        if(dictionaryIndex < 0) {
-            return false;
+        const string dictionaryToken = "dictionary";
+        var searchStartIndex = 0;
+
+        while(searchStartIndex < luaText.Length) {
+            var dictionaryIndex = luaText.IndexOf( dictionaryToken, searchStartIndex, StringComparison.Ordinal );
+            if(dictionaryIndex < 0) {
+                return false;
+            }
+
+            var index = dictionaryIndex + dictionaryToken.Length;
+            SkipWhitespace( luaText, ref index, luaText.Length );
+            if(!TryConsumeCharacter( luaText, ref index, luaText.Length, '=' )) {
+                searchStartIndex = dictionaryIndex + dictionaryToken.Length;
+                continue;
+            }
+
+            SkipWhitespace( luaText, ref index, luaText.Length );
+            if(!TryConsumeCharacter( luaText, ref index, luaText.Length, '{' )) {
+                searchStartIndex = dictionaryIndex + dictionaryToken.Length;
+                continue;
+            }
+
+            contentStartIndex = index;
+            contentEndIndex = FindDictionaryClosingBraceIndex( luaText, index );
+            return contentEndIndex >= 0;
         }
 
-        var index = dictionaryIndex + "dictionary".Length;
-        SkipWhitespace( luaText, ref index, luaText.Length );
-        if(!TryConsumeCharacter( luaText, ref index, luaText.Length, '=' )) {
-            return false;
-        }
-
-        SkipWhitespace( luaText, ref index, luaText.Length );
-        if(!TryConsumeCharacter( luaText, ref index, luaText.Length, '{' )) {
-            return false;
-        }
-
-        contentStartIndex = index;
-        contentEndIndex = FindDictionaryClosingBraceIndex( luaText, index );
-        return contentEndIndex >= 0;
+        return false;
     }
 
     private static int FindDictionaryClosingBraceIndex( string luaText, int startIndex ) {
