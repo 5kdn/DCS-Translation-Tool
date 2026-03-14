@@ -418,7 +418,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <param name="row">コピー対象行。</param>
     public void CopyOriginalToClipboard( TranslationDictionaryItemRowViewModel? row ) {
-        if(row is null) {
+        if(row is null || string.IsNullOrWhiteSpace( row.Original )) {
             return;
         }
 

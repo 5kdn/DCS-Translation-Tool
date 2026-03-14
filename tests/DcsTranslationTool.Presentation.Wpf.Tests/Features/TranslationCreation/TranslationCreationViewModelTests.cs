@@ -75,6 +75,30 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public void CopyOriginalToClipboardは空文字のOriginalでは何もしない() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+        var row = new TranslationDictionaryItemRowViewModel( new TranslationDictionaryItem( "DictKey_sortie_1", string.Empty ) );
+
+        viewModel.CopyOriginalToClipboard( row );
+
+        context.SystemServiceMock.Verify( service => service.SetClipboardText( It.IsAny<string>() ), Times.Never );
+        Assert.Empty( viewModel.MessageQueue.QueuedMessages );
+    }
+
+    [Fact]
+    public void CopyOriginalToClipboardは空白のみのOriginalでは何もしない() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+        var row = new TranslationDictionaryItemRowViewModel( new TranslationDictionaryItem( "DictKey_sortie_1", " \t " ) );
+
+        viewModel.CopyOriginalToClipboard( row );
+
+        context.SystemServiceMock.Verify( service => service.SetClipboardText( It.IsAny<string>() ), Times.Never );
+        Assert.Empty( viewModel.MessageQueue.QueuedMessages );
+    }
+
+    [Fact]
     public async Task ActivateAsyncはdictionary項目一覧を読み込む() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
