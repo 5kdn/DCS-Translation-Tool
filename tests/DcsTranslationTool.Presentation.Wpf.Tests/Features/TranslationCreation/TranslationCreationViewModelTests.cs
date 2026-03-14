@@ -386,6 +386,41 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public async Task TranslateFileDir未設定時のExecuteImportAsyncはアーカイブ隣接dictionaryを初期パスにする() {
+        var context = new TranslationCreationViewModelTestContext( new AppSettings
+        {
+            TranslateFileDir = string.Empty,
+            DcsWorldInstallDir = @"C:\DCSWorld"
+        } );
+        var importPath = @"C:\DCSWorld\Mods\aircraft\A10C\dictionary";
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        context.DialogProviderMock
+            .Setup( provider => provider.ShowOpenFilePicker( importPath, "dictionary|dictionary|すべてのファイル|*.*", out importPath ) )
+            .Returns( true );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionaryFile( importPath ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" ) { Translated = "t1" }
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.ExecuteImportAsync();
+
+        context.DialogProviderMock.Verify(
+            provider => provider.ShowOpenFilePicker( importPath, "dictionary|dictionary|すべてのファイル|*.*", out importPath ),
+            Times.Once );
+        context.TranslationDictionaryServiceMock.Verify( service => service.LoadDictionaryFile( importPath ), Times.Once );
+        Assert.Equal( "t1", viewModel.DictionaryItems.Single().Translated );
+    }
+
+    [Fact]
     public async Task SelectImportCsvAsyncは表示を切り替えてCSV読み込みを実行する() {
         var context = new TranslationCreationViewModelTestContext();
         var importPath = @"C:\Translate\DCSWorld\Mods\aircraft\A10C\Mission1.miz\l10n\JP\Mission1.csv";
@@ -410,6 +445,41 @@ public sealed partial class TranslationCreationViewModelTests {
         await viewModel.SelectImportCsvAsync();
 
         Assert.Equal( Strings_Translation.CreateTranslationImportCsvButtonContent, viewModel.ImportSplitButtonContent );
+        context.TranslationDictionaryServiceMock.Verify( service => service.LoadCsv( importPath ), Times.Once );
+        Assert.Equal( "csv1", viewModel.DictionaryItems.Single().Translated );
+    }
+
+    [Fact]
+    public async Task TranslateFileDir未設定時のSelectImportCsvAsyncはアーカイブ隣接csvを初期パスにする() {
+        var context = new TranslationCreationViewModelTestContext( new AppSettings
+        {
+            TranslateFileDir = string.Empty,
+            DcsWorldInstallDir = @"C:\DCSWorld"
+        } );
+        var importPath = @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.csv";
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        context.DialogProviderMock
+            .Setup( provider => provider.ShowOpenFilePicker( importPath, "CSV files|*.csv|すべてのファイル|*.*", out importPath ) )
+            .Returns( true );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadCsv( importPath ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationCsvEntry>>(
+                [
+                    new TranslationCsvEntry( "DictKey_descriptionFoo_1", "o1", "csv1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.SelectImportCsvAsync();
+
+        context.DialogProviderMock.Verify(
+            provider => provider.ShowOpenFilePicker( importPath, "CSV files|*.csv|すべてのファイル|*.*", out importPath ),
+            Times.Once );
         context.TranslationDictionaryServiceMock.Verify( service => service.LoadCsv( importPath ), Times.Once );
         Assert.Equal( "csv1", viewModel.DictionaryItems.Single().Translated );
     }
@@ -1445,6 +1515,41 @@ dictionary = {
 
         context.TranslationDictionaryServiceMock.Verify( service => service.LoadPo( It.IsAny<string>() ), Times.Never );
         Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
+    }
+
+    [Fact]
+    public async Task TranslateFileDir未設定時のImportPoAsyncはアーカイブ隣接poを初期パスにする() {
+        var context = new TranslationCreationViewModelTestContext( new AppSettings
+        {
+            TranslateFileDir = string.Empty,
+            DcsWorldInstallDir = @"C:\DCSWorld"
+        } );
+        var importPath = @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.po";
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        context.DialogProviderMock
+            .Setup( provider => provider.ShowOpenFilePicker( importPath, "PO files|*.po|すべてのファイル|*.*", out importPath ) )
+            .Returns( true );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadPo( importPath ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationPoEntry>>(
+                [
+                    new TranslationPoEntry( "DictKey_descriptionFoo_1", "o1", "po1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        await viewModel.ImportPoAsync();
+
+        context.DialogProviderMock.Verify(
+            provider => provider.ShowOpenFilePicker( importPath, "PO files|*.po|すべてのファイル|*.*", out importPath ),
+            Times.Once );
+        context.TranslationDictionaryServiceMock.Verify( service => service.LoadPo( importPath ), Times.Once );
+        Assert.Equal( "po1", viewModel.DictionaryItems.Single().Translated );
     }
 
     [Fact]

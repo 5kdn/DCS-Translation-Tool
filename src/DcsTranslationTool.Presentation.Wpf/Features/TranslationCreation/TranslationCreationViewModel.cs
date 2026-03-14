@@ -1384,6 +1384,9 @@ public sealed class TranslationCreationViewModel(
 
     private string GetExportDirectoryPath() {
         var translateFileDir = appSettingsService.Settings.TranslateFileDir;
+        if(string.IsNullOrWhiteSpace( translateFileDir )) {
+            throw new InvalidOperationException( "翻訳ファイル出力先ディレクトリが未設定である。" );
+        }
 
         if(TryBuildExportPath(
             appSettingsService.Settings.DcsWorldInstallDir,
