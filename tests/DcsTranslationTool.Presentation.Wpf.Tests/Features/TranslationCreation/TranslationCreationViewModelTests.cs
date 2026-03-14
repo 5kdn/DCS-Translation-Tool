@@ -40,6 +40,84 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public void コンストラクタは保存済みウィンドウ状態を初期化する() {
+        var context = new TranslationCreationViewModelTestContext( new AppSettings
+        {
+            TranslateFileDir = @"C:\Translate",
+            DcsWorldInstallDir = @"C:\DCSWorld",
+            TranslationCreationWindowWidth = 1400,
+            TranslationCreationWindowHeight = 920,
+            TranslationCreationDictionaryPaneRatio = 3.5
+        } );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        Assert.Equal( 1400, viewModel.WindowWidth );
+        Assert.Equal( 920, viewModel.WindowHeight );
+        Assert.Equal( 3.5, viewModel.DictionaryPaneRatio );
+    }
+
+    [Fact]
+    public void コンストラクタは不正な保存済みウィンドウ状態を補正する() {
+        var context = new TranslationCreationViewModelTestContext( new AppSettings
+        {
+            TranslateFileDir = @"C:\Translate",
+            DcsWorldInstallDir = @"C:\DCSWorld",
+            TranslationCreationWindowWidth = double.NaN,
+            TranslationCreationWindowHeight = 0,
+            TranslationCreationDictionaryPaneRatio = double.NaN
+        } );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        Assert.Equal( TranslationCreationViewModel.DefaultWindowWidth, viewModel.WindowWidth );
+        Assert.Equal( TranslationCreationViewModel.DefaultWindowHeight, viewModel.WindowHeight );
+        Assert.Equal( TranslationCreationViewModel.DefaultDictionaryPaneRatio, viewModel.DictionaryPaneRatio );
+    }
+
+    [Fact]
+    public void WindowWidth設定は最小値に補正して保存する() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        viewModel.WindowWidth = 320;
+
+        Assert.Equal( TranslationCreationViewModel.MinWindowWidth, viewModel.WindowWidth );
+        Assert.Equal( TranslationCreationViewModel.MinWindowWidth, context.Settings.TranslationCreationWindowWidth );
+    }
+
+    [Fact]
+    public void WindowHeight設定は既定値へ補正して保存する() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        viewModel.WindowHeight = double.NaN;
+
+        Assert.Equal( TranslationCreationViewModel.DefaultWindowHeight, viewModel.WindowHeight );
+        Assert.Equal( TranslationCreationViewModel.DefaultWindowHeight, context.Settings.TranslationCreationWindowHeight );
+    }
+
+    [Fact]
+    public void WindowHeight設定は最小値に補正して保存する() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        viewModel.WindowHeight = 320;
+
+        Assert.Equal( TranslationCreationViewModel.MinWindowHeight, viewModel.WindowHeight );
+        Assert.Equal( TranslationCreationViewModel.MinWindowHeight, context.Settings.TranslationCreationWindowHeight );
+    }
+
+    [Fact]
+    public void DictionaryPaneRatio設定は範囲内へ補正して保存する() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        viewModel.DictionaryPaneRatio = 100;
+
+        Assert.Equal( TranslationCreationViewModel.MaxDictionaryPaneRatio, viewModel.DictionaryPaneRatio );
+        Assert.Equal( TranslationCreationViewModel.MaxDictionaryPaneRatio, context.Settings.TranslationCreationDictionaryPaneRatio );
+    }
+
+    [Fact]
     public void 初期状態では選択項目詳細は空文字になる() {
         var context = new TranslationCreationViewModelTestContext();
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
@@ -2632,6 +2710,7 @@ dictionary = {
         }
 
         internal string TempDirectory { get; }
+        internal AppSettings Settings => _settings;
         internal Mock<IAppSettingsService> AppSettingsServiceMock { get; } = new();
         internal Mock<IApplicationInfoService> ApplicationInfoServiceMock { get; } = new();
         internal Mock<IDialogService> DialogServiceMock { get; } = new();

@@ -10,14 +10,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// TranslationCreationView.xaml の相互作用ロジックである。
 /// </summary>
 public partial class TranslationCreationView : Window {
-    private const double DefaultWindowWidth = 1200;
-    private const double DefaultWindowHeight = 900;
-    private const double MinWindowWidth = 640;
-    private const double MinWindowHeight = 480;
-    private const double DefaultDictionaryPaneRatio = 2;
     private const double DetailPaneBaseRatio = 1;
-    private const double MinDictionaryPaneRatio = 0.2;
-    private const double MaxDictionaryPaneRatio = 8;
 
     public TranslationCreationView() {
         InitializeComponent();
@@ -68,11 +61,13 @@ public partial class TranslationCreationView : Window {
     }
 
     private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) {
+        ApplyMinimumWindowSize();
         ApplyWindowSize();
         ApplyDictionaryPaneRatio();
     }
 
     private void Window_Loaded( object sender, RoutedEventArgs e ) {
+        ApplyMinimumWindowSize();
         ApplyWindowSize();
         ApplyDictionaryPaneRatio();
     }
@@ -84,6 +79,7 @@ public partial class TranslationCreationView : Window {
             return;
         }
 
+        ApplyMinimumWindowSize();
         await ExecuteWindowLoadedAsync( Dispatcher, () => viewModel.HandleWindowLoadedAsync() );
     }
 
@@ -100,8 +96,8 @@ public partial class TranslationCreationView : Window {
     /// </summary>
     private void ApplyDictionaryPaneRatio() {
         var ratio = DataContext is TranslationCreationViewModel viewModel
-            ? NormalizeDictionaryPaneRatio( viewModel.AppSettings.TranslationCreationDictionaryPaneRatio )
-            : DefaultDictionaryPaneRatio;
+            ? viewModel.DictionaryPaneRatio
+            : TranslationCreationViewModel.DefaultDictionaryPaneRatio;
 
         DictionaryDataGridRowDefinition.Height = new GridLength( ratio, GridUnitType.Star );
         DictionaryDetailsRowDefinition.Height = new GridLength( DetailPaneBaseRatio, GridUnitType.Star );
@@ -111,15 +107,25 @@ public partial class TranslationCreationView : Window {
     /// 保存済みのウィンドウサイズをレイアウトへ反映する。
     /// </summary>
     private void ApplyWindowSize() {
-        var width = DataContext is TranslationCreationViewModel viewModel
-            ? NormalizeWindowLength( viewModel.AppSettings.TranslationCreationWindowWidth, DefaultWindowWidth, MinWindowWidth )
-            : DefaultWindowWidth;
-        var height = DataContext is TranslationCreationViewModel sizedViewModel
-            ? NormalizeWindowLength( sizedViewModel.AppSettings.TranslationCreationWindowHeight, DefaultWindowHeight, MinWindowHeight )
-            : DefaultWindowHeight;
+        ApplyMinimumWindowSize();
 
-        Width = width;
-        Height = height;
+        var width = DataContext is TranslationCreationViewModel viewModel
+            ? viewModel.WindowWidth
+            : TranslationCreationViewModel.DefaultWindowWidth;
+        var height = DataContext is TranslationCreationViewModel sizedViewModel
+            ? sizedViewModel.WindowHeight
+            : TranslationCreationViewModel.DefaultWindowHeight;
+
+        Width = Math.Max( width, MinWidth );
+        Height = Math.Max( height, MinHeight );
+    }
+
+    /// <summary>
+    /// 現在のレイアウト要求に基づいてウィンドウの最小サイズを更新する。
+    /// </summary>
+    private void ApplyMinimumWindowSize() {
+        MinWidth = TranslationCreationViewModel.MinWindowWidth;
+        MinHeight = TranslationCreationViewModel.MinWindowHeight;
     }
 
     /// <summary>
@@ -130,7 +136,7 @@ public partial class TranslationCreationView : Window {
             return;
         }
 
-        viewModel.AppSettings.TranslationCreationDictionaryPaneRatio = CalculateDictionaryPaneRatio();
+        viewModel.DictionaryPaneRatio = CalculateDictionaryPaneRatio();
     }
 
     /// <summary>
@@ -145,10 +151,8 @@ public partial class TranslationCreationView : Window {
             ? new Rect( Left, Top, Width, Height )
             : RestoreBounds;
 
-        viewModel.AppSettings.TranslationCreationWindowWidth =
-            NormalizeWindowLength( bounds.Width, DefaultWindowWidth, MinWindowWidth );
-        viewModel.AppSettings.TranslationCreationWindowHeight =
-            NormalizeWindowLength( bounds.Height, DefaultWindowHeight, MinWindowHeight );
+        viewModel.WindowWidth = bounds.Width;
+        viewModel.WindowHeight = bounds.Height;
     }
 
     /// <summary>
@@ -158,43 +162,15 @@ public partial class TranslationCreationView : Window {
     private double CalculateDictionaryPaneRatio() {
         if(DictionaryDataGridRowDefinition.Height.IsStar && DictionaryDetailsRowDefinition.Height.IsStar && DictionaryDetailsRowDefinition.Height.Value > 0) {
             var starRatio = DictionaryDataGridRowDefinition.Height.Value / DictionaryDetailsRowDefinition.Height.Value;
-            return NormalizeDictionaryPaneRatio( starRatio );
+            return TranslationCreationViewModel.NormalizeDictionaryPaneRatio( starRatio );
         }
 
         if(DictionaryDetailsRowDefinition.ActualHeight <= 0 || double.IsNaN( DictionaryDetailsRowDefinition.ActualHeight )) {
-            return DefaultDictionaryPaneRatio;
+            return TranslationCreationViewModel.DefaultDictionaryPaneRatio;
         }
 
         var ratio = DictionaryDataGridRowDefinition.ActualHeight / DictionaryDetailsRowDefinition.ActualHeight;
-        return NormalizeDictionaryPaneRatio( ratio );
-    }
-
-    /// <summary>
-    /// dictionary 領域比率を有効範囲へ正規化する。
-    /// </summary>
-    /// <param name="ratio">検証対象の比率。</param>
-    /// <returns>有効範囲内へ補正した比率。</returns>
-    private static double NormalizeDictionaryPaneRatio( double ratio ) {
-        if(double.IsNaN( ratio ) || double.IsInfinity( ratio ) || ratio <= 0) {
-            return DefaultDictionaryPaneRatio;
-        }
-
-        return Math.Clamp( ratio, MinDictionaryPaneRatio, MaxDictionaryPaneRatio );
-    }
-
-    /// <summary>
-    /// ウィンドウサイズを有効範囲へ正規化する。
-    /// </summary>
-    /// <param name="value">検証対象のサイズ。</param>
-    /// <param name="fallback">不正値時の既定サイズ。</param>
-    /// <param name="minimum">許容する最小サイズ。</param>
-    /// <returns>有効範囲内へ補正したサイズ。</returns>
-    private static double NormalizeWindowLength( double value, double fallback, double minimum ) {
-        if(double.IsNaN( value ) || double.IsInfinity( value ) || value <= 0) {
-            return fallback;
-        }
-
-        return Math.Max( minimum, value );
+        return TranslationCreationViewModel.NormalizeDictionaryPaneRatio( ratio );
     }
 
     /// <summary>

@@ -14,7 +14,6 @@ using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Resources;
-using DcsTranslationTool.Shared.Models;
 
 using FluentResults;
 
@@ -42,6 +41,13 @@ public sealed class TranslationCreationViewModel(
     ILoggingService logger,
     ITranslationDictionaryService translationDictionaryService
 ) : Screen {
+    public const double DefaultWindowWidth = 900;
+    public const double DefaultWindowHeight = 760;
+    public const double MinWindowWidth = 900;
+    public const double MinWindowHeight = 760;
+    public const double DefaultDictionaryPaneRatio = 2;
+    public const double MinDictionaryPaneRatio = 0.2;
+    public const double MaxDictionaryPaneRatio = 8;
     private static readonly TimeSpan SelectedTranslatedCommitDelay = TimeSpan.FromMilliseconds( 250 );
     private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string DictionaryOpenFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
@@ -65,6 +71,16 @@ public sealed class TranslationCreationViewModel(
     private bool _hasPendingSelectedTranslatedEdit;
     private IReadOnlyList<TranslationDictionaryItem> _loadedDictionaryItems = [];
     private DispatcherTimer? _selectedTranslatedCommitTimer;
+    private double _windowWidth = NormalizeWindowLength(
+        appSettingsService.Settings.TranslationCreationWindowWidth,
+        DefaultWindowWidth,
+        MinWindowWidth );
+    private double _windowHeight = NormalizeWindowLength(
+        appSettingsService.Settings.TranslationCreationWindowHeight,
+        DefaultWindowHeight,
+        MinWindowHeight );
+    private double _dictionaryPaneRatio = NormalizeDictionaryPaneRatio(
+        appSettingsService.Settings.TranslationCreationDictionaryPaneRatio );
 
     /// <summary>
     /// ウィンドウの表示名を取得する。
@@ -77,9 +93,49 @@ public sealed class TranslationCreationViewModel(
     public SnackbarMessageQueue MessageQueue => _messageQueue ??= new();
 
     /// <summary>
-    /// TranslationCreation Window に関連するアプリケーション設定を取得する。
+    /// ウィンドウ幅を取得または設定する。
     /// </summary>
-    internal AppSettings AppSettings => appSettingsService.Settings;
+    public double WindowWidth {
+        get => _windowWidth;
+        set {
+            var normalizedValue = NormalizeWindowLength( value, DefaultWindowWidth, MinWindowWidth );
+            if(!Set( ref _windowWidth, normalizedValue )) {
+                return;
+            }
+
+            appSettingsService.Settings.TranslationCreationWindowWidth = normalizedValue;
+        }
+    }
+
+    /// <summary>
+    /// ウィンドウ高さを取得または設定する。
+    /// </summary>
+    public double WindowHeight {
+        get => _windowHeight;
+        set {
+            var normalizedValue = NormalizeWindowLength( value, DefaultWindowHeight, MinWindowHeight );
+            if(!Set( ref _windowHeight, normalizedValue )) {
+                return;
+            }
+
+            appSettingsService.Settings.TranslationCreationWindowHeight = normalizedValue;
+        }
+    }
+
+    /// <summary>
+    /// dictionary 領域比率を取得または設定する。
+    /// </summary>
+    public double DictionaryPaneRatio {
+        get => _dictionaryPaneRatio;
+        set {
+            var normalizedValue = NormalizeDictionaryPaneRatio( value );
+            if(!Set( ref _dictionaryPaneRatio, normalizedValue )) {
+                return;
+            }
+
+            appSettingsService.Settings.TranslationCreationDictionaryPaneRatio = normalizedValue;
+        }
+    }
 
     /// <summary>
     /// 選択中アーカイブの絶対パスを取得する。
@@ -1426,6 +1482,34 @@ public sealed class TranslationCreationViewModel(
         var relativePath = Path.GetRelativePath( baseDirectory, targetPath );
         return !relativePath.StartsWith( "..", StringComparison.Ordinal )
             && !Path.IsPathRooted( relativePath );
+    }
+
+    /// <summary>
+    /// dictionary 領域比率を有効範囲へ正規化する。
+    /// </summary>
+    /// <param name="ratio">検証対象の比率。</param>
+    /// <returns>有効範囲内へ補正した比率。</returns>
+    public static double NormalizeDictionaryPaneRatio( double ratio ) {
+        if(double.IsNaN( ratio ) || double.IsInfinity( ratio ) || ratio <= 0) {
+            return DefaultDictionaryPaneRatio;
+        }
+
+        return Math.Clamp( ratio, MinDictionaryPaneRatio, MaxDictionaryPaneRatio );
+    }
+
+    /// <summary>
+    /// ウィンドウサイズを有効範囲へ正規化する。
+    /// </summary>
+    /// <param name="value">検証対象のサイズ。</param>
+    /// <param name="fallback">不正値時の既定サイズ。</param>
+    /// <param name="minimum">許容する最小サイズ。</param>
+    /// <returns>有効範囲内へ補正したサイズ。</returns>
+    public static double NormalizeWindowLength( double value, double fallback, double minimum ) {
+        if(double.IsNaN( value ) || double.IsInfinity( value ) || value <= 0) {
+            return fallback;
+        }
+
+        return Math.Max( minimum, value );
     }
 
     private static (string Context, string Original) CreateTranslationPair( string context, string original ) => (

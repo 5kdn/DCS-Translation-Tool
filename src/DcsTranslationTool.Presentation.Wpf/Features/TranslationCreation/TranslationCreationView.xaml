@@ -102,11 +102,11 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition x:Name="DictionaryDataGridRowDefinition"
                                    Height="2*"
-                                   MinHeight="180" />
+                                   MinHeight="80" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition x:Name="DictionaryDetailsRowDefinition"
                                    Height="*"
-                                   MinHeight="140" />
+                                   MinHeight="80" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 

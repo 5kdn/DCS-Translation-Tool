@@ -437,6 +437,7 @@ public sealed class TranslationCreationViewTests {
 
         view.Close();
 
+        Assert.Equal( 3.5, viewModel.DictionaryPaneRatio );
         Assert.Equal( GridUnitType.Star, dataGridRow.Height.GridUnitType );
         Assert.Equal( 3.5, dataGridRow.Height.Value );
         Assert.Equal( GridUnitType.Star, detailsRow.Height.GridUnitType );
@@ -491,6 +492,8 @@ public sealed class TranslationCreationViewTests {
 
         view.Close();
 
+        Assert.Equal( 1400, viewModel.WindowWidth );
+        Assert.Equal( 920, viewModel.WindowHeight );
         Assert.Equal( 1400, actualWidth );
         Assert.Equal( 920, actualHeight );
     }
@@ -543,8 +546,10 @@ public sealed class TranslationCreationViewTests {
 
         view.Close();
 
-        Assert.Equal( 1200, actualWidth );
-        Assert.Equal( 900, actualHeight );
+        Assert.Equal( TranslationCreationViewModel.DefaultWindowWidth, viewModel.WindowWidth );
+        Assert.Equal( 760, viewModel.WindowHeight );
+        Assert.Equal( 900, actualWidth );
+        Assert.Equal( 760, actualHeight );
     }
 
     [StaFact]
@@ -593,6 +598,7 @@ public sealed class TranslationCreationViewTests {
 
         view.Close();
 
+        Assert.Equal( TranslationCreationViewModel.DefaultDictionaryPaneRatio, viewModel.DictionaryPaneRatio );
         Assert.Equal( 2, dataGridRow.Height.Value );
     }
 
@@ -645,6 +651,7 @@ public sealed class TranslationCreationViewTests {
 
         view.Close();
 
+        Assert.Equal( 4, viewModel.DictionaryPaneRatio );
         Assert.Equal( 4, settings.TranslationCreationDictionaryPaneRatio );
     }
 
@@ -693,6 +700,8 @@ public sealed class TranslationCreationViewTests {
 
         view.Close();
 
+        Assert.Equal( 1500, viewModel.WindowWidth );
+        Assert.Equal( 980, viewModel.WindowHeight );
         Assert.Equal( 1500, settings.TranslationCreationWindowWidth );
         Assert.Equal( 980, settings.TranslationCreationWindowHeight );
     }
