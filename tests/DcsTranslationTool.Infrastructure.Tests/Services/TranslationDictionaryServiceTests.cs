@@ -151,6 +151,23 @@ dictionary = {
     }
 
     [Fact]
+    public void LoadDictionaryはコメントアウトされた行を無視する() {
+        var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", """
+dictionary = {
+    -- ["ignored"] = "old",
+    ["key"] = "value"
+}
+""" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadDictionary( archivePath );
+
+        var item = Assert.Single( result.Value );
+        Assert.Equal( "key", item.Key );
+        Assert.Equal( "value", item.Original );
+    }
+
+    [Fact]
     public void LoadDictionaryはLua文字列の行継続で改行コードを保持して読み込む() {
         var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", """
 dictionary =
@@ -444,6 +461,77 @@ zxcv"
 }
 """.ReplaceLineEndings( "\n" ),
             content );
+    }
+
+    [Fact]
+    public async Task SaveDictionaryAsyncは元の構造を維持した書き出し結果を再読込できる() {
+        var path = Path.Combine( _tempDirectory, "preserve-roundtrip.lua" );
+        var sourceArchivePath = CreateArchive( "l10n/default/dictionary", """
+dictionary = {
+    -- ["key1"] = "commented",
+    ["key1"] = "old1",
+    ["key2"] = "old2"
+}
+""" );
+        var roundtripArchivePath = Path.Combine( _tempDirectory, "preserve-roundtrip.miz" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+        var editableResult = sut.LoadEditableDictionary( sourceArchivePath );
+
+        await sut.SaveDictionaryAsync(
+            path,
+            editableResult.Value,
+            new Dictionary<string, string>( StringComparer.Ordinal )
+            {
+                ["key1"] = "line1\nline2",
+                ["key2"] = "updated2"
+            },
+            TestContext.Current.CancellationToken );
+
+        using(var archive = ZipFile.Open( roundtripArchivePath, ZipArchiveMode.Create )) {
+            var entry = archive.CreateEntry( "l10n/default/dictionary" );
+            await using var stream = entry.Open();
+            await using var writer = new StreamWriter( stream, leaveOpen: false );
+            var content = await File.ReadAllTextAsync( path, TestContext.Current.CancellationToken );
+            await writer.WriteAsync( content );
+        }
+
+        var roundtripResult = sut.LoadDictionary( roundtripArchivePath );
+
+        Assert.True( roundtripResult.IsSuccess );
+        Assert.Collection(
+            roundtripResult.Value,
+            item => {
+                Assert.Equal( "key1", item.Key );
+                Assert.Equal( "line1\nline2", item.Original );
+            },
+            item => {
+                Assert.Equal( "key2", item.Key );
+                Assert.Equal( "updated2", item.Original );
+            } );
+    }
+
+    [Fact]
+    public async Task SaveDictionaryAsyncはLuaコンパイル検証に失敗したとき保存しない() {
+        var path = Path.Combine( _tempDirectory, "invalid-preserve.lua" );
+        var sourceArchivePath = CreateArchive( "l10n/default/dictionary", """
+dictionary = {
+    ["key"] = "old"
+}
+]]
+""" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+        var editableResult = sut.LoadEditableDictionary( sourceArchivePath );
+
+        await Assert.ThrowsAsync<InvalidOperationException>( async () =>
+            await sut.SaveDictionaryAsync(
+                path,
+                editableResult.Value,
+                new Dictionary<string, string>( StringComparer.Ordinal )
+                {
+                    ["key"] = "updated"
+                },
+                TestContext.Current.CancellationToken ) );
+        Assert.False( File.Exists( path ) );
     }
 
     [Fact]

@@ -111,6 +111,11 @@
         "resolved": "1.1.135",
         "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
       },
+      "MoonSharp": {
+        "type": "Transitive",
+        "resolved": "2.0.0",
+        "contentHash": "uiAcRh7d+53k3xW9pFDJfAFVw4RnjHVCJG05M3oPAVEVwPtFavhg1H/IpC6So4X1j9kJlzuLlA3OghhPcIvc5A=="
+      },
       "NLog": {
         "type": "Transitive",
         "resolved": "6.1.0",
@@ -199,6 +204,7 @@
           "Microsoft.Kiota.Serialization.Json": "[1.21.3, )",
           "Microsoft.Kiota.Serialization.Multipart": "[1.21.3, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.3, )",
+          "MoonSharp": "[2.0.0, )",
           "NLog": "[6.1.0, )",
           "UTF.Unknown": "[2.6.0, )"
         }

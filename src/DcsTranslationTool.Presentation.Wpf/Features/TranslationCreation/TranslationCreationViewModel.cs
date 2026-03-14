@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Data;
+using System.Windows.Threading;
 
 using Caliburn.Micro;
 
@@ -41,6 +42,7 @@ public sealed class TranslationCreationViewModel(
     ILoggingService logger,
     ITranslationDictionaryService translationDictionaryService
 ) : Screen {
+    private static readonly TimeSpan SelectedTranslatedCommitDelay = TimeSpan.FromMilliseconds( 250 );
     private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string DictionaryOpenFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
     private const string DictionarySaveFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
@@ -50,6 +52,7 @@ public sealed class TranslationCreationViewModel(
     private TranslationExportFormat _selectedExportFormat = TranslationExportFormat.Dictionary;
     private ObservableCollection<TranslationDictionaryItemRowViewModel> _dictionaryItems = [];
     private TranslationDictionaryItemRowViewModel? _selectedDictionaryItem;
+    private string _selectedTranslated = string.Empty;
     private SnackbarMessageQueue? _messageQueue;
     private bool _isLoading;
     private string _statusMessage = string.Empty;
@@ -59,7 +62,9 @@ public sealed class TranslationCreationViewModel(
     private bool _hidePossibleNonTranslationTargets = true;
     private bool _hideEmptyOriginal = true;
     private bool _hasProcessedJapaneseDictionaryPrompt;
+    private bool _hasPendingSelectedTranslatedEdit;
     private IReadOnlyList<TranslationDictionaryItem> _loadedDictionaryItems = [];
+    private DispatcherTimer? _selectedTranslatedCommitTimer;
 
     /// <summary>
     /// ウィンドウの表示名を取得する。
@@ -113,12 +118,14 @@ public sealed class TranslationCreationViewModel(
     public TranslationDictionaryItemRowViewModel? SelectedDictionaryItem {
         get => _selectedDictionaryItem;
         set {
+            FlushPendingSelectedTranslatedEdit();
+
             if(!Set( ref _selectedDictionaryItem, value )) {
                 return;
             }
 
+            SyncSelectedTranslatedFromSelection();
             NotifyOfPropertyChange( nameof( SelectedOriginal ) );
-            NotifyOfPropertyChange( nameof( SelectedTranslated ) );
             NotifyOfPropertyChange( nameof( CanEditSelectedTranslated ) );
         }
     }
@@ -132,18 +139,19 @@ public sealed class TranslationCreationViewModel(
     /// 選択中項目の Translated を取得または設定する。
     /// </summary>
     public string SelectedTranslated {
-        get => SelectedDictionaryItem?.Translated ?? string.Empty;
+        get => _selectedTranslated;
         set {
             if(SelectedDictionaryItem?.IsEnabled != true) {
                 return;
             }
 
-            if(string.Equals( SelectedDictionaryItem.Translated, value, StringComparison.Ordinal )) {
+            if(string.Equals( _selectedTranslated, value, StringComparison.Ordinal )) {
                 return;
             }
 
-            SelectedDictionaryItem.Translated = value;
+            _selectedTranslated = value;
             NotifyOfPropertyChange();
+            ScheduleSelectedTranslatedCommit();
         }
     }
 
@@ -505,29 +513,15 @@ public sealed class TranslationCreationViewModel(
                 return Task.CompletedTask;
             }
 
-            var initializedItems = result.Value
-                .Select( InitializeDictionaryItem )
-                .ToArray();
+            var loadState = BuildDictionaryLoadState( result.Value );
 
-            _loadedDictionaryItems = [.. initializedItems.Select( item => new TranslationDictionaryItem( item.Key, item.Original ) {
-                Translated = item.Translated,
-                IsEnabled = item.IsEnabled
-            } )];
-            DictionaryItems = [
-                .. initializedItems
-                    .OrderBy( GetDictionaryItemSortOrder )
-                    .ThenBy( item => item.Key, TranslationCreationNaturalKeyComparer.Instance )
-                    .Select( item => new TranslationDictionaryItemRowViewModel( item ) )
-            ];
+            ApplyDictionaryLoadState( loadState );
             SelectedDictionaryItem = null;
             StatusMessage = DictionaryItems.Count == 0
                 ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
                 : string.Empty;
-            NotifyOfPropertyChange( nameof( CanExport ) );
-            NotifyOfPropertyChange( nameof( CanImport ) );
-            NotifyOfPropertyChange( nameof( CanImportDictionary ) );
-            NotifyOfPropertyChange( nameof( CanImportCsv ) );
-            NotifyOfPropertyChange( nameof( CanImportPo ) );
+            NotifyDictionaryAvailabilityChanged();
+            logger.Info( $"TranslationCreationViewModel の dictionary 読込詳細。Archive={ArchiveFullPath}" );
             return Task.CompletedTask;
         }
         catch(Exception ex) {
@@ -546,6 +540,8 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task ExportAsync() {
+        FlushPendingSelectedTranslatedEdit();
+
         if(!CanExport) {
             logger.Warn( "dictionary を書き出せない状態のため処理を中断する。" );
             return;
@@ -564,11 +560,7 @@ public sealed class TranslationCreationViewModel(
                     throw new InvalidOperationException( "dictionary 書き出し用の元データ取得に失敗した。" );
                 }
 
-                var currentTranslations = DictionaryItems.ToDictionary(
-                    item => item.Key,
-                    item => item.Translated,
-                    StringComparer.Ordinal );
-                currentTranslations = DictionaryItems
+                var currentTranslations = DictionaryItems
                     .Where( item => item.IsEnabled )
                     .ToDictionary(
                         item => item.Key,
@@ -588,6 +580,8 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task ExportPoAsync() {
+        FlushPendingSelectedTranslatedEdit();
+
         if(!CanExport) {
             logger.Warn( "PO を書き出せない状態のため処理を中断する。" );
             return;
@@ -616,6 +610,8 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task ExportCsvAsync() {
+        FlushPendingSelectedTranslatedEdit();
+
         if(!CanExport) {
             logger.Warn( "CSV を書き出せない状態のため処理を中断する。" );
             return;
@@ -638,6 +634,8 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task ImportPoAsync() {
+        FlushPendingSelectedTranslatedEdit();
+
         if(!CanImportPo) {
             logger.Warn( "PO を読み込めない状態のため処理を中断する。" );
             return;
@@ -697,6 +695,8 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task ImportDictionaryAsync() {
+        FlushPendingSelectedTranslatedEdit();
+
         if(!CanImportDictionary) {
             logger.Warn( "dictionary を読み込めない状態のため処理を中断する。" );
             return;
@@ -755,6 +755,8 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task ImportCsvAsync() {
+        FlushPendingSelectedTranslatedEdit();
+
         if(!CanImportCsv) {
             logger.Warn( "CSV を読み込めない状態のため処理を中断する。" );
             return;
@@ -867,6 +869,32 @@ public sealed class TranslationCreationViewModel(
             IsEnabled = item.IsEnabled && !IsPossibleNonTranslationTarget( item )
         };
 
+    private static DictionaryLoadState BuildDictionaryLoadState( IReadOnlyList<TranslationDictionaryItem> items ) {
+        var initializedItems = items
+            .Select( InitializeDictionaryItem )
+            .OrderBy( GetDictionaryItemSortOrder )
+            .ThenBy( item => item.Key, TranslationCreationNaturalKeyComparer.Instance )
+            .ToArray();
+
+        List<TranslationDictionaryItem> loadedItems = new( initializedItems.Length );
+        List<TranslationDictionaryItemRowViewModel> rowItems = new( initializedItems.Length );
+        foreach(var item in initializedItems) {
+            loadedItems.Add( new TranslationDictionaryItem( item.Key, item.Original )
+            {
+                Translated = item.Translated,
+                IsEnabled = item.IsEnabled
+            } );
+            rowItems.Add( new TranslationDictionaryItemRowViewModel( item ) );
+        }
+
+        return new DictionaryLoadState( loadedItems, rowItems );
+    }
+
+    private void ApplyDictionaryLoadState( DictionaryLoadState state ) {
+        _loadedDictionaryItems = state.LoadedItems;
+        DictionaryItems = [.. state.RowItems];
+    }
+
     private void RefreshFilter() => FilteredDictionaryItemsView.Refresh();
 
     private void SubscribeDictionaryItems( ObservableCollection<TranslationDictionaryItemRowViewModel> dictionaryItems ) {
@@ -894,8 +922,8 @@ public sealed class TranslationCreationViewModel(
 
     private void OnDictionaryItemPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
         if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.Translated )) {
-            if(ReferenceEquals( sender, SelectedDictionaryItem )) {
-                NotifyOfPropertyChange( nameof( SelectedTranslated ) );
+            if(ReferenceEquals( sender, SelectedDictionaryItem ) && !_hasPendingSelectedTranslatedEdit) {
+                SyncSelectedTranslatedFromSelection();
             }
 
             RefreshFilter();
@@ -903,12 +931,71 @@ public sealed class TranslationCreationViewModel(
 
         if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.IsEnabled )) {
             if(ReferenceEquals( sender, SelectedDictionaryItem )) {
+                if(SelectedDictionaryItem?.IsEnabled != true) {
+                    CancelSelectedTranslatedCommit();
+                    SyncSelectedTranslatedFromSelection();
+                }
+
                 NotifyOfPropertyChange( nameof( CanEditSelectedTranslated ) );
             }
 
             RefreshFilter();
         }
     }
+
+    internal void FlushPendingSelectedTranslatedEdit() {
+        if(!_hasPendingSelectedTranslatedEdit) {
+            return;
+        }
+
+        CancelSelectedTranslatedCommit();
+        if(SelectedDictionaryItem?.IsEnabled != true) {
+            SyncSelectedTranslatedFromSelection();
+            return;
+        }
+
+        if(string.Equals( SelectedDictionaryItem.Translated, _selectedTranslated, StringComparison.Ordinal )) {
+            return;
+        }
+
+        SelectedDictionaryItem.Translated = _selectedTranslated;
+    }
+
+    private DispatcherTimer CreateSelectedTranslatedCommitTimer() {
+        var timer = new DispatcherTimer( DispatcherPriority.Background )
+        {
+            Interval = SelectedTranslatedCommitDelay
+        };
+        timer.Tick += OnSelectedTranslatedCommitTimerTick;
+        return timer;
+    }
+
+    private void OnSelectedTranslatedCommitTimerTick( object? sender, EventArgs e ) {
+        FlushPendingSelectedTranslatedEdit();
+    }
+
+    private void ScheduleSelectedTranslatedCommit() {
+        _hasPendingSelectedTranslatedEdit = true;
+        SelectedTranslatedCommitTimer.Stop();
+        SelectedTranslatedCommitTimer.Start();
+    }
+
+    private void CancelSelectedTranslatedCommit() {
+        _hasPendingSelectedTranslatedEdit = false;
+        _selectedTranslatedCommitTimer?.Stop();
+    }
+
+    private void SyncSelectedTranslatedFromSelection() {
+        var nextValue = SelectedDictionaryItem?.Translated ?? string.Empty;
+        if(string.Equals( _selectedTranslated, nextValue, StringComparison.Ordinal )) {
+            return;
+        }
+
+        _selectedTranslated = nextValue;
+        NotifyOfPropertyChange( nameof( SelectedTranslated ) );
+    }
+
+    private DispatcherTimer SelectedTranslatedCommitTimer => _selectedTranslatedCommitTimer ??= CreateSelectedTranslatedCommitTimer();
 
     private static int GetDictionaryItemSortOrder( TranslationDictionaryItem item ) {
         if(item.Key.StartsWith( "DictKey_sortie_", StringComparison.Ordinal )) {
@@ -1420,6 +1507,10 @@ public sealed class TranslationCreationViewModel(
     private sealed record CsvImportAnalysis( bool IsFullMatch, IReadOnlyList<CsvImportMatch> Matches );
 
     private sealed record CsvImportMatch( TranslationDictionaryItemRowViewModel Row, string Translated, bool IsEnabled );
+
+    private sealed record DictionaryLoadState(
+        IReadOnlyList<TranslationDictionaryItem> LoadedItems,
+        IReadOnlyList<TranslationDictionaryItemRowViewModel> RowItems );
 
     private enum TranslationImportFormat {
         Dictionary,

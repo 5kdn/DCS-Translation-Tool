@@ -825,6 +825,46 @@ dictionary = {
         Assert.Empty( viewModel.MessageQueue.QueuedMessages );
     }
 
+    [StaFact]
+    public async Task ExportAsyncは生成したdictionaryがLuaコンパイルエラーのとき保存しない() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadEditableDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok( CreateEditableDictionary(
+                """
+dictionary = {
+    ["DictKey_descriptionFoo_1"] = "o1",
+}
+""" ) ) );
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.SaveDictionaryAsync(
+                It.IsAny<string>(),
+                It.IsAny<EditableTranslationDictionary>(),
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                It.IsAny<CancellationToken>() ) )
+            .ThrowsAsync( new InvalidOperationException( "dictionary の Lua コンパイル検証に失敗した。" ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.DictionaryItems.Single().Translated = "translated";
+
+        await viewModel.ExportAsync();
+
+        context.TranslationDictionaryServiceMock.Verify( service => service.SaveDictionaryAsync(
+            It.IsAny<string>(),
+            It.IsAny<EditableTranslationDictionary>(),
+            It.IsAny<IReadOnlyDictionary<string, string>>(),
+            It.IsAny<CancellationToken>() ), Times.Once );
+        Assert.Equal( Strings_Translation.CreateTranslationDictionaryExportFailedMessage, viewModel.StatusMessage );
+        Assert.Empty( viewModel.MessageQueue.QueuedMessages );
+    }
+
     [Fact]
     public async Task ExportAsyncはUserMissions配下へ保存する() {
         var context = new TranslationCreationViewModelTestContext();
@@ -1594,7 +1634,7 @@ dictionary = {
     }
 
     [Fact]
-    public async Task SelectedTranslated更新時に選択項目へ反映する() {
+    public async Task SelectedTranslated更新時は遅延コミットまで選択項目へ反映しない() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
             .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
@@ -1607,6 +1647,11 @@ dictionary = {
         await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
         viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
         viewModel.SelectedTranslated = "translated";
+
+        Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
+        Assert.Equal( "translated", viewModel.SelectedTranslated );
+
+        viewModel.FlushPendingSelectedTranslatedEdit();
 
         Assert.Equal( "translated", viewModel.DictionaryItems.Single().Translated );
         Assert.Equal( "translated", viewModel.SelectedTranslated );
@@ -1633,6 +1678,28 @@ dictionary = {
         Assert.False( viewModel.CanEditSelectedTranslated );
         Assert.Equal( "keep", viewModel.DictionaryItems.Single().Translated );
         Assert.Equal( "keep", viewModel.SelectedTranslated );
+    }
+
+    [Fact]
+    public async Task 選択項目切替時に未反映のSelectedTranslatedを直前の項目へコミットする() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" ),
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_2", "o2" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems[0];
+        viewModel.SelectedTranslated = "translated";
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems[1];
+
+        Assert.Equal( "translated", viewModel.DictionaryItems[0].Translated );
+        Assert.Equal( string.Empty, viewModel.SelectedTranslated );
+        Assert.Equal( viewModel.DictionaryItems[1], viewModel.SelectedDictionaryItem );
     }
 
     [Fact]
@@ -2318,6 +2385,30 @@ dictionary = {
 
         var item = viewModel.DictionaryItems.Single();
         item.Translated = "translated";
+
+        Assert.Empty( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+    }
+
+    [Fact]
+    public async Task SelectedTranslated編集中は未翻訳フィルターを即時再適用しない() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_descriptionFoo_1", "o1" )
+                ] ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.ShowOnlyUntranslated = true;
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+        viewModel.SelectedTranslated = "translated";
+
+        Assert.Single( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+        Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
+
+        viewModel.FlushPendingSelectedTranslatedEdit();
 
         Assert.Empty( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
     }

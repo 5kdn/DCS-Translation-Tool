@@ -142,6 +142,56 @@ public sealed class TranslationCreationViewTests {
     }
 
     [StaFact]
+    public async Task TranslationCreationViewのDictionaryDataGridは仮想化設定を有効化する() {
+        EnsureApplicationResources();
+
+        var view = new TranslationCreationView();
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        var dialogServiceMock = new Mock<IDialogService>();
+        var dialogProviderMock = new Mock<IDialogProvider>();
+        var systemServiceMock = new Mock<ISystemService>();
+        var applicationInfoServiceMock = new Mock<IApplicationInfoService>();
+        var loggerMock = new Mock<ILoggingService>();
+        var dictionaryServiceMock = new Mock<ITranslationDictionaryService>();
+        appSettingsServiceMock
+            .Setup( service => service.Settings )
+            .Returns( new AppSettings
+            {
+                TranslateFileDir = @"C:\Translate",
+                DcsWorldInstallDir = @"C:\DCSWorld"
+            } );
+        dictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "original" )
+                ] ) );
+        var viewModel = new TranslationCreationViewModel(
+            @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+            appSettingsServiceMock.Object,
+            applicationInfoServiceMock.Object,
+            dialogServiceMock.Object,
+            dialogProviderMock.Object,
+            systemServiceMock.Object,
+            loggerMock.Object,
+            dictionaryServiceMock.Object );
+        view.DataContext = viewModel;
+        await Caliburn.Micro.ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+
+        view.Show();
+        view.UpdateLayout();
+
+        var dataGrid = Assert.IsType<DataGrid>( view.FindName( "DictionaryDataGrid" ) );
+
+        view.Close();
+
+        Assert.True( dataGrid.EnableRowVirtualization );
+        Assert.True( dataGrid.EnableColumnVirtualization );
+        Assert.True( VirtualizingPanel.GetIsVirtualizing( dataGrid ) );
+        Assert.Equal( VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode( dataGrid ) );
+    }
+
+    [StaFact]
     public async Task TranslationCreationViewはDictionaryPaneGridSplitterを持つ() {
         EnsureApplicationResources();
 

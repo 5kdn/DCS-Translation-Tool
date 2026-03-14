@@ -156,6 +156,10 @@
                           CanUserSortColumns="False"
                           IsReadOnly="False"
                           HeadersVisibility="Column"
+                          EnableRowVirtualization="True"
+                          EnableColumnVirtualization="True"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
                           ItemsSource="{Binding FilteredDictionaryItemsView}"
                           SelectedItem="{Binding SelectedDictionaryItem, Mode=TwoWay}"
                           Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -191,7 +195,7 @@
                                                     Padding="12,2"
                                                     Margin="4,0,0,0"
                                                     VerticalAlignment="Center"
-                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    Style="{StaticResource MaterialDesignRaisedButton}"
                                                     cal:Action.TargetWithoutContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     cal:Message.Attach="[Event Click] = [Action CopyOriginalToClipboard($dataContext)]" />
                                         </Border>

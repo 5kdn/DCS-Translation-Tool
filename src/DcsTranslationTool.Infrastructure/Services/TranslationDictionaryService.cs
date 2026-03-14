@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Text;
-using System.Text.RegularExpressions;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
@@ -8,6 +7,8 @@ using DcsTranslationTool.Application.Results;
 using DcsTranslationTool.Infrastructure.Interfaces;
 
 using FluentResults;
+
+using MoonSharp.Interpreter;
 
 namespace DcsTranslationTool.Infrastructure.Services;
 
@@ -228,20 +229,10 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
                 Directory.CreateDirectory( directoryPath );
             }
 
-            var builder = new StringBuilder();
-            builder.Append( "dictionary = {\n" );
-
-            foreach(var item in items) {
-                cancellationToken.ThrowIfCancellationRequested();
-                builder.Append( "    [\"" );
-                builder.Append( EscapeLuaString( item.Key ) );
-                builder.Append( "\"] = \"" );
-                builder.Append( EscapeLuaString( item.Translated ) );
-                builder.Append( "\",\n" );
-            }
-
-            builder.Append( "}\n" );
-            await File.WriteAllTextAsync( path, builder.ToString(), Encoding.UTF8, cancellationToken );
+            cancellationToken.ThrowIfCancellationRequested();
+            var content = TranslationDictionaryLuaSerializer.Serialize( items );
+            ValidateLuaChunk( content, path );
+            await File.WriteAllTextAsync( path, content, Encoding.UTF8, cancellationToken );
             logger.Info( $"dictionary を保存した。Path={path}, Count={items.Count}" );
         }
         catch(OperationCanceledException) {
@@ -362,23 +353,10 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
                 Directory.CreateDirectory( directoryPath );
             }
 
-            var fallbackValues = dictionary.Items.ToDictionary(
-                item => item.Key,
-                item => item.Original,
-                StringComparer.Ordinal );
-            var builder = new StringBuilder( dictionary.OriginalText );
-
-            foreach(var valueRange in dictionary.ValueRanges.Values
-                .OrderByDescending( item => item.StartIndex )) {
-                cancellationToken.ThrowIfCancellationRequested();
-                var replacementValue = translatedByKey.TryGetValue( valueRange.Key, out var translated )
-                    ? translated
-                    : fallbackValues[valueRange.Key];
-                builder.Remove( valueRange.StartIndex, valueRange.Length );
-                builder.Insert( valueRange.StartIndex, EscapeLuaString( replacementValue ) );
-            }
-
-            await File.WriteAllTextAsync( path, builder.ToString(), Encoding.UTF8, cancellationToken );
+            cancellationToken.ThrowIfCancellationRequested();
+            var content = TranslationDictionaryLuaSerializer.Serialize( dictionary, translatedByKey );
+            ValidateLuaChunk( content, path );
+            await File.WriteAllTextAsync( path, content, Encoding.UTF8, cancellationToken );
             logger.Info( $"dictionary を保存した。Path={path}, Count={dictionary.Items.Count}" );
         }
         catch(OperationCanceledException) {
@@ -392,28 +370,54 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     }
 
     private static EditableTranslationDictionary ParseEditableDictionary( string luaText ) {
-        var blockMatch = DictionaryBlockRegex().Match( luaText );
-        if(!blockMatch.Success) {
+        if(!TryFindDictionaryContentRange( luaText, out var contentStartIndex, out var contentEndIndex )) {
             return new EditableTranslationDictionary( luaText, [], new Dictionary<string, TranslationDictionaryValueRange>( StringComparer.Ordinal ) );
         }
 
-        var content = blockMatch.Groups["content"].Value;
-        var contentStartIndex = blockMatch.Groups["content"].Index;
         Dictionary<string, TranslationDictionaryItem> itemsByKey = new( StringComparer.Ordinal );
         Dictionary<string, TranslationDictionaryValueRange> valueRangesByKey = new( StringComparer.Ordinal );
 
-        foreach(Match match in DictionaryEntryRegex().Matches( content )) {
-            if(IsCommentedOutLine( content, match.Index )) {
+        for(var index = contentStartIndex; index < contentEndIndex;) {
+            SkipWhitespaceAndComments( luaText, ref index, contentEndIndex );
+            if(index >= contentEndIndex) {
+                break;
+            }
+
+            var entryStartIndex = index;
+            if(!TryConsumeCharacter( luaText, ref index, contentEndIndex, '[' )) {
+                index = entryStartIndex + 1;
                 continue;
             }
 
-            var key = UnescapeLuaString( match.Groups["key"].Value );
-            var value = UnescapeLuaString( match.Groups["value"].Value );
+            SkipWhitespace( luaText, ref index, contentEndIndex );
+            if(!TryReadLuaStringLiteral( luaText, ref index, contentEndIndex, out var key, out _, out _ )) {
+                index = entryStartIndex + 1;
+                continue;
+            }
+
+            SkipWhitespace( luaText, ref index, contentEndIndex );
+            if(!TryConsumeCharacter( luaText, ref index, contentEndIndex, ']' )) {
+                index = entryStartIndex + 1;
+                continue;
+            }
+
+            SkipWhitespace( luaText, ref index, contentEndIndex );
+            if(!TryConsumeCharacter( luaText, ref index, contentEndIndex, '=' )) {
+                index = entryStartIndex + 1;
+                continue;
+            }
+
+            SkipWhitespace( luaText, ref index, contentEndIndex );
+            if(!TryReadLuaStringLiteral( luaText, ref index, contentEndIndex, out var value, out var rawValueStartIndex, out var rawValueLength )) {
+                index = entryStartIndex + 1;
+                continue;
+            }
+
             itemsByKey[key] = new TranslationDictionaryItem( key, value );
             valueRangesByKey[key] = new TranslationDictionaryValueRange(
                 key,
-                contentStartIndex + match.Groups["value"].Index,
-                match.Groups["value"].Length );
+                rawValueStartIndex,
+                rawValueLength );
         }
 
         return new EditableTranslationDictionary(
@@ -422,60 +426,194 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
             valueRangesByKey );
     }
 
-    [GeneratedRegex( @"dictionary\s*=\s*\{(?<content>[\s\S]*)\}", RegexOptions.CultureInvariant )]
-    private static partial Regex DictionaryBlockRegex();
+    private void ValidateLuaChunk( string luaText, string path ) {
+        try {
+            var script = new Script();
+            _ = script.LoadString( luaText );
+        }
+        catch(SyntaxErrorException ex) {
+            logger.Error( $"dictionary 保存前の Lua コンパイル検証に失敗した。Path={path}", ex );
+            throw new InvalidOperationException( "dictionary の Lua コンパイル検証に失敗した。", ex );
+        }
+        catch(InterpreterException ex) {
+            logger.Error( $"dictionary 保存前の Lua コンパイル検証に失敗した。Path={path}", ex );
+            throw new InvalidOperationException( "dictionary の Lua コンパイル検証に失敗した。", ex );
+        }
+    }
 
-    [GeneratedRegex( @"\[\s*""(?<key>(?:\\(?:\r\n|\r|\n|.)|[^""\\])*)""\s*\]\s*=\s*""(?<value>(?:\\(?:\r\n|\r|\n|.)|[^""\\])*)""", RegexOptions.CultureInvariant )]
-    private static partial Regex DictionaryEntryRegex();
+    private static bool TryFindDictionaryContentRange( string luaText, out int contentStartIndex, out int contentEndIndex ) {
+        contentStartIndex = -1;
+        contentEndIndex = -1;
 
-    private static string UnescapeLuaString( string value ) {
-        if(string.IsNullOrEmpty( value )) {
-            return string.Empty;
+        var dictionaryIndex = luaText.IndexOf( "dictionary", StringComparison.Ordinal );
+        if(dictionaryIndex < 0) {
+            return false;
         }
 
-        var builder = new StringBuilder( value.Length );
-        for(var index = 0; index < value.Length; index++) {
-            var current = value[index];
+        var index = dictionaryIndex + "dictionary".Length;
+        SkipWhitespace( luaText, ref index, luaText.Length );
+        if(!TryConsumeCharacter( luaText, ref index, luaText.Length, '=' )) {
+            return false;
+        }
+
+        SkipWhitespace( luaText, ref index, luaText.Length );
+        if(!TryConsumeCharacter( luaText, ref index, luaText.Length, '{' )) {
+            return false;
+        }
+
+        contentStartIndex = index;
+        contentEndIndex = FindDictionaryClosingBraceIndex( luaText, index );
+        return contentEndIndex >= 0;
+    }
+
+    private static int FindDictionaryClosingBraceIndex( string luaText, int startIndex ) {
+        var inString = false;
+        var escaped = false;
+
+        for(var index = startIndex; index < luaText.Length; index++) {
+            var current = luaText[index];
+            if(inString) {
+                if(escaped) {
+                    escaped = false;
+                    continue;
+                }
+
+                if(current == '\\') {
+                    escaped = true;
+                    continue;
+                }
+
+                if(current == '"') {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            if(current == '-' && index + 1 < luaText.Length && luaText[index + 1] == '-') {
+                index += 2;
+                while(index < luaText.Length && luaText[index] != '\n') {
+                    index++;
+                }
+
+                continue;
+            }
+
+            if(current == '"') {
+                inString = true;
+                continue;
+            }
+
+            if(current == '}') {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static void SkipWhitespaceAndComments( string luaText, ref int index, int endIndex ) {
+        while(index < endIndex) {
+            SkipWhitespace( luaText, ref index, endIndex );
+            if(index + 1 < endIndex && luaText[index] == '-' && luaText[index + 1] == '-') {
+                index += 2;
+                while(index < endIndex && luaText[index] != '\n') {
+                    index++;
+                }
+
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    private static void SkipWhitespace( string luaText, ref int index, int endIndex ) {
+        while(index < endIndex && char.IsWhiteSpace( luaText[index] )) {
+            index++;
+        }
+    }
+
+    private static bool TryConsumeCharacter( string luaText, ref int index, int endIndex, char expected ) {
+        if(index >= endIndex || luaText[index] != expected) {
+            return false;
+        }
+
+        index++;
+        return true;
+    }
+
+    private static bool TryReadLuaStringLiteral(
+        string luaText,
+        ref int index,
+        int endIndex,
+        out string value,
+        out int rawValueStartIndex,
+        out int rawValueLength ) {
+        value = string.Empty;
+        rawValueStartIndex = -1;
+        rawValueLength = 0;
+
+        if(index >= endIndex || luaText[index] != '"') {
+            return false;
+        }
+
+        index++;
+        rawValueStartIndex = index;
+        var rawStart = index;
+        var builder = new StringBuilder();
+
+        while(index < endIndex) {
+            var current = luaText[index];
+            if(current == '"') {
+                rawValueLength = index - rawStart;
+                index++;
+                value = NormalizeLineEndings( builder.ToString() );
+                return true;
+            }
+
             if(current != '\\') {
                 builder.Append( current );
+                index++;
                 continue;
             }
 
-            if(index + 1 >= value.Length) {
+            if(index + 1 >= endIndex) {
                 builder.Append( current );
+                index++;
                 continue;
             }
 
-            var next = value[index + 1];
+            var next = luaText[index + 1];
             switch(next) {
                 case '\\':
                     builder.Append( '\\' );
-                    index++;
+                    index += 2;
                     break;
                 case '"':
                     builder.Append( '"' );
-                    index++;
+                    index += 2;
                     break;
                 case 'n':
                     builder.Append( '\n' );
-                    index++;
+                    index += 2;
                     break;
                 case 'r':
                     builder.Append( '\r' );
-                    index++;
+                    index += 2;
                     break;
                 case 't':
                     builder.Append( '\t' );
-                    index++;
+                    index += 2;
                     break;
                 case '\n':
                     builder.Append( '\n' );
-                    index++;
+                    index += 2;
                     break;
                 case '\r':
                     builder.Append( '\r' );
-                    index++;
-                    if(index + 1 < value.Length && value[index + 1] == '\n') {
+                    index += 2;
+                    if(index < endIndex && luaText[index] == '\n') {
                         builder.Append( '\n' );
                         index++;
                     }
@@ -483,50 +621,12 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
                     break;
                 default:
                     builder.Append( next );
-                    index++;
+                    index += 2;
                     break;
             }
         }
 
-        return NormalizeLineEndings( builder.ToString() );
-    }
-
-    private static string EscapeLuaString( string value ) {
-        if(string.IsNullOrEmpty( value )) {
-            return string.Empty;
-        }
-
-        var normalizedValue = NormalizeLineEndings( value );
-        var lines = normalizedValue.Split( '\n' );
-        var builder = new StringBuilder( normalizedValue.Length );
-
-        for(var index = 0; index < lines.Length; index++) {
-            AppendEscapedLuaLine( builder, lines[index] );
-            if(index < lines.Length - 1) {
-                builder.Append( "\\\n" );
-            }
-        }
-
-        return builder.ToString();
-    }
-
-    private static void AppendEscapedLuaLine( StringBuilder builder, string line ) {
-        foreach(var current in line) {
-            switch(current) {
-                case '\\':
-                    builder.Append( "\\\\" );
-                    break;
-                case '"':
-                    builder.Append( "\\\"" );
-                    break;
-                case '\t':
-                    builder.Append( "\\t" );
-                    break;
-                default:
-                    builder.Append( current );
-                    break;
-            }
-        }
+        return false;
     }
 
     private static string EscapePoString( string value ) {
@@ -862,13 +962,6 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
 
     private static string NormalizeArchiveEntryPath( string value ) =>
         value.Replace( "\\", "/", StringComparison.Ordinal );
-
-    private static bool IsCommentedOutLine( string content, int matchIndex ) {
-        var lineStartIndex = content.LastIndexOf( '\n', Math.Max( 0, matchIndex - 1 ) );
-        lineStartIndex = lineStartIndex < 0 ? 0 : lineStartIndex + 1;
-        var linePrefix = content[lineStartIndex..matchIndex];
-        return linePrefix.TrimStart().StartsWith( "--", StringComparison.Ordinal );
-    }
 
     private static void AppendPoEntry( StringBuilder builder, TranslationDictionaryItem item ) {
         if(item.IsEnabled) {
