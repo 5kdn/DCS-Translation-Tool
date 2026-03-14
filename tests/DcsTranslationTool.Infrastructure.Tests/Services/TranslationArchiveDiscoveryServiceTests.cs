@@ -92,4 +92,40 @@ public sealed class TranslationArchiveDiscoveryServiceTests : IDisposable {
         Assert.Contains( result, entry => entry.Name == "Valid.miz" );
         Assert.Contains( result, entry => entry.Name == "Broken.trk" );
     }
+
+    [Fact]
+    public async Task DiscoverAsyncは一部サブディレクトリの列挙失敗時も同カテゴリの他ディレクトリを返す() {
+        var dcsWorldDir = Path.Combine( _tempDir, "DCSWorld" );
+        var aircraftRoot = Path.Combine( dcsWorldDir, "Mods", "aircraft" );
+        var healthyDir = Path.Combine( aircraftRoot, "A10C" );
+        var failingDir = Path.Combine( aircraftRoot, "BrokenModule" );
+        Directory.CreateDirectory( healthyDir );
+        Directory.CreateDirectory( failingDir );
+
+        var healthyArchive = Path.Combine( healthyDir, "Healthy.miz" );
+        var failingArchive = Path.Combine( failingDir, "Skipped.trk" );
+        File.WriteAllText( healthyArchive, "miz" );
+        File.WriteAllText( failingArchive, "trk" );
+
+        var sut = new FaultInjectingTranslationArchiveDiscoveryService( _loggerMock.Object, failingDir );
+
+        var result = await sut.DiscoverAsync( dcsWorldDir, null, TestContext.Current.CancellationToken );
+
+        Assert.Single( result );
+        Assert.Contains( result, entry => entry.FullPath == healthyArchive && entry.Category == TranslationArchiveCategory.Aircraft );
+        Assert.DoesNotContain( result, entry => entry.FullPath == failingArchive );
+    }
+
+    private sealed class FaultInjectingTranslationArchiveDiscoveryService(
+        ILoggingService logger,
+        string failingDirectoryPath
+    ) : TranslationArchiveDiscoveryService( logger ) {
+        protected override IEnumerable<string> EnumerateFiles( string directoryPath ) {
+            if(string.Equals( directoryPath, failingDirectoryPath, StringComparison.OrdinalIgnoreCase )) {
+                throw new UnauthorizedAccessException( $"Access denied: {directoryPath}" );
+            }
+
+            return base.EnumerateFiles( directoryPath );
+        }
+    }
 }

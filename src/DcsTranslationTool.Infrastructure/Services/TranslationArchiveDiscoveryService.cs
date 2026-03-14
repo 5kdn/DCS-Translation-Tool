@@ -8,7 +8,7 @@ namespace DcsTranslationTool.Infrastructure.Services;
 /// <summary>
 /// 翻訳対象アーカイブの探索を提供する。
 /// </summary>
-public sealed class TranslationArchiveDiscoveryService(
+public class TranslationArchiveDiscoveryService(
     ILoggingService logger
 ) : ITranslationArchiveDiscoveryService {
     /// <inheritdoc />
@@ -78,37 +78,83 @@ public sealed class TranslationArchiveDiscoveryService(
             return;
         }
 
-        IEnumerable<string> archivePaths;
+        AppendDirectoryEntries( results, categoryRoot, categoryRoot, category, cancellationToken );
+    }
+
+    /// <summary>
+    /// 指定ディレクトリ配下を再帰的に探索して結果を収集する。
+    /// </summary>
+    /// <param name="results">追加先コレクション。</param>
+    /// <param name="categoryRoot">カテゴリルートディレクトリ。</param>
+    /// <param name="currentDirectory">現在探索中のディレクトリ。</param>
+    /// <param name="category">カテゴリ。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    private void AppendDirectoryEntries(
+        ICollection<TranslationArchiveEntry> results,
+        string categoryRoot,
+        string currentDirectory,
+        TranslationArchiveCategory category,
+        CancellationToken cancellationToken
+    ) {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IEnumerable<string> files;
         try {
-            archivePaths = Directory
-                .EnumerateFiles( categoryRoot, "*", SearchOption.AllDirectories )
-                .Where( path => IsArchivePath( path ) )
-                .ToArray();
+            files = EnumerateFiles( currentDirectory ).ToArray();
         }
-        catch(Exception ex) {
-            logger.Warn( $"探索対象ディレクトリの列挙に失敗したためカテゴリをスキップする。Category={category}, Path={categoryRoot}", ex );
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
+            logger.Warn( $"探索対象ディレクトリのファイル列挙に失敗したため対象ディレクトリをスキップする。Category={category}, Path={currentDirectory}", ex );
             return;
         }
 
-        foreach(var archivePath in archivePaths) {
+        foreach(var filePath in files.Where( IsArchivePath )) {
             cancellationToken.ThrowIfCancellationRequested();
 
             try {
-                var relativePath = Path.GetRelativePath( categoryRoot, archivePath )
+                var relativePath = Path.GetRelativePath( categoryRoot, filePath )
                     .Replace( "\\", "/", StringComparison.Ordinal );
-                var archiveType = GetArchiveType( archivePath );
+                var archiveType = GetArchiveType( filePath );
                 results.Add( new TranslationArchiveEntry(
-                    Path.GetFileName( archivePath ),
-                    archivePath,
+                    Path.GetFileName( filePath ),
+                    filePath,
                     relativePath,
                     category,
                     archiveType ) );
             }
             catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
-                logger.Warn( $"アーカイブの検査に失敗したため対象をスキップする。Path={archivePath}", ex );
+                logger.Warn( $"アーカイブの検査に失敗したため対象をスキップする。Path={filePath}", ex );
             }
         }
+
+        IEnumerable<string> directories;
+        try {
+            directories = EnumerateDirectories( currentDirectory ).ToArray();
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
+            logger.Warn( $"探索対象ディレクトリの子ディレクトリ列挙に失敗したため対象ディレクトリをスキップする。Category={category}, Path={currentDirectory}", ex );
+            return;
+        }
+
+        foreach(var directoryPath in directories) {
+            AppendDirectoryEntries( results, categoryRoot, directoryPath, category, cancellationToken );
+        }
     }
+
+    /// <summary>
+    /// 指定ディレクトリ直下のファイル一覧を取得する。
+    /// </summary>
+    /// <param name="directoryPath">探索対象ディレクトリ。</param>
+    /// <returns>ファイル一覧。</returns>
+    protected virtual IEnumerable<string> EnumerateFiles( string directoryPath ) =>
+        Directory.EnumerateFiles( directoryPath, "*", SearchOption.TopDirectoryOnly );
+
+    /// <summary>
+    /// 指定ディレクトリ直下の子ディレクトリ一覧を取得する。
+    /// </summary>
+    /// <param name="directoryPath">探索対象ディレクトリ。</param>
+    /// <returns>子ディレクトリ一覧。</returns>
+    protected virtual IEnumerable<string> EnumerateDirectories( string directoryPath ) =>
+        Directory.EnumerateDirectories( directoryPath, "*", SearchOption.TopDirectoryOnly );
 
     /// <summary>
     /// アーカイブ種別を判定する。
