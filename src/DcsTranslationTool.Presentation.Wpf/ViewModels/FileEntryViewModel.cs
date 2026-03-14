@@ -26,7 +26,6 @@ public class FileEntryViewModel(
     private ObservableCollection<IFileEntryViewModel> _children = [];
     private bool _childrenHandlersAttached;
     private bool _suppressCheckPropagation = false;
-    private bool _suppressSelectPropagation = false;
     private readonly ChangeTypeMode _mode = changeTypeMode;
     private bool _isExpanded;
     private bool _isVisible = true;
@@ -129,18 +128,6 @@ public class FileEntryViewModel(
 
             if(!Set( ref _isSelected, value )) return;
             logger.Info( $"選択状態を更新した。Path={Model.Path}, Value={value}" );
-
-            if(!_suppressSelectPropagation && IsDirectory) {
-                try {
-                    _suppressSelectPropagation = true;
-                    foreach(var child in Children) {
-                        if(child.IsSelected != value) child.IsSelected = value;
-                    }
-                }
-                finally {
-                    _suppressSelectPropagation = false;
-                }
-            }
         }
     }
 

@@ -225,6 +225,36 @@ public sealed class TranslationFileSelectionViewModelTests {
         context.SystemServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C" ), Times.Once );
     }
 
+    [StaFact]
+    public async Task ディレクトリノード選択時に子ファイルは自動選択されない() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Mission1.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+                        "A10C/Mission1.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz )
+                ] );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var moduleNode = Assert.Single( aircraftTab.Root.Children );
+        var fileNode = Assert.Single( moduleNode.Children );
+
+        moduleNode.IsSelected = true;
+
+        Assert.True( moduleNode.IsSelected );
+        Assert.False( fileNode.IsSelected );
+        Assert.True( viewModel.CanOpenDirectory );
+        Assert.False( viewModel.CanCreateTranslation );
+    }
+
     public async Task ディレクトリノード選択時はCanCreateTranslationがfalseになる() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
