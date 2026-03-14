@@ -84,9 +84,7 @@ public partial class TranslationCreationView : Window {
             return;
         }
 
-        await Dispatcher.InvokeAsync(
-            async () => await viewModel.HandleWindowLoadedAsync(),
-            DispatcherPriority.ContextIdle );
+        await ExecuteWindowLoadedAsync( Dispatcher, () => viewModel.HandleWindowLoadedAsync() );
     }
 
     private void Window_Closing( object? sender, CancelEventArgs e ) {
@@ -197,5 +195,29 @@ public partial class TranslationCreationView : Window {
         }
 
         return Math.Max( minimum, value );
+    }
+
+    /// <summary>
+    /// ContentRendered 後の初期化処理を UI スレッドで最後まで待機して実行する。
+    /// </summary>
+    /// <param name="dispatcher">実行に利用するディスパッチャー。</param>
+    /// <param name="windowLoadedAction">実行対象の初期化処理。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <param name="priority">ディスパッチャー実行優先度。</param>
+    /// <returns>非同期タスクを返す。</returns>
+    internal static async Task ExecuteWindowLoadedAsync(
+        Dispatcher dispatcher,
+        Func<Task> windowLoadedAction,
+        CancellationToken cancellationToken = default,
+        DispatcherPriority priority = DispatcherPriority.ContextIdle ) {
+        ArgumentNullException.ThrowIfNull( dispatcher );
+        ArgumentNullException.ThrowIfNull( windowLoadedAction );
+
+        await await dispatcher.InvokeAsync(
+            () => {
+                cancellationToken.ThrowIfCancellationRequested();
+                return windowLoadedAction();
+            },
+            priority );
     }
 }

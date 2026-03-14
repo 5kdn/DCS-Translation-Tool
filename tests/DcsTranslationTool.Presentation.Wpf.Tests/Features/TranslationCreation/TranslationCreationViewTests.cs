@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
@@ -1011,6 +1012,50 @@ public sealed class TranslationCreationViewTests {
         view.Close();
 
         Assert.True( true );
+    }
+
+    [StaFact]
+    public async Task ExecuteWindowLoadedAsyncはHandleWindowLoadedAsyncの完了まで待機する() {
+        EnsureApplicationResources();
+
+        var dispatcherReadySource = new TaskCompletionSource<Dispatcher>();
+        var actionCompletionSource = new TaskCompletionSource();
+        var invocationStartedSource = new TaskCompletionSource();
+        var invocationCount = 0;
+        var dispatcherThread = new Thread( () => {
+            dispatcherReadySource.SetResult( Dispatcher.CurrentDispatcher );
+            Dispatcher.Run();
+        } );
+
+        dispatcherThread.SetApartmentState( ApartmentState.STA );
+        dispatcherThread.Start();
+
+        var dispatcher = await dispatcherReadySource.Task.WaitAsync( TestContext.Current.CancellationToken );
+
+        try {
+            var executeTask = TranslationCreationView.ExecuteWindowLoadedAsync(
+                dispatcher,
+                async () => {
+                    Interlocked.Increment( ref invocationCount );
+                    invocationStartedSource.TrySetResult();
+                    await actionCompletionSource.Task;
+                },
+                TestContext.Current.CancellationToken,
+                DispatcherPriority.Background );
+
+            await invocationStartedSource.Task.WaitAsync( TestContext.Current.CancellationToken );
+
+            Assert.False( executeTask.IsCompleted );
+            Assert.Equal( 1, Volatile.Read( ref invocationCount ) );
+
+            actionCompletionSource.SetResult();
+            await executeTask.WaitAsync( TestContext.Current.CancellationToken );
+            Assert.Equal( 1, Volatile.Read( ref invocationCount ) );
+        }
+        finally {
+            dispatcher.InvokeShutdown();
+            dispatcherThread.Join();
+        }
     }
 
     public static TheoryData<string, int[]> GetNewlineMarkerIndicesTestData => new()
