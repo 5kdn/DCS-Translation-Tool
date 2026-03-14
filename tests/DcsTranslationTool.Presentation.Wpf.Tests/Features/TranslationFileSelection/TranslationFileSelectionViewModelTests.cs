@@ -30,15 +30,13 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true ),
+                        TranslationArchiveType.Miz ),
                     new TranslationArchiveEntry(
                         "Campaign1.trk",
                         @"C:\DCSWorld\Mods\campaigns\RedFlag\Campaign1.trk",
                         "RedFlag/Campaign1.trk",
                         TranslationArchiveCategory.DlcCampaigns,
-                        TranslationArchiveType.Trk,
-                        true )
+                        TranslationArchiveType.Trk )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -64,8 +62,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\First.miz",
                         "A10C/First.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] )
             .ReturnsAsync(
                 [
@@ -74,8 +71,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Second.miz",
                         "A10C/Second.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -93,6 +89,51 @@ public sealed class TranslationFileSelectionViewModelTests {
     }
 
     [StaFact]
+    public async Task Refresh後は旧ツリーの選択状態を引き継がない() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        context.DiscoveryServiceMock
+            .SetupSequence( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "First.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\First.miz",
+                        "A10C/First.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz )
+                ] )
+            .ReturnsAsync(
+                [
+                    new TranslationArchiveEntry(
+                        "Second.miz",
+                        @"C:\DCSWorld\Mods\aircraft\A10C\Second.miz",
+                        "A10C/Second.miz",
+                        TranslationArchiveCategory.Aircraft,
+                        TranslationArchiveType.Miz )
+                ] );
+
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+
+        var initialTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var initialModuleNode = Assert.Single( initialTab.Root.Children );
+        var initialFileNode = Assert.Single( initialModuleNode.Children );
+        initialFileNode.IsSelected = true;
+
+        Assert.True( viewModel.HasSelectedEntry );
+
+        await viewModel.Refresh();
+
+        var refreshedTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
+        var refreshedModuleNode = Assert.Single( refreshedTab.Root.Children );
+        var refreshedFileNode = Assert.Single( refreshedModuleNode.Children );
+
+        Assert.False( viewModel.HasSelectedEntry );
+        Assert.False( refreshedFileNode.IsSelected );
+        Assert.Equal( "Second.miz", refreshedFileNode.Name );
+    }
+
+    [StaFact]
     public async Task 選択状態変更時にHasSelectedEntryが更新される() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
@@ -104,8 +145,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -136,8 +176,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -165,8 +204,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -193,8 +231,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -219,8 +256,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
 
         var viewModel = context.CreateViewModel();
@@ -242,8 +278,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
         context.WindowManagerMock
             .Setup( manager => manager.ShowWindowAsync(
@@ -294,8 +329,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
         context.TranslationCreationViewModelFactoryMock
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
@@ -339,8 +373,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
                         "A10C/Mission1.miz",
                         TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz,
-                        true )
+                        TranslationArchiveType.Miz )
                 ] );
         context.TranslationCreationViewModelFactoryMock
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
@@ -398,8 +431,7 @@ public sealed class TranslationFileSelectionViewModelTests {
                         @"C:\DCSWorld\Mods\campaigns\RedFlag\Campaign1.trk",
                         "RedFlag/Campaign1.trk",
                         TranslationArchiveCategory.DlcCampaigns,
-                        TranslationArchiveType.Trk,
-                        true )
+                        TranslationArchiveType.Trk )
                 ] );
 
         var viewModel = context.CreateViewModel();

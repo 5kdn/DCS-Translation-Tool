@@ -10,12 +10,10 @@ namespace DcsTranslationTool.Application.Models;
 /// <param name="RelativePath">カテゴリルートからの相対パス。</param>
 /// <param name="Category">所属カテゴリ。</param>
 /// <param name="ArchiveType">アーカイブ種別。</param>
-/// <param name="HasDictionary">dictionary エントリを保持しているかどうか。</param>
 public sealed record TranslationArchiveEntry(
     string Name,
     string FullPath,
     string RelativePath,
     TranslationArchiveCategory Category,
-    TranslationArchiveType ArchiveType,
-    bool HasDictionary
+    TranslationArchiveType ArchiveType
 );

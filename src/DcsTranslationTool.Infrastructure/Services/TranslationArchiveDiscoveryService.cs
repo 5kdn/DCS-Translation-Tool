@@ -1,5 +1,3 @@
-using System.IO.Compression;
-
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
@@ -13,8 +11,6 @@ namespace DcsTranslationTool.Infrastructure.Services;
 public sealed class TranslationArchiveDiscoveryService(
     ILoggingService logger
 ) : ITranslationArchiveDiscoveryService {
-    private static readonly string DictionaryEntryPath = "l10n/default/dictionary";
-
     /// <inheritdoc />
     public Task<IReadOnlyList<TranslationArchiveEntry>> DiscoverAsync(
         string? dcsWorldInstallDir,
@@ -98,10 +94,6 @@ public sealed class TranslationArchiveDiscoveryService(
             cancellationToken.ThrowIfCancellationRequested();
 
             try {
-                if(!HasDictionaryEntry( archivePath )) {
-                    continue;
-                }
-
                 var relativePath = Path.GetRelativePath( categoryRoot, archivePath )
                     .Replace( "\\", "/", StringComparison.Ordinal );
                 var archiveType = GetArchiveType( archivePath );
@@ -110,27 +102,12 @@ public sealed class TranslationArchiveDiscoveryService(
                     archivePath,
                     relativePath,
                     category,
-                    archiveType,
-                    true ) );
+                    archiveType ) );
             }
-            catch(Exception ex) when(ex is InvalidDataException or IOException or UnauthorizedAccessException) {
+            catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
                 logger.Warn( $"アーカイブの検査に失敗したため対象をスキップする。Path={archivePath}", ex );
             }
         }
-    }
-
-    /// <summary>
-    /// アーカイブに dictionary エントリが存在するかどうかを判定する。
-    /// </summary>
-    /// <param name="archivePath">検査対象アーカイブ。</param>
-    /// <returns>存在する場合は <see langword="true"/>。</returns>
-    private static bool HasDictionaryEntry( string archivePath ) {
-        using var archive = ZipFile.OpenRead( archivePath );
-        return archive.Entries.Any( entry =>
-            string.Equals(
-                entry.FullName.Replace( "\\", "/", StringComparison.Ordinal ),
-                DictionaryEntryPath,
-                StringComparison.OrdinalIgnoreCase ) );
     }
 
     /// <summary>

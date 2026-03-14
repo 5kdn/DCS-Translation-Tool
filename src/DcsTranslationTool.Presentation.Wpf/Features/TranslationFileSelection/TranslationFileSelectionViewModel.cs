@@ -35,6 +35,9 @@ public sealed class TranslationFileSelectionViewModel(
     private int _selectedTabIndex;
     private bool _isLoading;
     private string _stateMessage = string.Empty;
+    private readonly Dictionary<CategoryType, IFileEntryViewModel?> _selectedNodes = [];
+    private readonly Dictionary<IFileEntryViewModel, CategoryType> _nodeCategories = [];
+    private readonly List<INotifyPropertyChanged> _selectionSubscriptions = [];
 
     /// <summary>
     /// タブ一覧を取得または設定する。
@@ -262,16 +265,18 @@ public sealed class TranslationFileSelectionViewModel(
     private void BuildTabs( IReadOnlyList<TranslationArchiveEntry> entries ) {
         UnsubscribeSelectionStateChanged();
 
+        var entriesByCategory = entries
+            .GroupBy( entry => MapCategory( entry.Category ) )
+            .ToDictionary( group => group.Key, group => (IReadOnlyList<TranslationArchiveEntry>)group.ToArray() );
+
         var tabs = Enum
             .GetValues<CategoryType>()
-            .Select( categoryType => BuildTab( categoryType, entries ) )
+            .Select( categoryType => BuildTab(
+                categoryType,
+                entriesByCategory.GetValueOrDefault( categoryType, [] ) ) )
             .ToList();
 
         Tabs = [.. tabs];
-        foreach(var tab in Tabs) {
-            SubscribeSelectionStateChanged( tab.Root );
-        }
-
         SelectedTabIndex = Tabs.Count == 0 ? 0 : Math.Clamp( SelectedTabIndex, 0, Tabs.Count - 1 );
     }
 
@@ -286,13 +291,15 @@ public sealed class TranslationFileSelectionViewModel(
             new LocalFileEntry( categoryType.GetTabTitle(), string.Empty, true ),
             UI.Enums.ChangeTypeMode.Upload,
             logger );
+        RegisterSelectionSubscription( categoryType, root );
+        _selectedNodes[categoryType] = null;
 
         var nodesByPath = new Dictionary<string, IFileEntryViewModel>( StringComparer.OrdinalIgnoreCase )
         {
             [string.Empty] = root
         };
 
-        foreach(var entry in entries.Where( entry => MapCategory( entry.Category ) == categoryType )) {
+        foreach(var entry in entries) {
             var parts = entry.RelativePath.Split( '/', StringSplitOptions.RemoveEmptyEntries );
             var currentPath = string.Empty;
             var currentAbsolutePath = string.Empty;
@@ -318,6 +325,7 @@ public sealed class TranslationFileSelectionViewModel(
                     UI.Enums.ChangeTypeMode.Upload,
                     logger );
                 parent.Children.Add( node );
+                RegisterSelectionSubscription( categoryType, node );
                 nodesByPath[currentPath] = node;
                 parent = node;
             }
@@ -327,42 +335,15 @@ public sealed class TranslationFileSelectionViewModel(
     }
 
     /// <summary>
-    /// ノード選択状態変更時に選択関連状態を更新する。
-    /// </summary>
     /// ノード選択状態の購読を解除する。
     /// </summary>
     private void UnsubscribeSelectionStateChanged() {
-        foreach(var tab in Tabs) {
-            UnsubscribeSelectionStateChangedRecursive( tab.Root );
+        foreach(var subscription in _selectionSubscriptions) {
+            subscription.PropertyChanged -= OnNodePropertyChanged;
         }
-    }
-
-    /// <summary>
-    /// ノード選択状態の購読を設定する。
-    /// </summary>
-    /// <param name="node">購読対象ノード。</param>
-    private void SubscribeSelectionStateChanged( IFileEntryViewModel node ) {
-        if(node is INotifyPropertyChanged notifyPropertyChanged) {
-            notifyPropertyChanged.PropertyChanged += OnNodePropertyChanged;
-        }
-
-        foreach(var child in node.Children) {
-            SubscribeSelectionStateChanged( child );
-        }
-    }
-
-    /// <summary>
-    /// ノード選択状態の購読を再帰解除する。
-    /// </summary>
-    /// <param name="node">解除対象ノード。</param>
-    private void UnsubscribeSelectionStateChangedRecursive( IFileEntryViewModel node ) {
-        if(node is INotifyPropertyChanged notifyPropertyChanged) {
-            notifyPropertyChanged.PropertyChanged -= OnNodePropertyChanged;
-        }
-
-        foreach(var child in node.Children) {
-            UnsubscribeSelectionStateChangedRecursive( child );
-        }
+        _selectionSubscriptions.Clear();
+        _selectedNodes.Clear();
+        _nodeCategories.Clear();
     }
 
     /// <summary>
@@ -371,8 +352,28 @@ public sealed class TranslationFileSelectionViewModel(
     /// <param name="sender">イベント送信元。</param>
     /// <param name="e">イベント引数。</param>
     private void OnNodePropertyChanged( object? sender, PropertyChangedEventArgs e ) {
-        if(e.PropertyName != nameof( IFileEntryViewModel.IsSelected )) {
+        if(e.PropertyName != nameof( IFileEntryViewModel.IsSelected )
+            || sender is not IFileEntryViewModel node) {
             return;
+        }
+
+        if(!_nodeCategories.TryGetValue( node, out var categoryType )) {
+            return;
+        }
+
+        if(node.IsSelected) {
+            if(node.IsDirectory) {
+                _selectedNodes[categoryType] = node;
+            }
+            else if(!_selectedNodes.TryGetValue( categoryType, out var selectedNode )
+                || selectedNode is null
+                || !selectedNode.IsDirectory) {
+                _selectedNodes[categoryType] = node;
+            }
+        }
+        else if(_selectedNodes.TryGetValue( categoryType, out var selectedNode )
+            && ReferenceEquals( selectedNode, node )) {
+            _selectedNodes[categoryType] = null;
         }
 
         logger.Info( $"TranslationFileSelection の選択状態が変化した。SelectedIndex={SelectedTabIndex}" );
@@ -404,10 +405,10 @@ public sealed class TranslationFileSelectionViewModel(
     /// 現在タブで選択されているファイルノードを取得する。
     /// </summary>
     /// <returns>選択済みファイルノード。未選択時は <see langword="null"/>。</returns>
-    private IFileEntryViewModel? GetSelectedNode() {
-        var root = GetSelectedTab()?.Root;
-        return root is null ? null : FindSelectedNodeRecursive( root );
-    }
+    private IFileEntryViewModel? GetSelectedNode() =>
+        GetSelectedTab() is { TabType: var tabType } && _selectedNodes.TryGetValue( tabType, out var node )
+            ? node
+            : null;
 
     /// <summary>
     /// 翻訳作成対象のアーカイブ絶対パスを取得する。
@@ -429,23 +430,21 @@ public sealed class TranslationFileSelectionViewModel(
     }
 
     /// <summary>
-    /// 選択されているノードを再帰的に探索する。
+    /// ノード選択状態の購読を登録する。
     /// </summary>
-    /// <param name="node">探索開始ノード。</param>
-    /// <returns>選択済みノード。未選択時は <see langword="null"/>。</returns>
-    private static IFileEntryViewModel? FindSelectedNodeRecursive( IFileEntryViewModel node ) {
+    /// <param name="categoryType">所属カテゴリ。</param>
+    /// <param name="node">購読対象ノード。</param>
+    private void RegisterSelectionSubscription( CategoryType categoryType, IFileEntryViewModel node ) {
+        if(node is not INotifyPropertyChanged notifyPropertyChanged) {
+            return;
+        }
+
+        notifyPropertyChanged.PropertyChanged += OnNodePropertyChanged;
+        _selectionSubscriptions.Add( notifyPropertyChanged );
+        _nodeCategories[node] = categoryType;
         if(node.IsSelected) {
-            return node;
+            _selectedNodes[categoryType] = node;
         }
-
-        foreach(var child in node.Children) {
-            var selected = FindSelectedNodeRecursive( child );
-            if(selected is not null) {
-                return selected;
-            }
-        }
-
-        return null;
     }
 
     /// <summary>

@@ -1,5 +1,3 @@
-using System.IO.Compression;
-
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
@@ -27,17 +25,17 @@ public sealed class TranslationArchiveDiscoveryServiceTests : IDisposable {
     }
 
     [Fact]
-    public async Task DiscoverAsyncはdictionaryを持つmizとtrkのみを返す() {
+    public async Task DiscoverAsyncはmizとtrkのみを返す() {
         var dcsWorldDir = Path.Combine( _tempDir, "DCSWorld" );
         var aircraftDir = Path.Combine( dcsWorldDir, "Mods", "aircraft", "A10C", "Missions", "EN" );
         Directory.CreateDirectory( aircraftDir );
 
         var includedMiz = Path.Combine( aircraftDir, "Included.miz" );
-        var excludedMiz = Path.Combine( aircraftDir, "Excluded.miz" );
         var includedTrk = Path.Combine( aircraftDir, "Included.trk" );
-        CreateArchive( includedMiz, includeDictionary: true );
-        CreateArchive( excludedMiz, includeDictionary: false );
-        CreateArchive( includedTrk, includeDictionary: true );
+        var excludedTxt = Path.Combine( aircraftDir, "Excluded.txt" );
+        File.WriteAllText( includedMiz, "miz" );
+        File.WriteAllText( includedTrk, "trk" );
+        File.WriteAllText( excludedTxt, "txt" );
 
         var sut = new TranslationArchiveDiscoveryService( _loggerMock.Object );
 
@@ -46,7 +44,7 @@ public sealed class TranslationArchiveDiscoveryServiceTests : IDisposable {
         Assert.Equal( 2, result.Count );
         Assert.Contains( result, entry => entry.Name == "Included.miz" && entry.ArchiveType == TranslationArchiveType.Miz );
         Assert.Contains( result, entry => entry.Name == "Included.trk" && entry.ArchiveType == TranslationArchiveType.Trk );
-        Assert.DoesNotContain( result, entry => entry.Name == "Excluded.miz" );
+        Assert.DoesNotContain( result, entry => entry.Name == "Excluded.txt" );
     }
 
     [Fact]
@@ -62,9 +60,9 @@ public sealed class TranslationArchiveDiscoveryServiceTests : IDisposable {
         Directory.CreateDirectory( Path.GetDirectoryName( campaignArchive )! );
         Directory.CreateDirectory( Path.GetDirectoryName( userMissionArchive )! );
 
-        CreateArchive( aircraftArchive, includeDictionary: true );
-        CreateArchive( campaignArchive, includeDictionary: true );
-        CreateArchive( userMissionArchive, includeDictionary: true );
+        File.WriteAllText( aircraftArchive, "miz" );
+        File.WriteAllText( campaignArchive, "trk" );
+        File.WriteAllText( userMissionArchive, "miz" );
 
         var sut = new TranslationArchiveDiscoveryService( _loggerMock.Object );
 
@@ -76,42 +74,22 @@ public sealed class TranslationArchiveDiscoveryServiceTests : IDisposable {
     }
 
     [Fact]
-    public async Task DiscoverAsyncは壊れたzipと存在しないパスを無視して継続する() {
+    public async Task DiscoverAsyncは壊れたzipと存在しないパスを無視せず対象拡張子として返す() {
         var dcsWorldDir = Path.Combine( _tempDir, "DCSWorld" );
         var aircraftDir = Path.Combine( dcsWorldDir, "Mods", "aircraft", "A10C" );
         Directory.CreateDirectory( aircraftDir );
 
         var validArchive = Path.Combine( aircraftDir, "Valid.miz" );
         var brokenArchive = Path.Combine( aircraftDir, "Broken.trk" );
-        CreateArchive( validArchive, includeDictionary: true );
+        File.WriteAllText( validArchive, "valid archive" );
         File.WriteAllText( brokenArchive, "broken archive" );
 
         var sut = new TranslationArchiveDiscoveryService( _loggerMock.Object );
 
         var result = await sut.DiscoverAsync( dcsWorldDir, Path.Combine( _tempDir, "MissingUserMissions" ), TestContext.Current.CancellationToken );
 
-        var entry = Assert.Single( result );
-        Assert.Equal( "Valid.miz", entry.Name );
-        _loggerMock.Verify(
-            logger => logger.Warn(
-                It.Is<string>( message => message.Contains( "アーカイブの検査に失敗したため対象をスキップする。", StringComparison.Ordinal ) ),
-                It.IsAny<Exception>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<int>() ),
-            Times.AtLeastOnce );
-    }
-
-    /// <summary>
-    /// テスト用アーカイブを作成する。
-    /// </summary>
-    /// <param name="archivePath">作成先パス。</param>
-    /// <param name="includeDictionary">dictionary エントリを含めるかどうか。</param>
-    private static void CreateArchive( string archivePath, bool includeDictionary ) {
-        using var archive = ZipFile.Open( archivePath, ZipArchiveMode.Create );
-        archive.CreateEntry( "mission" );
-        if(includeDictionary) {
-            archive.CreateEntry( "l10n/DEFAULT/dictionary" );
-        }
+        Assert.Equal( 2, result.Count );
+        Assert.Contains( result, entry => entry.Name == "Valid.miz" );
+        Assert.Contains( result, entry => entry.Name == "Broken.trk" );
     }
 }
