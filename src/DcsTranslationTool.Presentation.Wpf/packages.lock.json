@@ -14,11 +14,11 @@
       },
       "MaterialDesignThemes": {
         "type": "Direct",
-        "requested": "[5.3.0, )",
-        "resolved": "5.3.0",
-        "contentHash": "jIKeR2JzUGslVn2EU5bvAXj4EJpw3wf289VsTf0evtg/czFIomPswqBGfpO7In67rpFwQzR+E+/df/Q9i43a0Q==",
+        "requested": "[5.3.1, )",
+        "resolved": "5.3.1",
+        "contentHash": "IjsWlh22m2jRQEMwlg5LIDZLsSEgeROyBQU7yMjqOQATx1ls/dZoLxDcLgwjNMbO2LcGPsHAeY1Q9tjKkN45ig==",
         "dependencies": {
-          "MaterialDesignColors": "5.3.0",
+          "MaterialDesignColors": "5.3.1",
           "Microsoft.Xaml.Behaviors.Wpf": "1.1.77"
         }
       },
@@ -38,8 +38,8 @@
       },
       "MaterialDesignColors": {
         "type": "Transitive",
-        "resolved": "5.3.0",
-        "contentHash": "2+gcPqbWB3f9vvpCXb7SMhObt9aYSIIIkycYjnctnq4smAfzflwTcMQbG3UjiUYKoTbAy4+RXO0tugLX33YhiA=="
+        "resolved": "5.3.1",
+        "contentHash": "QtVKQnA+3c/tAC2gdBDZcOdGBe/nIsQUVpaea10nmatUwuZRYVoRXMd0VqgwmYHpyxv/5vWy+z6l0HgNgZMs2w=="
       },
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
