@@ -67,4 +67,46 @@ public sealed class TranslationCreationViewTests {
 
         Assert.Equal( expectedIndices, actual );
     }
+
+    public static TheoryData<string, int[]> GetWhitespaceHighlightIndicesTestData => new()
+    {
+        { string.Empty, [] },
+        { "single space ", [12] },
+        { "abcd ", [4] },
+        { "abcd　", [4] },
+        { "abcd\t", [4] },
+        { "abcd \n", [4] },
+        { "abcd　\n", [4] },
+        { "abcd\t\r\n", [4] },
+        { "a  b", [1, 2] },
+        { "a　　b", [1, 2] },
+        { "a \tb", [1, 2] },
+        { "a \r\nb", [1] },
+        { "a　\nb", [1] },
+        { "a  \r\nb", [1, 2] },
+        { "a\t \nb", [1, 2] },
+        { "ab  cd", [2, 3] },
+        { "ab　　cd", [2, 3] },
+        { "ab\t\tcd", [2, 3] },
+        { "ab 　cd", [2, 3] },
+        { "ab \tcd", [2, 3] },
+        { "ab　 cd", [2, 3] },
+        { "ab　\tcd", [2, 3] },
+        { "ab\t cd", [2, 3] },
+        { "ab\t　cd", [2, 3] },
+        { "  start", [0, 1] },
+        { "end\t\t", [3, 4] },
+        { "a \n b", [1] },
+        { "trail　", [5] },
+        { "trail\t", [5] },
+        { "a b", [] }
+    };
+
+    [Theory]
+    [MemberData( nameof( GetWhitespaceHighlightIndicesTestData ) )]
+    public void 空白強調位置抽出は連続空白と改行前空白を正しく扱う( string text, int[] expectedIndices ) {
+        var actual = TextBoxWhitespaceHighlightAdorner.GetHighlightIndices( text );
+
+        Assert.Equal( expectedIndices, actual );
+    }
 }

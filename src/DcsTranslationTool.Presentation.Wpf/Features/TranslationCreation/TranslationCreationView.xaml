@@ -292,6 +292,7 @@
                              Text="{Binding SelectedTranslated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanEditSelectedTranslated}"
                              Style="{StaticResource DictionaryDetailsTextBoxStyle}"
+                             local:TextBoxWhitespaceHighlight.IsEnabled="True"
                              local:TextBoxNewlineMarker.IsEnabled="True"
                              AcceptsReturn="True"
                              HorizontalScrollBarVisibility="Auto"
