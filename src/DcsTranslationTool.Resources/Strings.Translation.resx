@@ -1,5 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -110,7 +169,7 @@
     <value>警告</value>
   </data>
   <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage" xml:space="preserve">
-    <value>この dictionary を Translated の初期値として取り込みますか？</value>
+    <value>この dictionary を翻訳の初期値として取り込みますか？</value>
   </data>
   <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationTitle" xml:space="preserve">
     <value>取り込み確認</value>
@@ -187,11 +246,26 @@
   <data name="CreateTranslationHidePossibleNonTranslationTargetsFilterText" xml:space="preserve">
     <value>対象外を非表示</value>
   </data>
+  <data name="CreateTranslationHidePossibleNonTranslationTargetsFilterToolTip" xml:space="preserve">
+    <value>翻訳対象外であると思われる以下の項目を非表示にします
+- キーが DictKey_ から始まらない
+- キーが DictKey_WptName_* に当てはまる
+- キーが DictKey_ActionComment_* に当てはまる
+- キーが DictKey_GroupName_* に当てはまる
+- キーが DictKey_UnitName_* に当てはまる
+- 原文がluaコードとして解釈できる</value>
+  </data>
   <data name="CreateTranslationHideEmptyOriginalFilterText" xml:space="preserve">
     <value>空欄を非表示</value>
   </data>
+  <data name="CreateTranslationHideEmptyOriginalFilterToolTip" xml:space="preserve">
+    <value>原文が空の文字列である項目を非表示にします</value>
+  </data>
+  <data name="CreateTranslationDataGridMoveSelectionShortcutToolTip" xml:space="preserve">
+    <value>Ctrl+↑ / Ctrl+↓ で項目を移動できます</value>
+  </data>
   <data name="CreateTranslationOriginalLabelText" xml:space="preserve">
-    <value>Original</value>
+    <value>原文</value>
   </data>
   <data name="CreateTranslationCsvExportFailedMessage" xml:space="preserve">
     <value>CSV ファイルの書き出しに失敗しました。</value>
@@ -209,7 +283,7 @@
     <value>CSV ファイルを読み込んでいます。</value>
   </data>
   <data name="CreateTranslationCsvImportOverwriteConfirmationMessage" xml:space="preserve">
-    <value>翻訳テキスト（Translated）が存在します。CSV ファイルの内容で上書きしますか？</value>
+    <value>翻訳テキストが存在します。CSV ファイルの内容で上書きしますか？</value>
   </data>
   <data name="CreateTranslationCsvImportOverwriteConfirmationTitle" xml:space="preserve">
     <value>上書き確認</value>
@@ -233,7 +307,7 @@
     <value>dictionary ファイルを読み込んでいます。</value>
   </data>
   <data name="CreateTranslationDictionaryImportOverwriteConfirmationMessage" xml:space="preserve">
-    <value>翻訳テキスト（Translated）が存在します。dictionary ファイルの内容で上書きしますか？</value>
+    <value>翻訳テキストが存在します。dictionary ファイルの内容で上書きしますか？</value>
   </data>
   <data name="CreateTranslationDictionaryImportOverwriteConfirmationTitle" xml:space="preserve">
     <value>上書き確認</value>
@@ -266,7 +340,7 @@
     <value>PO ファイルを読み込んでいます。</value>
   </data>
   <data name="CreateTranslationPoImportOverwriteConfirmationMessage" xml:space="preserve">
-    <value>翻訳テキスト（Translated）が存在します。PO ファイルの内容で上書きしますか？</value>
+    <value>翻訳テキストが存在します。PO ファイルの内容で上書きしますか？</value>
   </data>
   <data name="CreateTranslationPoImportOverwriteConfirmationTitle" xml:space="preserve">
     <value>上書き確認</value>
