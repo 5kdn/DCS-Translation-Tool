@@ -9,14 +9,10 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <param name="window">対象ウィンドウ。</param>
 /// <param name="dictionaryDataGridRowDefinition">dictionary 一覧行。</param>
 /// <param name="dictionaryDetailsRowDefinition">dictionary 詳細行。</param>
-/// <param name="selectedOriginalTextBox">Original 表示テキストボックス。</param>
-/// <param name="selectedTranslatedTextBox">Translated 編集テキストボックス。</param>
 internal sealed class TranslationCreationWindowCoordinator(
     Window window,
     RowDefinition dictionaryDataGridRowDefinition,
-    RowDefinition dictionaryDetailsRowDefinition,
-    TextBox? selectedOriginalTextBox,
-    TextBox? selectedTranslatedTextBox ) {
+    RowDefinition dictionaryDetailsRowDefinition ) {
     private const double DetailPaneBaseRatio = 1;
 
     /// <summary>
@@ -27,7 +23,6 @@ internal sealed class TranslationCreationWindowCoordinator(
         ApplyMinimumWindowSize();
         ApplyWindowSize( viewModel );
         ApplyDictionaryPaneRatio( viewModel );
-        ApplyDictionaryDetailsTextWrapping( viewModel );
     }
 
     /// <summary>
@@ -49,24 +44,6 @@ internal sealed class TranslationCreationWindowCoordinator(
 
         PersistWindowSize( viewModel );
         PersistDictionaryPaneRatio( viewModel );
-    }
-
-    /// <summary>
-    /// 折り返し状態をテキストボックスへ反映する。
-    /// </summary>
-    /// <param name="viewModel">反映元 ViewModel。</param>
-    internal void ApplyDictionaryDetailsTextWrapping( ITranslationCreationViewModel? viewModel ) {
-        var textWrapping = viewModel?.IsDictionaryDetailsWrapEnabled != false
-            ? TextWrapping.Wrap
-            : TextWrapping.NoWrap;
-
-        if(selectedOriginalTextBox is not null) {
-            selectedOriginalTextBox.TextWrapping = textWrapping;
-        }
-
-        if(selectedTranslatedTextBox is not null) {
-            selectedTranslatedTextBox.TextWrapping = textWrapping;
-        }
     }
 
     /// <summary>

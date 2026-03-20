@@ -27,9 +27,21 @@ public interface ITranslationCreationViewModel : INotifyPropertyChanged {
     bool IsDictionaryDetailsWrapEnabled { get; set; }
 
     /// <summary>
+    /// 可視 dictionary 項目の再評価版数を取得する。
+    /// </summary>
+    int VisibleDictionaryItemsVersion { get; }
+
+    /// <summary>
     /// 選択中の dictionary 項目を取得する。
     /// </summary>
     TranslationDictionaryItemRowViewModel? SelectedDictionaryItem { get; }
+
+    /// <summary>
+    /// 指定行を表示対象に含めるかどうかを判定する。
+    /// </summary>
+    /// <param name="row">判定対象の行。</param>
+    /// <returns>表示対象に含める場合は <see langword="true"/> を返す。</returns>
+    bool ShouldIncludeRow( TranslationDictionaryItemRowViewModel row );
 
     /// <summary>
     /// 表示中の dictionary 項目選択を 1 件上へ移動する。

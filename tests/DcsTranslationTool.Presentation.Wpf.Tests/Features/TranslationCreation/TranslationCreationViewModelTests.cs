@@ -1,8 +1,3 @@
-using System.Collections;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
-using System.ComponentModel;
-using System.Globalization;
 using System.Text.RegularExpressions;
 
 using Caliburn.Micro;
@@ -305,15 +300,13 @@ public sealed partial class TranslationCreationViewModelTests {
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
-        var spyView = new TestCollectionView();
-        SetFilteredDictionaryItemsView( viewModel, spyView );
         viewModel.ShowOnlyUntranslated = true;
-        spyView.ResetRefreshCallCount();
+        var visibleVersion = viewModel.VisibleDictionaryItemsVersion;
         viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
         viewModel.SelectedTranslated = "translated";
 
         Assert.True( viewModel.HasPendingChangesForClose() );
-        Assert.Equal( 0, spyView.RefreshCallCount );
+        Assert.Equal( visibleVersion, viewModel.VisibleDictionaryItemsVersion );
     }
 
     [Fact]
@@ -435,7 +428,7 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
-    public async Task InitializeAfterShownAsyncはFilteredDictionaryItemsView変更を通知する() {
+    public async Task InitializeAfterShownAsyncはVisibleDictionaryItemsVersion変更を通知する() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
             .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
@@ -449,10 +442,10 @@ public sealed partial class TranslationCreationViewModelTests {
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
 
-        Assert.Contains( nameof( TranslationCreationViewModel.FilteredDictionaryItemsView ), notifiedPropertyNames );
+        Assert.Contains( nameof( TranslationCreationViewModel.VisibleDictionaryItemsVersion ), notifiedPropertyNames );
         Assert.Equal(
             ["DictKey_sortie_1"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
     }
 
     [Fact]
@@ -467,13 +460,12 @@ public sealed partial class TranslationCreationViewModelTests {
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
-        var spyView = new TestCollectionView();
-        SetFilteredDictionaryItemsView( viewModel, spyView );
+        var visibleVersion = viewModel.VisibleDictionaryItemsVersion;
         viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
         viewModel.SelectedTranslated = "translated";
         viewModel.FlushPendingSelectedTranslatedEdit();
 
-        Assert.Equal( 0, spyView.RefreshCallCount );
+        Assert.Equal( visibleVersion, viewModel.VisibleDictionaryItemsVersion );
     }
 
     [Fact]
@@ -488,11 +480,10 @@ public sealed partial class TranslationCreationViewModelTests {
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
-        var spyView = new TestCollectionView();
-        SetFilteredDictionaryItemsView( viewModel, spyView );
+        var visibleVersion = viewModel.VisibleDictionaryItemsVersion;
         viewModel.DictionaryItems.Single().IsEnabled = false;
 
-        Assert.Equal( 0, spyView.RefreshCallCount );
+        Assert.Equal( visibleVersion, viewModel.VisibleDictionaryItemsVersion );
     }
 
     [Fact]
@@ -2623,8 +2614,8 @@ dictionary = {
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
 
-        Assert.Single( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
-        Assert.Equal( "DictKey_filled", viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Single().Key );
+        Assert.Single( GetVisibleDictionaryItems( viewModel ) );
+        Assert.Equal( "DictKey_filled", GetVisibleDictionaryItems( viewModel ).Single().Key );
     }
 
     [Fact]
@@ -2647,7 +2638,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_sortie_1"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
         Assert.Equal(
             [true, false, false, false, false, false],
             [.. viewModel.DictionaryItems.Select( item => item.IsEnabled )] );
@@ -2671,7 +2662,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_sortie_1", "DictKey_WptName_1", "OtherKey_visible"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
         Assert.Equal(
             [true, false, false],
             [.. viewModel.DictionaryItems.Select( item => item.IsEnabled )] );
@@ -2715,7 +2706,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_sortie_1"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
         Assert.True( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_sortie_1" ).IsEnabled );
         Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_1" ).IsEnabled );
         Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_2" ).IsEnabled );
@@ -2740,7 +2731,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_sortie_1", "DictKey_comment_1", "DictKey_comment_2", "DictKey_comment_3"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
         Assert.All( viewModel.DictionaryItems, item => Assert.True( item.IsEnabled ) );
     }
 
@@ -2761,7 +2752,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_sortie_1", "DictKey_plain_1"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
         Assert.False( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_script_1" ).IsEnabled );
         Assert.True( viewModel.DictionaryItems.Single( item => item.Key == "DictKey_plain_1" ).IsEnabled );
     }
@@ -2802,7 +2793,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_disabled"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
     }
 
     [Fact]
@@ -2823,7 +2814,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_enabled"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
     }
 
     [Fact]
@@ -2843,7 +2834,7 @@ dictionary = {
         viewModel.ShowEnabledItems = false;
         viewModel.ShowDisabledItems = false;
 
-        Assert.Empty( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+        Assert.Empty( GetVisibleDictionaryItems( viewModel ) );
     }
 
     [Fact]
@@ -2861,7 +2852,7 @@ dictionary = {
         await ActivateAndInitializeAfterShownAsync( viewModel );
         viewModel.ShowOnlyUntranslated = true;
 
-        var visibleItems = viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().ToArray();
+        var visibleItems = GetVisibleDictionaryItems( viewModel );
         Assert.Single( visibleItems );
         Assert.Equal( "DictKey_descriptionFoo_2", visibleItems[0].Key );
     }
@@ -2882,7 +2873,7 @@ dictionary = {
         await ActivateAndInitializeAfterShownAsync( viewModel );
         viewModel.ShowOnlyUntranslated = true;
 
-        var visibleItems = viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().ToArray();
+        var visibleItems = GetVisibleDictionaryItems( viewModel );
         Assert.Single( visibleItems );
         Assert.Equal( "DictKey_todo", visibleItems[0].Key );
     }
@@ -2907,7 +2898,7 @@ dictionary = {
 
         Assert.Equal(
             ["DictKey_descriptionFoo_2"],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
     }
 
     [Fact]
@@ -2936,7 +2927,7 @@ dictionary = {
                 "DictKey_descriptionFoo_b",
                 "OtherKey_a"
             ],
-            [.. viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>().Select( item => item.Key )] );
+            [.. GetVisibleDictionaryItems( viewModel ).Select( item => item.Key )] );
     }
 
     [Fact]
@@ -2956,7 +2947,7 @@ dictionary = {
         var item = viewModel.DictionaryItems.Single();
         item.Translated = "translated";
 
-        Assert.Empty( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+        Assert.Empty( GetVisibleDictionaryItems( viewModel ) );
     }
 
     [Fact]
@@ -2975,12 +2966,12 @@ dictionary = {
         viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
         viewModel.SelectedTranslated = "translated";
 
-        Assert.Single( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+        Assert.Single( GetVisibleDictionaryItems( viewModel ) );
         Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
 
         viewModel.FlushPendingSelectedTranslatedEdit();
 
-        Assert.Empty( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+        Assert.Empty( GetVisibleDictionaryItems( viewModel ) );
     }
 
     [Fact]
@@ -3000,7 +2991,7 @@ dictionary = {
         var item = viewModel.DictionaryItems.Single();
         item.IsEnabled = false;
 
-        Assert.Empty( viewModel.FilteredDictionaryItemsView.Cast<TranslationDictionaryItemRowViewModel>() );
+        Assert.Empty( GetVisibleDictionaryItems( viewModel ) );
     }
 
     [Fact]
@@ -3050,11 +3041,8 @@ dictionary = {
         await viewModel.InitializeAfterShownAsync( TestContext.Current.CancellationToken );
     }
 
-    private static void SetFilteredDictionaryItemsView( TranslationCreationViewModel viewModel, ICollectionView collectionView ) {
-        var property = typeof( TranslationCreationViewModel ).GetProperty( nameof( TranslationCreationViewModel.FilteredDictionaryItemsView ) );
-        Assert.NotNull( property );
-        property.SetValue( viewModel, collectionView );
-    }
+    private static TranslationDictionaryItemRowViewModel[] GetVisibleDictionaryItems( TranslationCreationViewModel viewModel ) =>
+        [.. viewModel.DictionaryItems.Where( viewModel.ShouldIncludeRow )];
 
     private sealed class TranslationCreationViewModelTestContext : IDisposable {
 
@@ -3164,51 +3152,4 @@ dictionary = {
     [GeneratedRegex( "\\[\\s*\\\"(?<key>(?:\\\\(?:\\n|.|\\r)|[^\\\"\\\\])*)\\\"\\s*\\]\\s*=\\s*\\\"(?<value>(?:\\\\(?:\\n|.|\\r)|[^\\\"\\\\])*)\\\"", RegexOptions.CultureInvariant )]
     private static partial Regex DictionaryEntryRegex();
 
-    private sealed class TestCollectionView : ICollectionView {
-        public bool CanFilter => true;
-        public bool CanGroup => false;
-        public bool CanSort => false;
-        public CultureInfo Culture { get; set; } = CultureInfo.InvariantCulture;
-        public object? CurrentItem => null;
-        public int CurrentPosition => -1;
-        public Predicate<object>? Filter { get; set; }
-        public ObservableCollection<GroupDescription> GroupDescriptions { get; } = [];
-        public ReadOnlyObservableCollection<object>? Groups => null;
-        public bool IsCurrentAfterLast => false;
-        public bool IsCurrentBeforeFirst => false;
-        public bool IsEmpty => false;
-        public SortDescriptionCollection SortDescriptions { get; } = [];
-        public IEnumerable SourceCollection => Array.Empty<object>();
-        public int RefreshCallCount { get; private set; }
-        event EventHandler? ICollectionView.CurrentChanged { add { } remove { } }
-        event CurrentChangingEventHandler? ICollectionView.CurrentChanging { add { } remove { } }
-        event NotifyCollectionChangedEventHandler? INotifyCollectionChanged.CollectionChanged { add { } remove { } }
-
-        public bool Contains( object item ) => false;
-
-        public IDisposable DeferRefresh() => new TestDisposable();
-
-        public IEnumerator GetEnumerator() => Array.Empty<object>().GetEnumerator();
-
-        public bool MoveCurrentTo( object item ) => false;
-
-        public bool MoveCurrentToFirst() => false;
-
-        public bool MoveCurrentToLast() => false;
-
-        public bool MoveCurrentToNext() => false;
-
-        public bool MoveCurrentToPosition( int position ) => false;
-
-        public bool MoveCurrentToPrevious() => false;
-
-        public void Refresh() => RefreshCallCount++;
-
-        public void ResetRefreshCallCount() => RefreshCallCount = 0;
-
-        private sealed class TestDisposable : IDisposable {
-            public void Dispose() {
-            }
-        }
-    }
 }

@@ -28,6 +28,9 @@
 
     <Window.Resources>
          <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+         <CollectionViewSource x:Key="FilteredDictionaryItemsSource"
+                               Source="{Binding DictionaryItems}"
+                               Filter="FilteredDictionaryItemsSource_Filter" />
          <Style x:Key="DictionaryRowTextStyle" TargetType="TextBlock">
              <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
              <Setter Property="VerticalAlignment" Value="Center" />
@@ -223,7 +226,7 @@
                           EnableColumnVirtualization="True"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling"
-                          ItemsSource="{Binding FilteredDictionaryItemsView}"
+                          ItemsSource="{Binding Source={StaticResource FilteredDictionaryItemsSource}}"
                           SelectedItem="{Binding SelectedDictionaryItem, Mode=TwoWay}"
                           Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <DataGrid.Columns>

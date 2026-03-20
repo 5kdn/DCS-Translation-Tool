@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -11,6 +12,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// </summary>
 public partial class TranslationCreationView : Window {
     private readonly TranslationCreationWindowCoordinator _windowCoordinator;
+    private ITranslationCreationViewModel? _subscribedViewModel;
     private bool _isCloseConfirmationInProgress;
     private bool _isCloseConfirmed;
     private bool _isCloseCleanupCompleted;
@@ -23,15 +25,16 @@ public partial class TranslationCreationView : Window {
         _windowCoordinator = new(
             this,
             DictionaryDataGridRowDefinition,
-            DictionaryDetailsRowDefinition,
-            SelectedOriginalTextBox,
-            SelectedTranslatedTextBox );
+            DictionaryDetailsRowDefinition );
         DataContextChanged += Window_DataContextChanged;
         Loaded += Window_Loaded;
         ContentRendered += Window_ContentRendered;
         Closing += Window_Closing;
     }
 
+    /// <summary>
+    /// 現在の DataContext から取得した ViewModel を取得する。
+    /// </summary>
     private ITranslationCreationViewModel? ViewModel => DataContext as ITranslationCreationViewModel;
 
     /// <summary>
@@ -78,8 +81,12 @@ public partial class TranslationCreationView : Window {
     /// </summary>
     /// <param name="sender">イベント送信元。</param>
     /// <param name="e">イベント引数。</param>
-    private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) =>
+    private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) {
+        UnsubscribeViewModel( e.OldValue as ITranslationCreationViewModel );
+        SubscribeViewModel( e.NewValue as ITranslationCreationViewModel );
         _windowCoordinator.ApplyLayout( e.NewValue as ITranslationCreationViewModel );
+        RefreshFilteredDictionaryItems();
+    }
 
     /// <summary>
     /// Loaded 時に保存済みレイアウトを反映し、折り返しチェックボックス監視を開始する。
@@ -144,6 +151,7 @@ public partial class TranslationCreationView : Window {
         }
 
         _isCloseCleanupCompleted = true;
+        UnsubscribeViewModel( ViewModel );
         _windowCoordinator.PersistLayout( ViewModel );
     }
 
@@ -154,6 +162,68 @@ public partial class TranslationCreationView : Window {
     /// <param name="e">イベント引数。</param>
     private void DictionaryPaneGridSplitter_DragCompleted( object sender, DragCompletedEventArgs e ) =>
         _windowCoordinator.PersistLayout( ViewModel );
+
+    /// <summary>
+    /// dictionary 一覧の表示フィルターを適用する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
+    private void FilteredDictionaryItemsSource_Filter( object sender, FilterEventArgs e ) {
+        if(e.Item is not TranslationDictionaryItemRowViewModel row) {
+            e.Accepted = false;
+            return;
+        }
+
+        e.Accepted = ViewModel?.ShouldIncludeRow( row ) ?? true;
+    }
+
+    /// <summary>
+    /// ViewModel の変更通知購読を開始する。
+    /// </summary>
+    /// <param name="viewModel">購読対象の ViewModel。</param>
+    private void SubscribeViewModel( ITranslationCreationViewModel? viewModel ) {
+        if(viewModel is null || ReferenceEquals( _subscribedViewModel, viewModel )) {
+            return;
+        }
+
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _subscribedViewModel = viewModel;
+    }
+
+    /// <summary>
+    /// ViewModel の変更通知購読を解除する。
+    /// </summary>
+    /// <param name="viewModel">解除対象の ViewModel。</param>
+    private void UnsubscribeViewModel( ITranslationCreationViewModel? viewModel ) {
+        if(viewModel is null || !ReferenceEquals( _subscribedViewModel, viewModel )) {
+            return;
+        }
+
+        viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _subscribedViewModel = null;
+    }
+
+    /// <summary>
+    /// ViewModel の一覧関連変更時にフィルターを再評価する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
+    private void OnViewModelPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
+        if(e.PropertyName == nameof( ITranslationCreationViewModel.VisibleDictionaryItemsVersion )) {
+            RefreshFilteredDictionaryItems();
+        }
+    }
+
+    /// <summary>
+    /// dictionary 一覧のフィルターを再評価する。
+    /// </summary>
+    private void RefreshFilteredDictionaryItems() {
+        if(Resources["FilteredDictionaryItemsSource"] is not CollectionViewSource collectionViewSource) {
+            return;
+        }
+
+        collectionViewSource.View?.Refresh();
+    }
 
     /// <summary>
     /// ContentRendered 後の初期化処理を UI スレッドで最後まで待機して実行する。

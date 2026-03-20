@@ -1,4 +1,5 @@
 using System.IO;
+using System.Windows.Threading;
 
 using DcsTranslationTool.Application.Interfaces;
 
@@ -15,7 +16,7 @@ internal sealed class TranslationCreationNotificationService(
     private SnackbarMessageQueue? _messageQueue;
 
     /// <inheritdoc />
-    public SnackbarMessageQueue MessageQueue => _messageQueue ??= new();
+    public SnackbarMessageQueue MessageQueue => _messageQueue ??= CreateMessageQueue();
 
     /// <inheritdoc />
     public void ShowCompleted( string message ) =>
@@ -45,5 +46,14 @@ internal sealed class TranslationCreationNotificationService(
             false,
             false,
             null );
+    }
+
+    /// <summary>
+    /// 通知表示に利用するメッセージキューを生成する。
+    /// </summary>
+    /// <returns>生成したメッセージキューを返す。</returns>
+    private static SnackbarMessageQueue CreateMessageQueue() {
+        _ = Dispatcher.CurrentDispatcher;
+        return new SnackbarMessageQueue();
     }
 }

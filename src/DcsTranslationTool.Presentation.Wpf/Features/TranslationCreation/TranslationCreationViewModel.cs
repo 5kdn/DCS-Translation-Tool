@@ -1,7 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Windows;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -101,6 +99,7 @@ public sealed class TranslationCreationViewModel(
     private bool _sessionEventsSubscribed;
     private DispatcherTimer? _selectedTranslatedCommitTimer;
     private bool _suppressRowViewModelSync;
+    private int _visibleDictionaryItemsVersion;
     private readonly Dictionary<TranslationCreationRowState, TranslationDictionaryItemRowViewModel> _rowViewModelsByState = [];
     private readonly Dictionary<TranslationDictionaryItemRowViewModel, TranslationCreationRowState> _rowStatesByViewModel = [];
     #endregion
@@ -195,19 +194,10 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            FilteredDictionaryItemsView = CollectionViewSource.GetDefaultView( value );
-            FilteredDictionaryItemsView.Filter = FilterDictionaryItem;
-            FilteredDictionaryItemsView.Refresh();
-            NotifyOfPropertyChange( nameof( FilteredDictionaryItemsView ) );
             NotifyOfPropertyChange( nameof( HasDictionaryItems ) );
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
-
-    /// <summary>
-    /// フィルター済み dictionary 項目一覧を取得または設定する。
-    /// </summary>
-    public ICollectionView FilteredDictionaryItemsView { get; private set; } =
-        CollectionViewSource.GetDefaultView( Array.Empty<object>() );
 
     /// <summary>
     /// 選択中の dictionary 項目を取得または設定する。
@@ -256,16 +246,8 @@ public sealed class TranslationCreationViewModel(
             }
 
             SaveLayoutState();
-            NotifyOfPropertyChange( nameof( DictionaryDetailsTextWrapping ) );
         }
     }
-
-    /// <summary>
-    /// dictionary 詳細テキストの折り返し方法を取得する。
-    /// </summary>
-    public TextWrapping DictionaryDetailsTextWrapping => IsDictionaryDetailsWrapEnabled
-        ? TextWrapping.Wrap
-        : TextWrapping.NoWrap;
 
     /// <summary>
     /// 読み込み中かどうかを取得または設定する。
@@ -307,6 +289,11 @@ public sealed class TranslationCreationViewModel(
     public bool HasDictionaryItems => DictionaryItems.Count > 0;
 
     /// <summary>
+    /// 可視 dictionary 項目の再評価版数を取得する。
+    /// </summary>
+    public int VisibleDictionaryItemsVersion => _visibleDictionaryItemsVersion;
+
+    /// <summary>
     /// 現在の読み込み主動作用表示文言を取得する。
     /// </summary>
     public string ImportSplitButtonContent => _selectedImportFormat switch
@@ -338,7 +325,7 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
 
@@ -352,7 +339,7 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
 
@@ -366,7 +353,7 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
 
@@ -380,7 +367,7 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
 
@@ -394,7 +381,7 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
     #endregion
@@ -821,11 +808,11 @@ public sealed class TranslationCreationViewModel(
         }
 
         if(e.PropertyName == nameof( TranslationCreationRowState.Translated ) && ShowOnlyUntranslated) {
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
 
         if(e.PropertyName == nameof( TranslationCreationRowState.IsEnabled ) && (!ShowEnabledItems || !ShowDisabledItems)) {
-            RefreshFilter();
+            NotifyVisibleDictionaryItemsChanged();
         }
     }
 
@@ -856,11 +843,10 @@ public sealed class TranslationCreationViewModel(
     /// <summary>
     /// 現在のフィルタ条件に基づいて行の表示可否を判定する。
     /// </summary>
-    /// <param name="item">判定対象の行。</param>
+    /// <param name="row">判定対象の行。</param>
     /// <returns>表示対象の場合は <see langword="true"/> を返す。</returns>
-    private bool FilterDictionaryItem( object item ) =>
-        item is TranslationDictionaryItemRowViewModel row
-        && filterService.ShouldInclude( row, CreateFilterOptions() );
+    public bool ShouldIncludeRow( TranslationDictionaryItemRowViewModel row ) =>
+        filterService.ShouldInclude( row, CreateFilterOptions() );
 
     /// <summary>
     /// 現在の一覧フィルター条件を生成する。
@@ -870,17 +856,12 @@ public sealed class TranslationCreationViewModel(
         new( ShowEnabledItems, ShowDisabledItems, ShowOnlyUntranslated, HidePossibleNonTranslationTargets, HideEmptyOriginal );
 
     /// <summary>
-    /// dictionary 一覧ビューへフィルタを再適用する。
-    /// </summary>
-    private void RefreshFilter() => FilteredDictionaryItemsView.Refresh();
-
-    /// <summary>
     /// 現在の表示行に対応するセッション行一覧を取得する。
     /// </summary>
     /// <returns>現在表示中のセッション行一覧を返す。</returns>
     private IReadOnlyList<TranslationCreationRowState> GetVisibleRows() =>
-        [.. FilteredDictionaryItemsView
-            .Cast<TranslationDictionaryItemRowViewModel>()
+        [.. DictionaryItems
+            .Where( ShouldIncludeRow )
             .Select( rowViewModel => _rowStatesByViewModel[rowViewModel] )];
 
     /// <summary>
@@ -1104,6 +1085,14 @@ public sealed class TranslationCreationViewModel(
 
         _rowViewModelsByState.Clear();
         _rowStatesByViewModel.Clear();
+    }
+
+    /// <summary>
+    /// 可視 dictionary 項目の再評価通知を発行する。
+    /// </summary>
+    private void NotifyVisibleDictionaryItemsChanged() {
+        _visibleDictionaryItemsVersion++;
+        NotifyOfPropertyChange( nameof( VisibleDictionaryItemsVersion ) );
     }
 
     /// <summary>
