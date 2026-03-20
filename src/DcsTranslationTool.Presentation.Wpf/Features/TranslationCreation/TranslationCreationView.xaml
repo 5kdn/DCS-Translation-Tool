@@ -19,19 +19,25 @@
         d:DataContext="{d:DesignInstance Type=local:TranslationCreationViewModel}">
 
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <Style x:Key="DictionaryRowTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                    <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBodySecondary}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="DictionaryRowCopyOverlayStyle" TargetType="FrameworkElement">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True">
+         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+         <Style x:Key="DictionaryRowTextStyle" TargetType="TextBlock">
+             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+             <Setter Property="VerticalAlignment" Value="Center" />
+             <Style.Triggers>
+                 <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBodySecondary}" />
+                 </DataTrigger>
+             </Style.Triggers>
+         </Style>
+         <Style x:Key="DictionaryTextCellStyle"
+                TargetType="DataGridCell"
+                BasedOn="{StaticResource {x:Type DataGridCell}}">
+             <Setter Property="VerticalContentAlignment" Value="Center" />
+         </Style>
+         <Style x:Key="DictionaryRowCopyOverlayStyle" TargetType="FrameworkElement">
+             <Setter Property="Visibility" Value="Collapsed" />
+             <Style.Triggers>
+                 <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True">
                     <Setter Property="Visibility" Value="Visible" />
                 </DataTrigger>
             </Style.Triggers>
@@ -193,23 +199,26 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridKeyHeaderText}"
-                                            Binding="{Binding Key}"
-                                            ElementStyle="{StaticResource DictionaryRowTextStyle}"
-                                            IsReadOnly="True"
-                                            Width="2*" />
-                        <DataGridTemplateColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridOriginalHeaderText}"
-                                                IsReadOnly="True"
-                                                Width="3*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <TextBlock Text="{Binding OriginalDisplayText}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Style="{StaticResource DictionaryRowTextStyle}" />
-                                        <Border HorizontalAlignment="Right"
-                                                Background="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=Background}"
-                                                Style="{StaticResource DictionaryRowCopyOverlayStyle}">
+                         <DataGridTextColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridKeyHeaderText}"
+                                             Binding="{Binding Key}"
+                                             CellStyle="{StaticResource DictionaryTextCellStyle}"
+                                             ElementStyle="{StaticResource DictionaryRowTextStyle}"
+                                             IsReadOnly="True"
+                                             Width="2*" />
+                         <DataGridTemplateColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridOriginalHeaderText}"
+                                                 CellStyle="{StaticResource DictionaryTextCellStyle}"
+                                                 IsReadOnly="True"
+                                                 Width="3*">
+                             <DataGridTemplateColumn.CellTemplate>
+                                 <DataTemplate>
+                                     <Grid>
+                                         <TextBlock Text="{Binding OriginalDisplayText}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource DictionaryRowTextStyle}" />
+                                         <Border HorizontalAlignment="Right"
+                                                 Background="{Binding RelativeSource={RelativeSource AncestorType=DataGridCell}, Path=Background}"
+                                                 Style="{StaticResource DictionaryRowCopyOverlayStyle}">
                                             <Button x:Name="PART_CopyOriginalButton"
                                                     Content="{x:Static resx:Strings_Translation.CreateTranslationCopyButtonContent}"
                                                     Padding="12,2"
@@ -223,11 +232,12 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridTranslatedHeaderText}"
-                                            Binding="{Binding TranslatedDisplayText}"
-                                            ElementStyle="{StaticResource DictionaryRowTextStyle}"
-                                            IsReadOnly="True"
-                                            Width="3*" />
+                         <DataGridTextColumn Header="{x:Static resx:Strings_Translation.CreateTranslationDataGridTranslatedHeaderText}"
+                                             Binding="{Binding TranslatedDisplayText}"
+                                             CellStyle="{StaticResource DictionaryTextCellStyle}"
+                                             ElementStyle="{StaticResource DictionaryRowTextStyle}"
+                                             IsReadOnly="True"
+                                             Width="3*" />
                     </DataGrid.Columns>
                 </DataGrid>
 
