@@ -3115,7 +3115,28 @@ dictionary = {
         internal Mock<ILoggingService> LoggerMock { get; } = new();
 
         internal TranslationCreationViewModel CreateViewModel( string archiveFullPath ) =>
-            new( archiveFullPath, AppSettingsServiceMock.Object, ApplicationInfoServiceMock.Object, DialogServiceMock.Object, DialogProviderMock.Object, SystemServiceMock.Object, LoggerMock.Object, TranslationDictionaryServiceMock.Object );
+            new(
+                archiveFullPath,
+                AppSettingsServiceMock.Object,
+                SystemServiceMock.Object,
+                LoggerMock.Object,
+                new TranslationCreationSession(),
+                new TranslationCreationWorkflowService(
+                    new TranslationCreationDictionaryLoader( TranslationDictionaryServiceMock.Object ),
+                    new TranslationCreationDialogService( DialogServiceMock.Object, DialogProviderMock.Object, LoggerMock.Object ),
+                    new TranslationCreationImportExportService(
+                        AppSettingsServiceMock.Object,
+                        ApplicationInfoServiceMock.Object,
+                        TranslationDictionaryServiceMock.Object,
+                        new TranslationCreationDialogService( DialogServiceMock.Object, DialogProviderMock.Object, LoggerMock.Object ),
+                        new TranslationCreationPathService(),
+                        SystemServiceMock.Object,
+                        LoggerMock.Object ),
+                    LoggerMock.Object ),
+                new TranslationCreationLayoutStateService( AppSettingsServiceMock.Object ),
+                new TranslationCreationDialogService( DialogServiceMock.Object, DialogProviderMock.Object, LoggerMock.Object ),
+                new TranslationCreationFilterService(),
+                new TranslationCreationNotificationService( SystemServiceMock.Object, LoggerMock.Object ) );
 
         public void Dispose() {
             if(Directory.Exists( TempDirectory )) {

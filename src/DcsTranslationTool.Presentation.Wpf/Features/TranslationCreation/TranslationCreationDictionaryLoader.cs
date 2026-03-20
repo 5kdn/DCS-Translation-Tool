@@ -57,7 +57,7 @@ public sealed class TranslationCreationDictionaryLoader(
             .ToArray();
 
         List<TranslationDictionaryItem> loadedItems = new( initializedItems.Length );
-        List<TranslationDictionaryItemRowViewModel> rowItems = new( initializedItems.Length );
+        List<TranslationCreationRowState> rowStates = new( initializedItems.Length );
         foreach(var item in initializedItems) {
             var isPossibleNonTranslationTarget = IsPossibleNonTranslationTarget( item );
             loadedItems.Add( new TranslationDictionaryItem( item.Key, item.Original )
@@ -65,10 +65,10 @@ public sealed class TranslationCreationDictionaryLoader(
                 Translated = item.Translated,
                 IsEnabled = item.IsEnabled
             } );
-            rowItems.Add( new TranslationDictionaryItemRowViewModel( item, isPossibleNonTranslationTarget ) );
+            rowStates.Add( new TranslationCreationRowState( item, isPossibleNonTranslationTarget ) );
         }
 
-        return new TranslationCreationDictionaryLoadState( loadedItems, rowItems );
+        return new TranslationCreationDictionaryLoadState( loadedItems, rowStates );
     }
 
     /// <summary>
@@ -168,10 +168,19 @@ public sealed class TranslationCreationDictionaryLoader(
 /// TranslationCreation の読込済み dictionary 状態を表す。
 /// </summary>
 /// <param name="LoadedItems">dirty 判定基準の項目一覧。</param>
-/// <param name="RowItems">画面表示用行一覧。</param>
+/// <param name="RowStates">画面表示用行状態一覧。</param>
 public sealed record TranslationCreationDictionaryLoadState(
     IReadOnlyList<TranslationDictionaryItem> LoadedItems,
-    IReadOnlyList<TranslationDictionaryItemRowViewModel> RowItems );
+    IReadOnlyList<TranslationCreationRowState> RowStates );
+
+/// <summary>
+/// TranslationCreation の画面表示用行状態を表す。
+/// </summary>
+/// <param name="Item">表示対象の dictionary 項目。</param>
+/// <param name="IsPossibleNonTranslationTarget">翻訳対象ではない可能性があるかどうか。</param>
+public sealed record TranslationCreationRowState(
+    TranslationDictionaryItem Item,
+    bool IsPossibleNonTranslationTarget );
 
 /// <summary>
 /// アーカイブから読み込んだ dictionary 状態を表す。

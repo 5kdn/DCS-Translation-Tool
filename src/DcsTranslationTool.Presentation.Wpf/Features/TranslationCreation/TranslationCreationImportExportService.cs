@@ -30,9 +30,7 @@ internal sealed class TranslationCreationImportExportService(
     #region PublicMethods
 
     /// <inheritdoc />
-    public async Task<TranslationCreationOperationResult> ExportDictionaryAsync( string archiveFullPath, ITranslationCreationSession session, CancellationToken cancellationToken = default ) {
-        session.FlushPendingSelectedTranslatedEdit();
-
+    public async Task<TranslationCreationCommandResult> ExportDictionaryAsync( string archiveFullPath, TranslationCreationDocumentSnapshot snapshot, CancellationToken cancellationToken = default ) {
         return await ExportFileAsync(
             archiveFullPath,
             failedMessage: Strings_Translation.CreateTranslationDictionaryExportFailedMessage,
@@ -47,7 +45,7 @@ internal sealed class TranslationCreationImportExportService(
                     throw new InvalidOperationException( "dictionary 書き出し用の元データ取得に失敗した。" );
                 }
 
-                var currentTranslations = session.Rows
+                var currentTranslations = snapshot.Items
                     .Where( item => item.IsEnabled )
                     .ToDictionary(
                         item => item.Key,
@@ -63,8 +61,7 @@ internal sealed class TranslationCreationImportExportService(
     }
 
     /// <inheritdoc />
-    public async Task<TranslationCreationOperationResult> ExportPoAsync( string archiveFullPath, ITranslationCreationSession session, CancellationToken cancellationToken = default ) {
-        session.FlushPendingSelectedTranslatedEdit();
+    public async Task<TranslationCreationCommandResult> ExportPoAsync( string archiveFullPath, TranslationCreationDocumentSnapshot snapshot, CancellationToken cancellationToken = default ) {
         var currentTimestamp = FormatPoTimestamp( systemService.GetCurrentDateTimeOffset() );
 
         return await ExportFileAsync(
@@ -76,7 +73,7 @@ internal sealed class TranslationCreationImportExportService(
             successMessageFactory: path => string.Format( Strings_Translation.CreateTranslationPoExportSucceededMessage, path ),
             saveAsync: exportPath => translationDictionaryService.SavePoAsync(
                 exportPath,
-                session.CreateCurrentDictionaryItems(),
+                snapshot.Items,
                 $"DCS Translation Japanese {applicationInfoService.GetVersion()}",
                 currentTimestamp,
                 currentTimestamp,
@@ -85,9 +82,7 @@ internal sealed class TranslationCreationImportExportService(
     }
 
     /// <inheritdoc />
-    public async Task<TranslationCreationOperationResult> ExportCsvAsync( string archiveFullPath, ITranslationCreationSession session, CancellationToken cancellationToken = default ) {
-        session.FlushPendingSelectedTranslatedEdit();
-
+    public async Task<TranslationCreationCommandResult> ExportCsvAsync( string archiveFullPath, TranslationCreationDocumentSnapshot snapshot, CancellationToken cancellationToken = default ) {
         return await ExportFileAsync(
             archiveFullPath,
             failedMessage: Strings_Translation.CreateTranslationCsvExportFailedMessage,
@@ -97,22 +92,22 @@ internal sealed class TranslationCreationImportExportService(
             successMessageFactory: path => string.Format( Strings_Translation.CreateTranslationCsvExportSucceededMessage, path ),
             saveAsync: exportPath => translationDictionaryService.SaveCsvAsync(
                 exportPath,
-                session.CreateCurrentDictionaryItems(),
+                snapshot.Items,
                 cancellationToken ) );
     }
 
     /// <inheritdoc />
-    public Task<TranslationCreationOperationResult> ImportPoAsync( string archiveFullPath, ITranslationCreationSession session, CancellationToken cancellationToken = default ) =>
+    public Task<TranslationCreationCommandResult> ImportPoAsync( string archiveFullPath, TranslationCreationImportContext importContext, CancellationToken cancellationToken = default ) =>
         ImportFileAsync(
             archiveFullPath,
-            session,
+            importContext,
             initialPath: pathService.GetPoImportInitialPath( appSettingsService.Settings, archiveFullPath ),
             openFileFilter: PoSaveFileFilter,
             failedMessage: Strings_Translation.CreateTranslationPoImportFailedMessage,
             logTargetName: "PO",
             confirmOverwriteAsync: dialogService.ConfirmPoOverwriteAsync,
             loadEntries: translationDictionaryService.LoadPo,
-            analyzeImport: entries => AnalyzePoImport( session.Rows, entries ),
+            analyzeImport: entries => AnalyzePoImport( importContext.Rows, entries ),
             confirmPartialImportAsync: dialogService.ConfirmPoPartialImportAsync,
             applyMatch: static match => {
                 match.Row.Translated = match.Translated;
@@ -122,34 +117,34 @@ internal sealed class TranslationCreationImportExportService(
             partialSuccessMessageFactory: ( matchedCount, path ) => string.Format( Strings_Translation.CreateTranslationPoImportPartialSucceededMessage, matchedCount, path ) );
 
     /// <inheritdoc />
-    public Task<TranslationCreationOperationResult> ImportDictionaryAsync( string archiveFullPath, ITranslationCreationSession session, CancellationToken cancellationToken = default ) =>
+    public Task<TranslationCreationCommandResult> ImportDictionaryAsync( string archiveFullPath, TranslationCreationImportContext importContext, CancellationToken cancellationToken = default ) =>
         ImportFileAsync(
             archiveFullPath,
-            session,
+            importContext,
             initialPath: pathService.GetDictionaryImportInitialPath( appSettingsService.Settings, archiveFullPath ),
             openFileFilter: DictionaryOpenFileFilter,
             failedMessage: Strings_Translation.CreateTranslationDictionaryImportFailedMessage,
             logTargetName: "dictionary",
             confirmOverwriteAsync: dialogService.ConfirmDictionaryOverwriteAsync,
             loadEntries: translationDictionaryService.LoadDictionaryFile,
-            analyzeImport: entries => AnalyzeDictionaryImport( session.Rows, entries ),
+            analyzeImport: entries => AnalyzeDictionaryImport( importContext.Rows, entries ),
             confirmPartialImportAsync: dialogService.ConfirmDictionaryPartialImportAsync,
             applyMatch: static match => match.Row.Translated = match.Translated,
             successMessageFactory: path => string.Format( Strings_Translation.CreateTranslationDictionaryImportSucceededMessage, path ),
             partialSuccessMessageFactory: ( matchedCount, path ) => string.Format( Strings_Translation.CreateTranslationDictionaryImportPartialSucceededMessage, matchedCount, path ) );
 
     /// <inheritdoc />
-    public Task<TranslationCreationOperationResult> ImportCsvAsync( string archiveFullPath, ITranslationCreationSession session, CancellationToken cancellationToken = default ) =>
+    public Task<TranslationCreationCommandResult> ImportCsvAsync( string archiveFullPath, TranslationCreationImportContext importContext, CancellationToken cancellationToken = default ) =>
         ImportFileAsync(
             archiveFullPath,
-            session,
+            importContext,
             initialPath: pathService.GetCsvImportInitialPath( appSettingsService.Settings, archiveFullPath ),
             openFileFilter: CsvFileFilter,
             failedMessage: Strings_Translation.CreateTranslationCsvImportFailedMessage,
             logTargetName: "CSV",
             confirmOverwriteAsync: dialogService.ConfirmCsvOverwriteAsync,
             loadEntries: translationDictionaryService.LoadCsv,
-            analyzeImport: entries => AnalyzeCsvImport( session.Rows, entries ),
+            analyzeImport: entries => AnalyzeCsvImport( importContext.Rows, entries ),
             confirmPartialImportAsync: dialogService.ConfirmCsvPartialImportAsync,
             applyMatch: static match => {
                 match.Row.Translated = match.Translated;
@@ -159,18 +154,18 @@ internal sealed class TranslationCreationImportExportService(
             partialSuccessMessageFactory: ( matchedCount, path ) => string.Format( Strings_Translation.CreateTranslationCsvImportPartialSucceededMessage, matchedCount, path ) );
 
     /// <inheritdoc />
-    public async Task<TranslationCreationOperationResult> ImportJapaneseDictionaryAsync(
+    public async Task<TranslationCreationCommandResult> ImportJapaneseDictionaryAsync(
         string archiveFullPath,
-        ITranslationCreationSession session,
+        IReadOnlyList<TranslationDictionaryItemRowViewModel> rows,
         IReadOnlyList<TranslationDictionaryItem> japaneseDictionaryItems,
         CancellationToken cancellationToken = default ) {
         cancellationToken.ThrowIfCancellationRequested();
 
         var japaneseSourceItems = TranslationCreationDictionaryLoader.CreateJapaneseImportSourceItems( japaneseDictionaryItems );
-        var importAnalysis = AnalyzeDictionaryImport( session.Rows, japaneseSourceItems );
+        var importAnalysis = AnalyzeDictionaryImport( rows, japaneseSourceItems );
         if(!importAnalysis.IsFullMatch && !await dialogService.ConfirmDictionaryPartialImportAsync( importAnalysis.Matches.Count )) {
             logger.Info( $"JP dictionary 読み込みの部分取り込み確認がキャンセルされた。Archive={archiveFullPath}, MatchCount={importAnalysis.Matches.Count}" );
-            return new TranslationCreationOperationResult( false, true, false, 0, null );
+            return new TranslationCreationCommandResult( false, true, false, 0, null );
         }
 
         foreach(var match in importAnalysis.Matches) {
@@ -178,7 +173,7 @@ internal sealed class TranslationCreationImportExportService(
         }
 
         logger.Info( $"JP dictionary の初期取り込みが完了した。Archive={archiveFullPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
-        return new TranslationCreationOperationResult( true, false, !importAnalysis.IsFullMatch, importAnalysis.Matches.Count, null );
+        return new TranslationCreationCommandResult( true, false, !importAnalysis.IsFullMatch, importAnalysis.Matches.Count, null );
     }
     #endregion
 
@@ -195,7 +190,7 @@ internal sealed class TranslationCreationImportExportService(
     /// <param name="successMessageFactory">成功時メッセージ生成処理。</param>
     /// <param name="saveAsync">保存処理。</param>
     /// <returns>操作結果を返す。</returns>
-    private async Task<TranslationCreationOperationResult> ExportFileAsync(
+    private async Task<TranslationCreationCommandResult> ExportFileAsync(
         string archiveFullPath,
         string failedMessage,
         Func<string> exportPathFactory,
@@ -209,18 +204,18 @@ internal sealed class TranslationCreationImportExportService(
         }
         catch(Exception ex) {
             logger.Error( $"{logTargetName} 書き出し先の解決に失敗した。Archive={archiveFullPath}", ex );
-            return new TranslationCreationOperationResult( false, false, false, 0, failedMessage );
+            return new TranslationCreationCommandResult( false, false, false, 0, failedMessage );
         }
 
         try {
             var selectedExportPath = await dialogService.ConfirmExportPathAsync( exportPath, saveFileFilter, logTargetName, archiveFullPath );
             if(string.IsNullOrWhiteSpace( selectedExportPath )) {
-                return new TranslationCreationOperationResult( false, true, false, 0, null );
+                return new TranslationCreationCommandResult( false, true, false, 0, null );
             }
 
             await saveAsync( selectedExportPath );
             logger.Info( $"{logTargetName} の書き出しが完了した。Archive={archiveFullPath}, Path={selectedExportPath}" );
-            return new TranslationCreationOperationResult(
+            return new TranslationCreationCommandResult(
                 true,
                 false,
                 false,
@@ -231,7 +226,7 @@ internal sealed class TranslationCreationImportExportService(
         }
         catch(Exception ex) {
             logger.Error( $"{logTargetName} の書き出しに失敗した。Archive={archiveFullPath}", ex );
-            return new TranslationCreationOperationResult( false, false, false, 0, failedMessage );
+            return new TranslationCreationCommandResult( false, false, false, 0, failedMessage );
         }
     }
 
@@ -241,7 +236,7 @@ internal sealed class TranslationCreationImportExportService(
     /// <typeparam name="TEntry">取り込み元項目型。</typeparam>
     /// <typeparam name="TMatch">一致結果型。</typeparam>
     /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
-    /// <param name="session">現在の編集セッション。</param>
+    /// <param name="importContext">現在の取り込み対象状態。</param>
     /// <param name="initialPath">ファイル選択初期パス。</param>
     /// <param name="openFileFilter">ファイル選択フィルタ。</param>
     /// <param name="failedMessage">失敗時メッセージ。</param>
@@ -254,9 +249,9 @@ internal sealed class TranslationCreationImportExportService(
     /// <param name="successMessageFactory">全件一致時メッセージ生成処理。</param>
     /// <param name="partialSuccessMessageFactory">部分一致時メッセージ生成処理。</param>
     /// <returns>操作結果を返す。</returns>
-    private async Task<TranslationCreationOperationResult> ImportFileAsync<TEntry, TMatch>(
+    private async Task<TranslationCreationCommandResult> ImportFileAsync<TEntry, TMatch>(
         string archiveFullPath,
-        ITranslationCreationSession session,
+        TranslationCreationImportContext importContext,
         string initialPath,
         string openFileFilter,
         string failedMessage,
@@ -268,16 +263,14 @@ internal sealed class TranslationCreationImportExportService(
         Action<TMatch> applyMatch,
         Func<string, string> successMessageFactory,
         Func<int, string, string> partialSuccessMessageFactory ) {
-        session.FlushPendingSelectedTranslatedEdit();
-
         if(!dialogService.TrySelectImportFile( initialPath, openFileFilter, out var selectedPath )) {
             logger.Info( $"{logTargetName} 読み込みファイル選択がキャンセルされた。Archive={archiveFullPath}, InitialPath={initialPath}" );
-            return new TranslationCreationOperationResult( false, true, false, 0, null );
+            return new TranslationCreationCommandResult( false, true, false, 0, null );
         }
 
-        if(session.HasAnyTranslatedText() && !await confirmOverwriteAsync()) {
+        if(importContext.HasAnyTranslatedText && !await confirmOverwriteAsync()) {
             logger.Info( $"{logTargetName} 読み込みの上書き確認がキャンセルされた。Archive={archiveFullPath}, Path={selectedPath}" );
-            return new TranslationCreationOperationResult( false, true, false, 0, null );
+            return new TranslationCreationCommandResult( false, true, false, 0, null );
         }
 
         Result<IReadOnlyList<TEntry>> loadResult;
@@ -286,17 +279,17 @@ internal sealed class TranslationCreationImportExportService(
         }
         catch(Exception ex) {
             logger.Error( $"{logTargetName} 読み込み中に例外が発生した。Archive={archiveFullPath}, Path={selectedPath}", ex );
-            return new TranslationCreationOperationResult( false, false, false, 0, failedMessage );
+            return new TranslationCreationCommandResult( false, false, false, 0, failedMessage );
         }
 
         if(loadResult.IsFailed) {
-            return new TranslationCreationOperationResult( false, false, false, 0, failedMessage );
+            return new TranslationCreationCommandResult( false, false, false, 0, failedMessage );
         }
 
         var importAnalysis = analyzeImport( loadResult.Value );
         if(!importAnalysis.IsFullMatch && !await confirmPartialImportAsync( importAnalysis.Matches.Count )) {
             logger.Info( $"{logTargetName} 読み込みの部分取り込み確認がキャンセルされた。Archive={archiveFullPath}, Path={selectedPath}, MatchCount={importAnalysis.Matches.Count}" );
-            return new TranslationCreationOperationResult( false, true, false, 0, null );
+            return new TranslationCreationCommandResult( false, true, false, 0, null );
         }
 
         foreach(var match in importAnalysis.Matches) {
@@ -304,7 +297,7 @@ internal sealed class TranslationCreationImportExportService(
         }
 
         logger.Info( $"{logTargetName} 読み込みが完了した。Archive={archiveFullPath}, Path={selectedPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
-        return new TranslationCreationOperationResult(
+        return new TranslationCreationCommandResult(
             true,
             false,
             !importAnalysis.IsFullMatch,

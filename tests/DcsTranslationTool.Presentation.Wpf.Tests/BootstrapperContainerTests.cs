@@ -79,6 +79,7 @@ public sealed class BootstrapperContainerTests {
                 }
             }
 
+            Container.Singleton<IDialogService, DialogService>();
             Container.Singleton<IDialogProvider, DialogProvider>();
             Container.Singleton<IDispatcherService, DispatcherService>();
             Container.Singleton<IEntryApplyService, EntryApplyService>();
@@ -89,6 +90,14 @@ public sealed class BootstrapperContainerTests {
             Container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
             Container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
             Container.Singleton<ISnackbarService, SnackbarService>();
+            Container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();
+            Container.Singleton<ITranslationCreationFilterService, TranslationCreationFilterService>();
+            Container.Singleton<ITranslationCreationLayoutStateService, TranslationCreationLayoutStateService>();
+            Container.Singleton<ITranslationCreationDialogService, TranslationCreationDialogService>();
+            Container.Singleton<ITranslationCreationImportExportService, TranslationCreationImportExportService>();
+            Container.Singleton<TranslationCreationDictionaryLoader>();
+            Container.Singleton<ITranslationCreationNotificationService, TranslationCreationNotificationService>();
+            Container.Singleton<ITranslationCreationWorkflowService, TranslationCreationWorkflowService>();
             Container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
             var navigationServiceMock = new Mock<INavigationService>();
@@ -123,6 +132,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<UpdateCheckService>( Get<IUpdateCheckService>() );
             Assert.IsType<ZipService>( Get<IZipService>() );
             Assert.IsType<DialogProvider>( Get<IDialogProvider>() );
+            Assert.IsType<DialogService>( Get<IDialogService>() );
             Assert.IsType<DispatcherService>( Get<IDispatcherService>() );
             Assert.IsType<EntryApplyService>( Get<IEntryApplyService>() );
             Assert.IsType<RepoOnlySyncService>( Get<IRepoOnlySyncService>() );
@@ -132,6 +142,14 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<FileEntryTreeService>( Get<IFileEntryTreeService>() );
             Assert.IsType<PathSafetyGuard>( Get<IPathSafetyGuard>() );
             Assert.IsType<SnackbarService>( Get<ISnackbarService>() );
+            Assert.IsType<TranslationCreationPathService>( Get<ITranslationCreationPathService>() );
+            Assert.IsType<TranslationCreationFilterService>( Get<ITranslationCreationFilterService>() );
+            Assert.IsType<TranslationCreationLayoutStateService>( Get<ITranslationCreationLayoutStateService>() );
+            Assert.IsType<TranslationCreationDialogService>( Get<ITranslationCreationDialogService>() );
+            Assert.IsType<TranslationCreationImportExportService>( Get<ITranslationCreationImportExportService>() );
+            Assert.IsType<TranslationCreationDictionaryLoader>( Get<TranslationCreationDictionaryLoader>() );
+            Assert.IsType<TranslationCreationNotificationService>( Get<ITranslationCreationNotificationService>() );
+            Assert.IsType<TranslationCreationWorkflowService>( Get<ITranslationCreationWorkflowService>() );
             Assert.IsType<TranslationCreationViewModelFactory>( Get<ITranslationCreationViewModelFactory>() );
             Assert.IsType<WindowManager>( Get<IWindowManager>() );
             Assert.IsType<EventAggregator>( Get<IEventAggregator>() );

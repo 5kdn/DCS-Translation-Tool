@@ -255,6 +255,7 @@ public sealed class TranslationFileSelectionViewModelTests {
         Assert.False( viewModel.CanCreateTranslation );
     }
 
+    [StaFact]
     public async Task ディレクトリノード選択時はCanCreateTranslationがfalseになる() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
@@ -321,17 +322,10 @@ public sealed class TranslationFileSelectionViewModelTests {
                 It.IsAny<object?>(),
                 It.IsAny<IDictionary<string, object>?>() ) )
             .Returns( Task.CompletedTask );
+        var translationCreationViewModel = CreateTranslationCreationViewModel();
         context.TranslationCreationViewModelFactoryMock
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Returns<string>( path => new TranslationCreationViewModel(
-                path,
-                context.AppSettingsServiceMock.Object,
-                context.ApplicationInfoServiceMock.Object,
-                context.DialogServiceMock.Object,
-                context.DialogProviderMock.Object,
-                context.SystemServiceMock.Object,
-                context.LoggerMock.Object,
-                context.TranslationDictionaryServiceMock.Object ) );
+            .Returns( translationCreationViewModel );
 
         var viewModel = context.CreateViewModel();
         await viewModel.ActivateAsync( CancellationToken.None );
@@ -347,11 +341,12 @@ public sealed class TranslationFileSelectionViewModelTests {
             factory => factory.Create( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ),
             Times.Once );
         context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
-            It.Is<object>( model => IsTranslationCreationViewModelWithArchiveFullPath( model, @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ) ),
+            translationCreationViewModel,
             It.IsAny<object?>(),
             It.IsAny<IDictionary<string, object>?>() ), Times.Once );
     }
 
+    [StaFact]
     public async Task CreateTranslationはファクトリ失敗時にsnackbarと詳細ログを出す() {
         var context = new TranslationFileSelectionViewModelTestContext();
         context.DiscoveryServiceMock
@@ -409,17 +404,10 @@ public sealed class TranslationFileSelectionViewModelTests {
                         TranslationArchiveCategory.Aircraft,
                         TranslationArchiveType.Miz )
                 ] );
+        var translationCreationViewModel = CreateTranslationCreationViewModel();
         context.TranslationCreationViewModelFactoryMock
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Returns<string>( path => new TranslationCreationViewModel(
-                path,
-                context.AppSettingsServiceMock.Object,
-                context.ApplicationInfoServiceMock.Object,
-                context.DialogServiceMock.Object,
-                context.DialogProviderMock.Object,
-                context.SystemServiceMock.Object,
-                context.LoggerMock.Object,
-                context.TranslationDictionaryServiceMock.Object ) );
+            .Returns( translationCreationViewModel );
         context.WindowManagerMock
             .Setup( manager => manager.ShowWindowAsync(
                 It.IsAny<object>(),
@@ -533,17 +521,10 @@ public sealed class TranslationFileSelectionViewModelTests {
                 It.IsAny<object?>(),
                 It.IsAny<IDictionary<string, object>?>() ) )
             .Returns( Task.CompletedTask );
+        var translationCreationViewModel = CreateTranslationCreationViewModel();
         context.TranslationCreationViewModelFactoryMock
             .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Returns<string>( path => new TranslationCreationViewModel(
-                path,
-                context.AppSettingsServiceMock.Object,
-                context.ApplicationInfoServiceMock.Object,
-                context.DialogServiceMock.Object,
-                context.DialogProviderMock.Object,
-                context.SystemServiceMock.Object,
-                context.LoggerMock.Object,
-                context.TranslationDictionaryServiceMock.Object ) );
+            .Returns( translationCreationViewModel );
         var viewModel = context.CreateViewModel();
         await viewModel.ActivateAsync( CancellationToken.None );
 
@@ -554,14 +535,13 @@ public sealed class TranslationFileSelectionViewModelTests {
 
         context.TranslationCreationViewModelFactoryMock.Verify( factory => factory.Create( scenario.FilePath ), Times.Once );
         context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
-            It.Is<object>( model => IsTranslationCreationViewModelWithArchiveFullPath( model, scenario.FilePath ) ),
+            translationCreationViewModel,
             It.IsAny<object?>(),
             It.IsAny<IDictionary<string, object>?>() ), Times.Once );
     }
 
-    private static bool IsTranslationCreationViewModelWithArchiveFullPath( object model, string expectedArchiveFullPath ) =>
-        model is TranslationCreationViewModel translationCreationViewModel
-        && translationCreationViewModel.ArchiveFullPath == expectedArchiveFullPath;
+    private static ITranslationCreationViewModel CreateTranslationCreationViewModel() =>
+        new Mock<ITranslationCreationViewModel>().Object;
 
     private static ManualSelectionScenario CreateManualSelectionScenario( TranslationFileSelectionViewModel viewModel ) {
         const string directoryPath = @"C:\DCSWorld\Mods\aircraft\A10C";

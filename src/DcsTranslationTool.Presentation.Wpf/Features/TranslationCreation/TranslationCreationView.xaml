@@ -15,8 +15,16 @@
         Title="{Binding WindowTitle}"
         d:Width="1200"
         d:Height="900"
-        PreviewKeyDown="Window_PreviewKeyDown"
         d:DataContext="{d:DesignInstance Type=local:TranslationCreationViewModel}">
+
+    <Window.InputBindings>
+        <KeyBinding Key="Up"
+                    Modifiers="Control"
+                    Command="{Binding MoveSelectionUpCommand}" />
+        <KeyBinding Key="Down"
+                    Modifiers="Control"
+                    Command="{Binding MoveSelectionDownCommand}" />
+    </Window.InputBindings>
 
     <Window.Resources>
          <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -299,7 +307,7 @@
                               Grid.ColumnSpan="2"
                               x:Name="DictionaryDetailsWrapCheckBox"
                               Content="{x:Static resx:Strings_Translation.CreateTranslationDictionaryDetailsWrapCheckBoxContent}"
-                              IsChecked="{Binding DataContext.IsDictionaryDetailsWrapEnabled, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+                              IsChecked="{Binding IsDictionaryDetailsWrapEnabled, Mode=TwoWay}" />
 
                     <TextBlock Grid.Row="1"
                                Grid.Column="0"

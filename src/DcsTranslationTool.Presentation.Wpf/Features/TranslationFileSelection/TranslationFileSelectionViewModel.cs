@@ -178,7 +178,7 @@ public sealed class TranslationFileSelectionViewModel(
             return;
         }
 
-        TranslationCreationViewModel translationCreationViewModel;
+        ITranslationCreationViewModel translationCreationViewModel;
 
         try {
             logger.Info( $"翻訳作成 ViewModel を生成する。Archive={archiveFullPath}" );
@@ -267,7 +267,7 @@ public sealed class TranslationFileSelectionViewModel(
 
         var entriesByCategory = entries
             .GroupBy( entry => MapCategory( entry.Category ) )
-            .ToDictionary( group => group.Key, group => (IReadOnlyList<TranslationArchiveEntry>)group.ToArray() );
+            .ToDictionary( group => group.Key, group => (IReadOnlyList<TranslationArchiveEntry>)[.. group] );
 
         var tabs = Enum
             .GetValues<CategoryType>()
@@ -365,9 +365,7 @@ public sealed class TranslationFileSelectionViewModel(
             if(node.IsDirectory) {
                 _selectedNodes[categoryType] = node;
             }
-            else if(!_selectedNodes.TryGetValue( categoryType, out var selectedNode )
-                || selectedNode is null
-                || !selectedNode.IsDirectory) {
+            else if(!_selectedNodes.TryGetValue( categoryType, out var selectedNode ) || selectedNode?.IsDirectory != true) {
                 _selectedNodes[categoryType] = node;
             }
         }
@@ -438,9 +436,7 @@ public sealed class TranslationFileSelectionViewModel(
     /// <returns>対象絶対パス。対象外または未選択時は <see langword="null"/>。</returns>
     private string? GetSelectedArchiveFullPath() {
         var selectedNode = GetSelectedNode();
-        if(selectedNode is null
-            || selectedNode.IsDirectory
-            || string.IsNullOrWhiteSpace( selectedNode.Model.LocalSha )) {
+        if(selectedNode?.IsDirectory != false || string.IsNullOrWhiteSpace( selectedNode.Model.LocalSha )) {
             return null;
         }
 

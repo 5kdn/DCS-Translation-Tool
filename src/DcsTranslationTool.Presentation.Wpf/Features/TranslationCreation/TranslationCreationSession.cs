@@ -89,7 +89,7 @@ internal sealed class TranslationCreationSession : PropertyChangedBase, ITransla
     public void Load( TranslationCreationDictionaryLoadState state ) {
         UnsubscribeRows( _rows );
         _loadedDictionaryItems = state.LoadedItems;
-        _rows = [.. state.RowItems];
+        _rows = [.. state.RowStates.Select( static state => new TranslationDictionaryItemRowViewModel( state.Item, state.IsPossibleNonTranslationTarget ) )];
         SubscribeRows( _rows );
         ResetDirtyState();
         SelectedDictionaryItem = null;
@@ -149,12 +149,13 @@ internal sealed class TranslationCreationSession : PropertyChangedBase, ITransla
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<TranslationDictionaryItem> CreateCurrentDictionaryItems() =>
-        [.. Rows.Select( item => new TranslationDictionaryItem( item.Key, item.Original )
-        {
-            Translated = item.Translated,
-            IsEnabled = item.IsEnabled
-        } )];
+    public TranslationCreationDocumentSnapshot CreateDocumentSnapshot() =>
+        new(
+            [.. Rows.Select( item => new TranslationDictionaryItem( item.Key, item.Original )
+            {
+                Translated = item.Translated,
+                IsEnabled = item.IsEnabled
+            } )] );
     #endregion
 
     #region PrivateHelpers

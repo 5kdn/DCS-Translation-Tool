@@ -11,5 +11,5 @@ public interface ITranslationCreationViewModelFactory {
     /// </summary>
     /// <param name="archiveFullPath">翻訳対象アーカイブの絶対パス。</param>
     /// <returns>生成した ViewModel。</returns>
-    TranslationCreationViewModel Create( string archiveFullPath );
+    ITranslationCreationViewModel Create( string archiveFullPath );
 }

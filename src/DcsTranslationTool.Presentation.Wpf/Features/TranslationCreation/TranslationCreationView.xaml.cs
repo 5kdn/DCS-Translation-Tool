@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -11,11 +10,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// TranslationCreationView.xaml の相互作用ロジック。
 /// </summary>
 public partial class TranslationCreationView : Window {
-    private static readonly DependencyPropertyDescriptor DictionaryDetailsWrapCheckBoxDescriptor =
-        DependencyPropertyDescriptor.FromProperty( ToggleButton.IsCheckedProperty, typeof( CheckBox ) );
-    private ITranslationCreationViewModel? _currentViewModel;
     private readonly TranslationCreationWindowCoordinator _windowCoordinator;
-    private bool _isDictionaryDetailsWrapCheckBoxObserved;
     private bool _isCloseConfirmationInProgress;
     private bool _isCloseConfirmed;
     private bool _isCloseCleanupCompleted;
@@ -79,57 +74,20 @@ public partial class TranslationCreationView : Window {
     }
 
     /// <summary>
-    /// Ctrl+上下キーで dictionary 選択移動を行う。
+    /// DataContext 変更時にレイアウト反映を更新する。
     /// </summary>
     /// <param name="sender">イベント送信元。</param>
     /// <param name="e">イベント引数。</param>
-    private void Window_PreviewKeyDown( object sender, KeyEventArgs e ) {
-        if(e.Key is not (Key.Up or Key.Down) || Keyboard.Modifiers != ModifierKeys.Control) {
-            return;
-        }
-
-        if(ViewModel is not { } viewModel) {
-            return;
-        }
-
-        var selectionChanged = e.Key == Key.Up
-            ? viewModel.MoveSelectionUp()
-            : viewModel.MoveSelectionDown();
-
-        if(selectionChanged && viewModel.SelectedDictionaryItem is not null) {
-            DictionaryDataGrid.UpdateLayout();
-            DictionaryDataGrid.ScrollIntoView( viewModel.SelectedDictionaryItem );
-        }
-
-        e.Handled = true;
-    }
-
-    /// <summary>
-    /// DataContext 変更時に ViewModel 監視とレイアウト反映を更新する。
-    /// </summary>
-    /// <param name="sender">イベント送信元。</param>
-    /// <param name="e">イベント引数。</param>
-    private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) {
-        DetachViewModelEvents( e.OldValue as ITranslationCreationViewModel );
-        AttachViewModelEvents( e.NewValue as ITranslationCreationViewModel );
+    private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) =>
         _windowCoordinator.ApplyLayout( e.NewValue as ITranslationCreationViewModel );
-    }
 
     /// <summary>
     /// Loaded 時に保存済みレイアウトを反映し、折り返しチェックボックス監視を開始する。
     /// </summary>
     /// <param name="sender">イベント送信元。</param>
     /// <param name="e">イベント引数。</param>
-    private void Window_Loaded( object sender, RoutedEventArgs e ) {
+    private void Window_Loaded( object sender, RoutedEventArgs e ) =>
         _windowCoordinator.ApplyLayout( ViewModel );
-
-        if(_isDictionaryDetailsWrapCheckBoxObserved) {
-            return;
-        }
-
-        DictionaryDetailsWrapCheckBoxDescriptor.AddValueChanged( DictionaryDetailsWrapCheckBox, DictionaryDetailsWrapCheckBox_ValueChanged );
-        _isDictionaryDetailsWrapCheckBoxObserved = true;
-    }
 
     /// <summary>
     /// 初回描画後に遅延初期化を実行する。
@@ -186,12 +144,6 @@ public partial class TranslationCreationView : Window {
         }
 
         _isCloseCleanupCompleted = true;
-        if(_isDictionaryDetailsWrapCheckBoxObserved) {
-            DictionaryDetailsWrapCheckBoxDescriptor.RemoveValueChanged( DictionaryDetailsWrapCheckBox, DictionaryDetailsWrapCheckBox_ValueChanged );
-            _isDictionaryDetailsWrapCheckBoxObserved = false;
-        }
-
-        DetachViewModelEvents( _currentViewModel );
         _windowCoordinator.PersistLayout( ViewModel );
     }
 
@@ -202,59 +154,6 @@ public partial class TranslationCreationView : Window {
     /// <param name="e">イベント引数。</param>
     private void DictionaryPaneGridSplitter_DragCompleted( object sender, DragCompletedEventArgs e ) =>
         _windowCoordinator.PersistLayout( ViewModel );
-
-    /// <summary>
-    /// 折り返しチェックボックス変更を ViewModel へ同期する。
-    /// </summary>
-    /// <param name="sender">イベント送信元。</param>
-    /// <param name="e">イベント引数。</param>
-    private void DictionaryDetailsWrapCheckBox_ValueChanged( object? sender, EventArgs e ) {
-        if(ViewModel is not { } viewModel) {
-            return;
-        }
-
-        viewModel.SetDictionaryDetailsWrapEnabled( DictionaryDetailsWrapCheckBox.IsChecked != false );
-    }
-
-    /// <summary>
-    /// ViewModel の変更監視を開始する。
-    /// </summary>
-    /// <param name="viewModel">監視対象の ViewModel。</param>
-    private void AttachViewModelEvents( ITranslationCreationViewModel? viewModel ) {
-        if(viewModel is null || ReferenceEquals( _currentViewModel, viewModel )) {
-            _currentViewModel = viewModel;
-            return;
-        }
-
-        _currentViewModel = viewModel;
-        _currentViewModel.PropertyChanged += ViewModel_PropertyChanged;
-    }
-
-    /// <summary>
-    /// ViewModel の変更監視を解除する。
-    /// </summary>
-    /// <param name="viewModel">解除対象の ViewModel。</param>
-    private void DetachViewModelEvents( ITranslationCreationViewModel? viewModel ) {
-        if(viewModel is null) {
-            return;
-        }
-
-        viewModel.PropertyChanged -= ViewModel_PropertyChanged;
-        if(ReferenceEquals( _currentViewModel, viewModel )) {
-            _currentViewModel = null;
-        }
-    }
-
-    /// <summary>
-    /// ViewModel の折り返し設定変更を画面へ反映する。
-    /// </summary>
-    /// <param name="sender">イベント送信元。</param>
-    /// <param name="e">イベント引数。</param>
-    private void ViewModel_PropertyChanged( object? sender, PropertyChangedEventArgs e ) {
-        if(e.PropertyName == nameof( ITranslationCreationViewModel.IsDictionaryDetailsWrapEnabled )) {
-            _windowCoordinator.ApplyDictionaryDetailsTextWrapping( sender as ITranslationCreationViewModel );
-        }
-    }
 
     /// <summary>
     /// ContentRendered 後の初期化処理を UI スレッドで最後まで待機して実行する。

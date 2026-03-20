@@ -53,6 +53,12 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<ISnackbarService, SnackbarService>();
         container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();
         container.Singleton<ITranslationCreationFilterService, TranslationCreationFilterService>();
+        container.Singleton<ITranslationCreationLayoutStateService, TranslationCreationLayoutStateService>();
+        container.Singleton<ITranslationCreationDialogService, TranslationCreationDialogService>();
+        container.Singleton<ITranslationCreationImportExportService, TranslationCreationImportExportService>();
+        container.Singleton<TranslationCreationDictionaryLoader>();
+        container.Singleton<ITranslationCreationNotificationService, TranslationCreationNotificationService>();
+        container.Singleton<ITranslationCreationWorkflowService, TranslationCreationWorkflowService>();
         container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
         // ViewModels

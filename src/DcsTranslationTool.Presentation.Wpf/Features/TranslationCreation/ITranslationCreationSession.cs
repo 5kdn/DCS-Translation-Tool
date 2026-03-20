@@ -1,8 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
-using DcsTranslationTool.Application.Models;
-
 namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 
 /// <summary>
@@ -74,7 +72,7 @@ public interface ITranslationCreationSession : INotifyPropertyChanged {
     /// 現在の行状態から書き出し用 dictionary 項目一覧を生成する。
     /// </summary>
     /// <returns>生成した項目一覧を返す。</returns>
-    IReadOnlyList<TranslationDictionaryItem> CreateCurrentDictionaryItems();
+    TranslationCreationDocumentSnapshot CreateDocumentSnapshot();
 
     /// <summary>
     /// 行の状態が変化したときに発生する。

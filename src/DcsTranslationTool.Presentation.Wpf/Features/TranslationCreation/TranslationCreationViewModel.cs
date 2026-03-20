@@ -2,12 +2,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Resources;
 
 using MaterialDesignThemes.Wpf;
@@ -22,9 +22,9 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <param name="systemService">システム連携サービス。</param>
 /// <param name="logger">ロギングサービス。</param>
 /// <param name="session">翻訳作成編集セッション。</param>
-/// <param name="dictionaryLoader">dictionary 読込前処理。</param>
+/// <param name="workflowService">TranslationCreation 用ワークフローサービス。</param>
+/// <param name="layoutStateService">レイアウト状態サービス。</param>
 /// <param name="dialogService">TranslationCreation 用ダイアログサービス。</param>
-/// <param name="importExportService">TranslationCreation 用 import/export サービス。</param>
 /// <param name="filterService">一覧フィルター判定サービス。</param>
 /// <param name="notificationService">通知表示サービス。</param>
 /// <exception cref="ArgumentException"><paramref name="archiveFullPath"/> が空白の場合に送出する。</exception>
@@ -34,53 +34,49 @@ public sealed class TranslationCreationViewModel(
     ISystemService systemService,
     ILoggingService logger,
     ITranslationCreationSession session,
-    TranslationCreationDictionaryLoader dictionaryLoader,
+    ITranslationCreationWorkflowService workflowService,
+    ITranslationCreationLayoutStateService layoutStateService,
     ITranslationCreationDialogService dialogService,
-    ITranslationCreationImportExportService importExportService,
     ITranslationCreationFilterService filterService,
     ITranslationCreationNotificationService notificationService ) : Screen, ITranslationCreationViewModel {
-    #region Constants
-
     /// <summary>
     /// 既定のウィンドウ幅を表す。
     /// </summary>
-    public const double DefaultWindowWidth = 900;
+    public const double DefaultWindowWidth = TranslationCreationLayoutDefaults.DefaultWindowWidth;
 
     /// <summary>
     /// 既定のウィンドウ高さを表す。
     /// </summary>
-    public const double DefaultWindowHeight = 760;
+    public const double DefaultWindowHeight = TranslationCreationLayoutDefaults.DefaultWindowHeight;
 
     /// <summary>
     /// ウィンドウ幅の最小値を表す。
     /// </summary>
-    public const double MinWindowWidth = 900;
+    public const double MinWindowWidth = TranslationCreationLayoutDefaults.MinWindowWidth;
 
     /// <summary>
     /// ウィンドウ高さの最小値を表す。
     /// </summary>
-    public const double MinWindowHeight = 760;
+    public const double MinWindowHeight = TranslationCreationLayoutDefaults.MinWindowHeight;
 
     /// <summary>
     /// dictionary 領域比率の既定値を表す。
     /// </summary>
-    public const double DefaultDictionaryPaneRatio = 2;
+    public const double DefaultDictionaryPaneRatio = TranslationCreationLayoutDefaults.DefaultDictionaryPaneRatio;
 
     /// <summary>
     /// dictionary 領域比率の最小値を表す。
     /// </summary>
-    public const double MinDictionaryPaneRatio = 0.2;
+    public const double MinDictionaryPaneRatio = TranslationCreationLayoutDefaults.MinDictionaryPaneRatio;
 
     /// <summary>
     /// dictionary 領域比率の最大値を表す。
     /// </summary>
-    public const double MaxDictionaryPaneRatio = 8;
-    #endregion
-
+    public const double MaxDictionaryPaneRatio = TranslationCreationLayoutDefaults.MaxDictionaryPaneRatio;
     #region Fields
 
-    private TranslationImportFormat _selectedImportFormat = TranslationImportFormat.Dictionary;
-    private TranslationExportFormat _selectedExportFormat = TranslationExportFormat.Dictionary;
+    private TranslationCreationImportFormat _selectedImportFormat = TranslationCreationImportFormat.Dictionary;
+    private TranslationCreationExportFormat _selectedExportFormat = TranslationCreationExportFormat.Dictionary;
     private ObservableCollection<TranslationDictionaryItemRowViewModel> _dictionaryItems = [];
     private bool _isLoading;
     private string _statusMessage = string.Empty;
@@ -93,60 +89,12 @@ public sealed class TranslationCreationViewModel(
     private Task? _initializeAfterShownTask;
     private bool _hasJapaneseDictionary;
     private IReadOnlyList<TranslationDictionaryItem> _japaneseDictionaryItems = [];
-    private double _windowWidth = NormalizeWindowLength(
-        appSettingsService.Settings.TranslationCreationWindowWidth,
-        DefaultWindowWidth,
-        MinWindowWidth );
-    private double _windowHeight = NormalizeWindowLength(
-        appSettingsService.Settings.TranslationCreationWindowHeight,
-        DefaultWindowHeight,
-        MinWindowHeight );
-    private double _dictionaryPaneRatio = NormalizeDictionaryPaneRatio(
-        appSettingsService.Settings.TranslationCreationDictionaryPaneRatio );
-    private bool _isDictionaryDetailsWrapEnabled = appSettingsService.Settings.TranslationCreationWrapDictionaryDetailsText;
+    private double _windowWidth = layoutStateService.Load().WindowWidth;
+    private double _windowHeight = layoutStateService.Load().WindowHeight;
+    private double _dictionaryPaneRatio = layoutStateService.Load().DictionaryPaneRatio;
+    private bool _isDictionaryDetailsWrapEnabled = layoutStateService.Load().IsDictionaryDetailsWrapEnabled;
     private bool _sessionEventsSubscribed;
     #endregion
-
-    /// <summary>
-    /// 互換性維持のための既存コンストラクタ。
-    /// </summary>
-    /// <param name="archiveFullPath">翻訳対象のアーカイブ絶対パス。</param>
-    /// <param name="appSettingsService">アプリケーション設定サービス。</param>
-    /// <param name="applicationInfoService">アプリケーション情報サービス。</param>
-    /// <param name="dialogService">ダイアログ表示サービス。</param>
-    /// <param name="dialogProvider">ファイル選択ダイアログサービス。</param>
-    /// <param name="systemService">システム連携サービス。</param>
-    /// <param name="logger">ロギングサービス。</param>
-    /// <param name="translationDictionaryService">dictionary 読込サービス。</param>
-    /// <exception cref="ArgumentException"><paramref name="archiveFullPath"/> が空白の場合に送出する。</exception>
-    public TranslationCreationViewModel(
-        string archiveFullPath,
-        IAppSettingsService appSettingsService,
-        IApplicationInfoService applicationInfoService,
-        IDialogService dialogService,
-        IDialogProvider dialogProvider,
-        ISystemService systemService,
-        ILoggingService logger,
-        ITranslationDictionaryService translationDictionaryService )
-        : this(
-            archiveFullPath,
-            appSettingsService,
-            systemService,
-            logger,
-            new TranslationCreationSession(),
-            new TranslationCreationDictionaryLoader( translationDictionaryService ),
-            new TranslationCreationDialogService( dialogService, dialogProvider, logger ),
-            new TranslationCreationImportExportService(
-                appSettingsService,
-                applicationInfoService,
-                translationDictionaryService,
-                new TranslationCreationDialogService( dialogService, dialogProvider, logger ),
-                new TranslationCreationPathService(),
-                systemService,
-                logger ),
-            new TranslationCreationFilterService(),
-            new TranslationCreationNotificationService( systemService, logger ) ) {
-    }
 
     #region Properties
 
@@ -161,17 +109,30 @@ public sealed class TranslationCreationViewModel(
     public SnackbarMessageQueue MessageQueue => notificationService.MessageQueue;
 
     /// <summary>
+    /// 上方向へ選択移動するコマンドを取得する。
+    /// </summary>
+    public ICommand MoveSelectionUpCommand => new RelayCommand( ExecuteMoveSelectionUp );
+
+    /// <summary>
+    /// 下方向へ選択移動するコマンドを取得する。
+    /// </summary>
+    public ICommand MoveSelectionDownCommand => new RelayCommand( ExecuteMoveSelectionDown );
+
+    /// <summary>
     /// ウィンドウ幅を取得または設定する。
     /// </summary>
     public double WindowWidth {
         get => _windowWidth;
         set {
-            var normalizedValue = NormalizeWindowLength( value, DefaultWindowWidth, MinWindowWidth );
+            var normalizedValue = TranslationCreationLayoutDefaults.NormalizeWindowLength(
+                value,
+                TranslationCreationLayoutDefaults.DefaultWindowWidth,
+                TranslationCreationLayoutDefaults.MinWindowWidth );
             if(!Set( ref _windowWidth, normalizedValue )) {
                 return;
             }
 
-            appSettingsService.Settings.TranslationCreationWindowWidth = normalizedValue;
+            SaveLayoutState();
         }
     }
 
@@ -181,12 +142,15 @@ public sealed class TranslationCreationViewModel(
     public double WindowHeight {
         get => _windowHeight;
         set {
-            var normalizedValue = NormalizeWindowLength( value, DefaultWindowHeight, MinWindowHeight );
+            var normalizedValue = TranslationCreationLayoutDefaults.NormalizeWindowLength(
+                value,
+                TranslationCreationLayoutDefaults.DefaultWindowHeight,
+                TranslationCreationLayoutDefaults.MinWindowHeight );
             if(!Set( ref _windowHeight, normalizedValue )) {
                 return;
             }
 
-            appSettingsService.Settings.TranslationCreationWindowHeight = normalizedValue;
+            SaveLayoutState();
         }
     }
 
@@ -196,12 +160,12 @@ public sealed class TranslationCreationViewModel(
     public double DictionaryPaneRatio {
         get => _dictionaryPaneRatio;
         set {
-            var normalizedValue = NormalizeDictionaryPaneRatio( value );
+            var normalizedValue = TranslationCreationLayoutDefaults.NormalizeDictionaryPaneRatio( value );
             if(!Set( ref _dictionaryPaneRatio, normalizedValue )) {
                 return;
             }
 
-            appSettingsService.Settings.TranslationCreationDictionaryPaneRatio = normalizedValue;
+            SaveLayoutState();
         }
     }
 
@@ -272,7 +236,7 @@ public sealed class TranslationCreationViewModel(
                 return;
             }
 
-            appSettingsService.Settings.TranslationCreationWrapDictionaryDetailsText = value;
+            SaveLayoutState();
             NotifyOfPropertyChange( nameof( DictionaryDetailsTextWrapping ) );
         }
     }
@@ -328,9 +292,9 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     public string ImportSplitButtonContent => _selectedImportFormat switch
     {
-        TranslationImportFormat.Dictionary => Strings_Translation.CreateTranslationImportDictionaryButtonContent,
-        TranslationImportFormat.Po => Strings_Translation.CreateTranslationImportPoSplitButtonContent,
-        TranslationImportFormat.Csv => Strings_Translation.CreateTranslationImportCsvButtonContent,
+        TranslationCreationImportFormat.Dictionary => Strings_Translation.CreateTranslationImportDictionaryButtonContent,
+        TranslationCreationImportFormat.Po => Strings_Translation.CreateTranslationImportPoSplitButtonContent,
+        TranslationCreationImportFormat.Csv => Strings_Translation.CreateTranslationImportCsvButtonContent,
         _ => Strings_Translation.CreateTranslationImportPoSplitButtonContent
     };
 
@@ -339,9 +303,9 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     public string ExportSplitButtonContent => _selectedExportFormat switch
     {
-        TranslationExportFormat.Dictionary => Strings_Translation.CreateTranslationExportButtonContent,
-        TranslationExportFormat.Po => Strings_Translation.CreateTranslationExportPoSplitButtonContent,
-        TranslationExportFormat.Csv => Strings_Translation.CreateTranslationExportCsvButtonContent,
+        TranslationCreationExportFormat.Dictionary => Strings_Translation.CreateTranslationExportButtonContent,
+        TranslationCreationExportFormat.Po => Strings_Translation.CreateTranslationExportPoSplitButtonContent,
+        TranslationCreationExportFormat.Csv => Strings_Translation.CreateTranslationExportCsvButtonContent,
         _ => Strings_Translation.CreateTranslationExportButtonContent
     };
 
@@ -450,31 +414,19 @@ public sealed class TranslationCreationViewModel(
         _hasProcessedJapaneseDictionaryPrompt = true;
         cancellationToken.ThrowIfCancellationRequested();
 
-        if(!_hasJapaneseDictionary || !session.HasLoadedItems) {
-            return;
-        }
-
-        if(!await dialogService.ConfirmArchiveContainsJapaneseDictionaryAsync( ArchiveFullPath )) {
-            logger.Info( $"既存JP dictionary 警告でキャンセルされたためウィンドウを閉じる。Archive={ArchiveFullPath}" );
-            await TryCloseAsync( false );
-            return;
-        }
-
-        if(!await dialogService.ConfirmJapaneseDictionaryImportAsync()) {
-            return;
-        }
-
-        if(_japaneseDictionaryItems.Count == 0) {
-            logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={ArchiveFullPath}" );
-            return;
-        }
-
-        var result = await importExportService.ImportJapaneseDictionaryAsync(
+        var promptResult = await workflowService.HandleEmbeddedJapaneseDictionaryAsync(
             ArchiveFullPath,
-            session,
+            CreateImportContext(),
+            _hasJapaneseDictionary,
             _japaneseDictionaryItems,
             cancellationToken );
-        ApplyOperationResult( result );
+        if(promptResult.CommandResult is not null) {
+            ApplyCommandResult( promptResult.CommandResult );
+        }
+
+        if(promptResult.ShouldCloseWindow) {
+            await TryCloseAsync( false );
+        }
     }
     #endregion
 
@@ -517,12 +469,6 @@ public sealed class TranslationCreationViewModel(
     #region Actions
 
     /// <summary>
-    /// dictionary 詳細テキストの折り返し状態を設定する。
-    /// </summary>
-    /// <param name="isEnabled">右端で折り返すかどうか。</param>
-    public void SetDictionaryDetailsWrapEnabled( bool isEnabled ) => IsDictionaryDetailsWrapEnabled = isEnabled;
-
-    /// <summary>
     /// 表示中の dictionary 項目選択を 1 件上へ移動する。
     /// </summary>
     /// <returns>選択項目が変化した場合は <see langword="true"/> を返す。</returns>
@@ -535,13 +481,23 @@ public sealed class TranslationCreationViewModel(
     public bool MoveSelectionDown() => session.MoveSelection( FilteredDictionaryItemsView, 1 );
 
     /// <summary>
+    /// 上方向への選択移動コマンドを実行する。
+    /// </summary>
+    private void ExecuteMoveSelectionUp() => MoveSelectionUp();
+
+    /// <summary>
+    /// 下方向への選択移動コマンドを実行する。
+    /// </summary>
+    private void ExecuteMoveSelectionDown() => MoveSelectionDown();
+
+    /// <summary>
     /// 現在選択中の読み込み形式を実行する。
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public Task ExecuteImportAsync() => _selectedImportFormat switch
     {
-        TranslationImportFormat.Dictionary => ImportDictionaryAsync(),
-        TranslationImportFormat.Csv => ImportCsvAsync(),
+        TranslationCreationImportFormat.Dictionary => ImportDictionaryAsync(),
+        TranslationCreationImportFormat.Csv => ImportCsvAsync(),
         _ => ImportPoAsync()
     };
 
@@ -551,8 +507,8 @@ public sealed class TranslationCreationViewModel(
     /// <returns>非同期タスクを返す。</returns>
     public Task ExecuteExportAsync() => _selectedExportFormat switch
     {
-        TranslationExportFormat.Po => ExportPoAsync(),
-        TranslationExportFormat.Csv => ExportCsvAsync(),
+        TranslationCreationExportFormat.Po => ExportPoAsync(),
+        TranslationCreationExportFormat.Csv => ExportCsvAsync(),
         _ => ExportAsync()
     };
 
@@ -561,7 +517,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public async Task SelectImportPoAsync() {
-        SetSelectedImportFormat( TranslationImportFormat.Po );
+        SetSelectedImportFormat( TranslationCreationImportFormat.Po );
         await ImportPoAsync();
     }
 
@@ -570,7 +526,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public async Task SelectImportDictionaryAsync() {
-        SetSelectedImportFormat( TranslationImportFormat.Dictionary );
+        SetSelectedImportFormat( TranslationCreationImportFormat.Dictionary );
         await ImportDictionaryAsync();
     }
 
@@ -579,7 +535,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public async Task SelectImportCsvAsync() {
-        SetSelectedImportFormat( TranslationImportFormat.Csv );
+        SetSelectedImportFormat( TranslationCreationImportFormat.Csv );
         await ImportCsvAsync();
     }
 
@@ -588,7 +544,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public async Task SelectExportDictionaryAsync() {
-        SetSelectedExportFormat( TranslationExportFormat.Dictionary );
+        SetSelectedExportFormat( TranslationCreationExportFormat.Dictionary );
         await ExportAsync();
     }
 
@@ -597,7 +553,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public async Task SelectExportPoAsync() {
-        SetSelectedExportFormat( TranslationExportFormat.Po );
+        SetSelectedExportFormat( TranslationCreationExportFormat.Po );
         await ExportPoAsync();
     }
 
@@ -606,7 +562,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>非同期タスクを返す。</returns>
     public async Task SelectExportCsvAsync() {
-        SetSelectedExportFormat( TranslationExportFormat.Csv );
+        SetSelectedExportFormat( TranslationCreationExportFormat.Csv );
         await ExportCsvAsync();
     }
 
@@ -645,7 +601,10 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        await ExecuteOperationAsync( () => importExportService.ExportDictionaryAsync( ArchiveFullPath, session ) );
+        await ExecuteWorkflowCommandAsync( () => workflowService.ExportAsync(
+            ArchiveFullPath,
+            TranslationCreationExportFormat.Dictionary,
+            CreateDocumentSnapshot() ) );
     }
 
     /// <summary>
@@ -658,7 +617,10 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        await ExecuteOperationAsync( () => importExportService.ExportPoAsync( ArchiveFullPath, session ) );
+        await ExecuteWorkflowCommandAsync( () => workflowService.ExportAsync(
+            ArchiveFullPath,
+            TranslationCreationExportFormat.Po,
+            CreateDocumentSnapshot() ) );
     }
 
     /// <summary>
@@ -671,7 +633,10 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        await ExecuteOperationAsync( () => importExportService.ExportCsvAsync( ArchiveFullPath, session ) );
+        await ExecuteWorkflowCommandAsync( () => workflowService.ExportAsync(
+            ArchiveFullPath,
+            TranslationCreationExportFormat.Csv,
+            CreateDocumentSnapshot() ) );
     }
 
     /// <summary>
@@ -684,7 +649,10 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        await ExecuteOperationAsync( () => importExportService.ImportPoAsync( ArchiveFullPath, session ) );
+        await ExecuteWorkflowCommandAsync( () => workflowService.ImportAsync(
+            ArchiveFullPath,
+            TranslationCreationImportFormat.Po,
+            CreateImportContext() ) );
     }
 
     /// <summary>
@@ -697,7 +665,10 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        await ExecuteOperationAsync( () => importExportService.ImportDictionaryAsync( ArchiveFullPath, session ) );
+        await ExecuteWorkflowCommandAsync( () => workflowService.ImportAsync(
+            ArchiveFullPath,
+            TranslationCreationImportFormat.Dictionary,
+            CreateImportContext() ) );
     }
 
     /// <summary>
@@ -710,29 +681,24 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        await ExecuteOperationAsync( () => importExportService.ImportCsvAsync( ArchiveFullPath, session ) );
+        await ExecuteWorkflowCommandAsync( () => workflowService.ImportAsync(
+            ArchiveFullPath,
+            TranslationCreationImportFormat.Csv,
+            CreateImportContext() ) );
     }
 
     /// <summary>
     /// 選択中翻訳文の保留中編集を現在の行へ反映する。
     /// </summary>
     internal void FlushPendingSelectedTranslatedEdit() => session.FlushPendingSelectedTranslatedEdit();
-    #endregion
-
-    #region StaticHelpers
 
     /// <summary>
     /// dictionary 領域比率を有効範囲へ正規化する。
     /// </summary>
     /// <param name="ratio">検証対象の比率。</param>
     /// <returns>有効範囲内へ補正した比率を返す。</returns>
-    public static double NormalizeDictionaryPaneRatio( double ratio ) {
-        if(double.IsNaN( ratio ) || double.IsInfinity( ratio ) || ratio <= 0) {
-            return DefaultDictionaryPaneRatio;
-        }
-
-        return Math.Clamp( ratio, MinDictionaryPaneRatio, MaxDictionaryPaneRatio );
-    }
+    public static double NormalizeDictionaryPaneRatio( double ratio ) =>
+        TranslationCreationLayoutDefaults.NormalizeDictionaryPaneRatio( ratio );
 
     /// <summary>
     /// ウィンドウサイズを有効範囲へ正規化する。
@@ -741,13 +707,8 @@ public sealed class TranslationCreationViewModel(
     /// <param name="fallback">不正値時の既定サイズ。</param>
     /// <param name="minimum">許容する最小サイズ。</param>
     /// <returns>有効範囲内へ補正したサイズを返す。</returns>
-    public static double NormalizeWindowLength( double value, double fallback, double minimum ) {
-        if(double.IsNaN( value ) || double.IsInfinity( value ) || value <= 0) {
-            return fallback;
-        }
-
-        return Math.Max( minimum, value );
-    }
+    public static double NormalizeWindowLength( double value, double fallback, double minimum ) =>
+        TranslationCreationLayoutDefaults.NormalizeWindowLength( value, fallback, minimum );
     #endregion
 
     #region PrivateHelpers
@@ -760,35 +721,17 @@ public sealed class TranslationCreationViewModel(
     private async Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
         cancellationToken.ThrowIfCancellationRequested();
 
-        logger.Info( $"TranslationCreationViewModel の dictionary 読込を開始する。Archive={ArchiveFullPath}" );
         IsLoading = true;
         StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadingMessage;
 
         try {
-            var result = await Task.Run(
-                () => dictionaryLoader.LoadArchiveDictionaryState( ArchiveFullPath ),
-                cancellationToken ).ConfigureAwait( false );
-
-            if(result.IsFailed) {
-                await Execute.OnUIThreadAsync( () => {
-                    SetDictionaryLoadFailedState();
-                    return Task.CompletedTask;
-                } ).ConfigureAwait( false );
-                return;
-            }
+            var result = await workflowService.LoadAsync( ArchiveFullPath, cancellationToken ).ConfigureAwait( false );
 
             await Execute.OnUIThreadAsync( () => {
-                _hasJapaneseDictionary = result.Value.HasJapaneseDictionary;
-                _japaneseDictionaryItems = result.Value.JapaneseDictionaryItems;
-                session.Load( result.Value.LoadState );
-                ApplySessionRows();
-                StatusMessage = DictionaryItems.Count == 0
-                    ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
-                    : string.Empty;
+                ApplyLoadResult( result );
                 NotifyDictionaryAvailabilityChanged();
                 return Task.CompletedTask;
             } ).ConfigureAwait( false );
-            logger.Info( $"TranslationCreationViewModel の dictionary 読込詳細。Archive={ArchiveFullPath}" );
         }
         catch(Exception ex) {
             logger.Error( $"TranslationCreationViewModel の dictionary 読込中に例外が発生した。Archive={ArchiveFullPath}", ex );
@@ -802,7 +745,6 @@ public sealed class TranslationCreationViewModel(
                 IsLoading = false;
                 return Task.CompletedTask;
             } ).ConfigureAwait( false );
-            logger.Info( $"TranslationCreationViewModel の dictionary 読込を終了する。Archive={ArchiveFullPath}, Count={DictionaryItems.Count}" );
         }
     }
 
@@ -883,7 +825,7 @@ public sealed class TranslationCreationViewModel(
     /// 選択中の読み込み形式を更新する。
     /// </summary>
     /// <param name="format">設定する形式。</param>
-    private void SetSelectedImportFormat( TranslationImportFormat format ) {
+    private void SetSelectedImportFormat( TranslationCreationImportFormat format ) {
         if(_selectedImportFormat == format) {
             return;
         }
@@ -896,7 +838,7 @@ public sealed class TranslationCreationViewModel(
     /// 選択中の書き出し形式を更新する。
     /// </summary>
     /// <param name="format">設定する形式。</param>
-    private void SetSelectedExportFormat( TranslationExportFormat format ) {
+    private void SetSelectedExportFormat( TranslationCreationExportFormat format ) {
         if(_selectedExportFormat == format) {
             return;
         }
@@ -910,11 +852,11 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <param name="operation">実行対象の操作。</param>
     /// <returns>非同期タスクを返す。</returns>
-    private async Task ExecuteOperationAsync( Func<Task<TranslationCreationOperationResult>> operation ) {
+    private async Task ExecuteWorkflowCommandAsync( Func<Task<TranslationCreationCommandResult>> operation ) {
         try {
             IsLoading = true;
             var result = await operation();
-            ApplyOperationResult( result );
+            ApplyCommandResult( result );
         }
         finally {
             IsLoading = false;
@@ -925,7 +867,7 @@ public sealed class TranslationCreationViewModel(
     /// 操作結果を画面状態と通知へ反映する。
     /// </summary>
     /// <param name="result">反映対象の操作結果。</param>
-    private void ApplyOperationResult( TranslationCreationOperationResult result ) {
+    private void ApplyCommandResult( TranslationCreationCommandResult result ) {
         if(!string.IsNullOrWhiteSpace( result.StatusMessage )) {
             StatusMessage = result.StatusMessage;
         }
@@ -942,6 +884,25 @@ public sealed class TranslationCreationViewModel(
                 notificationService.ShowExportSucceeded( result.OutputPath );
                 break;
         }
+    }
+
+    /// <summary>
+    /// 読込結果を画面状態へ反映する。
+    /// </summary>
+    /// <param name="result">反映対象の読込結果。</param>
+    private void ApplyLoadResult( TranslationCreationLoadResult result ) {
+        _hasJapaneseDictionary = result.HasJapaneseDictionary;
+        _japaneseDictionaryItems = result.JapaneseDictionaryItems;
+        StatusMessage = result.StatusMessage;
+
+        if(result.IsSuccess) {
+            session.Load( result.LoadState );
+            ApplySessionRows();
+            return;
+        }
+
+        session.Load( new TranslationCreationDictionaryLoadState( [], [] ) );
+        ApplySessionRows();
     }
 
     /// <summary>
@@ -966,48 +927,33 @@ public sealed class TranslationCreationViewModel(
         NotifyOfPropertyChange( nameof( CanImportCsv ) );
         NotifyOfPropertyChange( nameof( CanImportPo ) );
     }
-    #endregion
-
-    #region NestedTypes
 
     /// <summary>
-    /// 読み込み形式の選択肢を表す。
+    /// 現在の編集状態から書き出し用スナップショットを生成する。
     /// </summary>
-    private enum TranslationImportFormat {
-        /// <summary>
-        /// dictionary 形式を表す。
-        /// </summary>
-        Dictionary,
-
-        /// <summary>
-        /// PO 形式を表す。
-        /// </summary>
-        Po,
-
-        /// <summary>
-        /// CSV 形式を表す。
-        /// </summary>
-        Csv,
+    /// <returns>生成したスナップショットを返す。</returns>
+    private TranslationCreationDocumentSnapshot CreateDocumentSnapshot() {
+        session.FlushPendingSelectedTranslatedEdit();
+        return session.CreateDocumentSnapshot();
     }
 
     /// <summary>
-    /// 書き出し形式の選択肢を表す。
+    /// 現在の編集状態から取り込み用コンテキストを生成する。
     /// </summary>
-    private enum TranslationExportFormat {
-        /// <summary>
-        /// dictionary 形式を表す。
-        /// </summary>
-        Dictionary,
-
-        /// <summary>
-        /// PO 形式を表す。
-        /// </summary>
-        Po,
-
-        /// <summary>
-        /// CSV 形式を表す。
-        /// </summary>
-        Csv,
+    /// <returns>生成した取り込み用コンテキストを返す。</returns>
+    private TranslationCreationImportContext CreateImportContext() {
+        session.FlushPendingSelectedTranslatedEdit();
+        return new TranslationCreationImportContext( session.Rows, session.HasAnyTranslatedText() );
     }
+
+    /// <summary>
+    /// 現在のレイアウト状態を永続化する。
+    /// </summary>
+    private void SaveLayoutState() =>
+        layoutStateService.Save( new TranslationCreationLayoutState(
+            _windowWidth,
+            _windowHeight,
+            _dictionaryPaneRatio,
+            _isDictionaryDetailsWrapEnabled ) );
     #endregion
 }

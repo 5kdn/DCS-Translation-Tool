@@ -7,39 +7,34 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// TranslationCreationViewModel の生成を担うファクトリ。
 /// </summary>
 /// <param name="appSettingsService">アプリケーション設定サービス。</param>
-/// <param name="applicationInfoService">アプリケーション情報サービス。</param>
-/// <param name="dialogService">ダイアログ表示サービス。</param>
+/// <param name="systemService">システム連携サービス。</param>
 /// <param name="logger">ロギングサービス。</param>
-/// <param name="translationDictionaryService">dictionary 読込サービス。</param>
+/// <param name="workflowService">ワークフローサービス。</param>
+/// <param name="layoutStateService">レイアウト状態サービス。</param>
+/// <param name="dialogService">ダイアログサービス。</param>
+/// <param name="filterService">フィルターサービス。</param>
+/// <param name="notificationService">通知サービス。</param>
 public sealed class TranslationCreationViewModelFactory(
     IAppSettingsService appSettingsService,
-    IApplicationInfoService applicationInfoService,
-    IDialogService dialogService,
-    IDialogProvider dialogProvider,
     ISystemService systemService,
     ILoggingService logger,
-    ITranslationDictionaryService translationDictionaryService,
-    ITranslationCreationPathService pathService,
-    ITranslationCreationFilterService filterService
+    ITranslationCreationWorkflowService workflowService,
+    ITranslationCreationLayoutStateService layoutStateService,
+    ITranslationCreationDialogService dialogService,
+    ITranslationCreationFilterService filterService,
+    ITranslationCreationNotificationService notificationService
 ) : ITranslationCreationViewModelFactory {
     /// <inheritdoc />
-    public TranslationCreationViewModel Create( string archiveFullPath ) =>
-        new(
+    public ITranslationCreationViewModel Create( string archiveFullPath ) =>
+        new TranslationCreationViewModel(
             archiveFullPath,
             appSettingsService,
             systemService,
             logger,
             new TranslationCreationSession(),
-            new TranslationCreationDictionaryLoader( translationDictionaryService ),
-            new TranslationCreationDialogService( dialogService, dialogProvider, logger ),
-            new TranslationCreationImportExportService(
-                appSettingsService,
-                applicationInfoService,
-                translationDictionaryService,
-                new TranslationCreationDialogService( dialogService, dialogProvider, logger ),
-                pathService,
-                systemService,
-                logger ),
+            workflowService,
+            layoutStateService,
+            dialogService,
             filterService,
-            new TranslationCreationNotificationService( systemService, logger ) );
+            notificationService );
 }
