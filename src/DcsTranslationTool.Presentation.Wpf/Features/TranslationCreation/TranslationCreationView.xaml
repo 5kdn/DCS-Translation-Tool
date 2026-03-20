@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation"
         xmlns:resx="clr-namespace:DcsTranslationTool.Resources;assembly=DcsTranslationTool.Resources"
@@ -29,8 +30,7 @@
     <Window.Resources>
          <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
          <CollectionViewSource x:Key="FilteredDictionaryItemsSource"
-                               Source="{Binding DictionaryItems}"
-                               Filter="FilteredDictionaryItemsSource_Filter" />
+                               Source="{Binding DictionaryItems}" />
          <Style x:Key="DictionaryRowTextStyle" TargetType="TextBlock">
              <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
              <Setter Property="VerticalAlignment" Value="Center" />
@@ -64,6 +64,18 @@
             </Style.Triggers>
         </Style>
     </Window.Resources>
+    
+    <i:Interaction.Behaviors>
+        <local:TranslationCreationWindowChromeBehavior TitleBar="{x:Reference TitleBar}"
+                                                       MinimizeButton="{x:Reference MinimizeWindowButton}"
+                                                       ToggleMaximizeButton="{x:Reference ToggleMaximizeWindowButton}"
+                                                       CloseButton="{x:Reference CloseWindowButton}" />
+        <local:TranslationCreationLayoutBehavior DictionaryDataGridRowDefinition="{x:Reference DictionaryDataGridRowDefinition}"
+                                                 DictionaryDetailsRowDefinition="{x:Reference DictionaryDetailsRowDefinition}"
+                                                 DictionaryPaneGridSplitter="{x:Reference DictionaryPaneGridSplitter}" />
+        <local:TranslationCreationLifecycleBehavior />
+        <local:TranslationCreationDictionaryFilterBehavior CollectionViewSource="{StaticResource FilteredDictionaryItemsSource}" />
+    </i:Interaction.Behaviors>
 
     <WindowChrome.WindowChrome>
         <WindowChrome
@@ -82,9 +94,9 @@
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0"
+                  x:Name="TitleBar"
                   Height="30"
-                  Background="{StaticResource MaterialDesign.Brush.Primary}"
-                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                  Background="{StaticResource MaterialDesign.Brush.Primary}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -100,10 +112,10 @@
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             WindowChrome.IsHitTestVisibleInChrome="True">
-                    <Button Content="{md:PackIcon Kind=WindowMinimize}"
-                            Style="{StaticResource NavigationButtonStyle}"
-                            Click="MinimizeWindowButton_Click" />
-                    <Button Click="ToggleMaximizeWindowButton_Click">
+                    <Button x:Name="MinimizeWindowButton"
+                            Content="{md:PackIcon Kind=WindowMinimize}"
+                            Style="{StaticResource NavigationButtonStyle}" />
+                    <Button x:Name="ToggleMaximizeWindowButton">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavigationButtonStyle}">
                                 <Setter Property="Content" Value="{md:PackIcon Kind=WindowMaximize}" />
@@ -115,9 +127,9 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="{md:PackIcon Kind=Close}"
-                            Style="{StaticResource CloseButtonStyle}"
-                            Click="CloseWindowButton_Click" />
+                    <Button x:Name="CloseWindowButton"
+                            Content="{md:PackIcon Kind=Close}"
+                            Style="{StaticResource CloseButtonStyle}" />
                 </StackPanel>
             </Grid>
 
@@ -290,8 +302,7 @@
                               ResizeDirection="Rows"
                               ResizeBehavior="PreviousAndNext"
                               Background="{DynamicResource MaterialDesignDivider}"
-                              Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}"
-                              DragCompleted="DictionaryPaneGridSplitter_DragCompleted" />
+                              Visibility="{Binding HasDictionaryItems, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                 <Grid Grid.Row="5"
                       Margin="{StaticResource SmallTopMargin}"

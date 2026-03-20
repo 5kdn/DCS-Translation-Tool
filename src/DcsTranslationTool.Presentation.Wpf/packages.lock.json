@@ -22,6 +22,12 @@
           "Microsoft.Xaml.Behaviors.Wpf": "1.1.77"
         }
       },
+      "Microsoft.Xaml.Behaviors.Wpf": {
+        "type": "Direct",
+        "requested": "[1.1.135, )",
+        "resolved": "1.1.135",
+        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
+      },
       "MoonSharp": {
         "type": "Direct",
         "requested": "[2.0.0, )",
@@ -126,11 +132,6 @@
           "Microsoft.IO.RecyclableMemoryStream": "3.0.1",
           "Microsoft.Kiota.Abstractions": "1.21.3"
         }
-      },
-      "Microsoft.Xaml.Behaviors.Wpf": {
-        "type": "Transitive",
-        "resolved": "1.1.135",
-        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
       },
       "NLog": {
         "type": "Transitive",

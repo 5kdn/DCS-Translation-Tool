@@ -5,7 +5,7 @@ using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 namespace DcsTranslationTool.Presentation.Wpf.Tests.Features.TranslationCreation;
 
 /// <summary>
-/// <see cref="TranslationCreationView"/> の軽量ロジックを検証する。
+/// TranslationCreation 関連の軽量ロジックを検証する。
 /// </summary>
 public sealed class TranslationCreationViewTests {
     [StaFact]
@@ -25,7 +25,7 @@ public sealed class TranslationCreationViewTests {
         var dispatcher = await dispatcherReadySource.Task.WaitAsync( TestContext.Current.CancellationToken );
 
         try {
-            var executeTask = TranslationCreationView.ExecuteWindowLoadedAsync(
+            var executeTask = TranslationCreationWindowLifecycleHelper.ExecuteWindowLoadedAsync(
                 dispatcher,
                 async () => {
                     Interlocked.Increment( ref invocationCount );
