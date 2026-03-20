@@ -210,16 +210,18 @@
                                   ToolTip="{x:Static resx:Strings_Translation.CreateTranslationHideEmptyOriginalFilterToolTip}"
                                   IsChecked="{Binding HideEmptyOriginal, Mode=TwoWay}" />
                     </StackPanel>
-                    <Border Grid.Row="1"
+                    <Border Grid.Row="0"
+                            Grid.RowSpan="2"
                             Grid.Column="1"
                             HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
-                            Margin="8,0,0,0"
-                            ToolTipService.InitialShowDelay="100"
+                            VerticalAlignment="Bottom"
+                            ToolTipService.InitialShowDelay="0"
                             ToolTip="{x:Static resx:Strings_Translation.CreateTranslationDataGridMoveSelectionShortcutToolTip}">
                         <md:PackIcon Kind="InformationOutline"
-                                     Width="18"
-                                     Height="18"
+                                     Width="24"
+                                     Height="24"
+                                     HorizontalAlignment="Right"
+                                     VerticalAlignment="Bottom"
                                      Foreground="{DynamicResource MaterialDesignBodySecondary}" />
                     </Border>
                 </Grid>
@@ -320,6 +322,8 @@
                     <CheckBox Grid.Row="0"
                               Grid.ColumnSpan="2"
                               x:Name="DictionaryDetailsWrapCheckBox"
+                              HorizontalAlignment="Left"
+                              HorizontalContentAlignment="Left"
                               Content="{x:Static resx:Strings_Translation.CreateTranslationDictionaryDetailsWrapCheckBoxContent}"
                               IsChecked="{Binding IsDictionaryDetailsWrapEnabled, Mode=TwoWay}" />
 
