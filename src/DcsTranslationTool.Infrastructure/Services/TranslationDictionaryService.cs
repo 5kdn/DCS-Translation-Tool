@@ -18,9 +18,48 @@ namespace DcsTranslationTool.Infrastructure.Services;
 /// <param name="logger">ロギングサービス。</param>
 public sealed partial class TranslationDictionaryService( ILoggingService logger ) : ITranslationDictionaryService {
     private const string DictionaryEntryPath = "l10n/default/dictionary";
+    private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string CsvHeaderLine = "Enabled,Key,Original,Translated";
     private const string LegacyCsvHeaderLine = "Key,Original,Translated";
     private const string ObsoletePoPrefix = "#~ ";
+
+    /// <inheritdoc />
+    public Result<TranslationArchiveDictionaries> LoadArchiveDictionaries( string archiveFullPath ) {
+        var archiveValidationResult = ValidateArchivePath( archiveFullPath );
+        if(archiveValidationResult.IsFailed) {
+            return Result.Fail( archiveValidationResult.Errors );
+        }
+
+        try {
+            using var archive = ZipFile.OpenRead( archiveFullPath );
+
+            var defaultEntryResult = TryLoadDictionaryEntry( archive, archiveFullPath, DictionaryEntryPath );
+            if(defaultEntryResult.IsFailed) {
+                return Result.Fail( defaultEntryResult.Errors );
+            }
+
+            var japaneseEntryResult = TryLoadOptionalDictionaryEntry( archive, archiveFullPath, JapaneseDictionaryEntryPath );
+            if(japaneseEntryResult.IsFailed) {
+                return Result.Fail( japaneseEntryResult.Errors );
+            }
+
+            var result = new TranslationArchiveDictionaries(
+                defaultEntryResult.Value,
+                japaneseEntryResult.Value.HasValue,
+                japaneseEntryResult.Value.Items );
+            logger.Info(
+                $"起動用 dictionary 群を読み込んだ。Archive={archiveFullPath}, DefaultCount={result.DefaultDictionaryItems.Count}, HasJapanese={result.HasJapaneseDictionary}, JapaneseCount={result.JapaneseDictionaryItems.Count}" );
+            return Result.Ok( result );
+        }
+        catch(InvalidDataException ex) {
+            logger.Error( $"起動用 dictionary 群読込時に zip 構造が不正だった。Archive={archiveFullPath}", ex );
+            return Result.Fail( ResultErrorFactory.External( "アーカイブ構造が不正です", "DICTIONARY_ARCHIVE_INVALID", ex ) );
+        }
+        catch(Exception ex) {
+            logger.Error( $"起動用 dictionary 群の読込に失敗した。Archive={archiveFullPath}", ex );
+            return Result.Fail( ResultErrorFactory.Unexpected( ex, "ARCHIVE_DICTIONARIES_LOAD_EXCEPTION" ) );
+        }
+    }
 
     /// <inheritdoc />
     public Result<bool> HasArchiveEntry( string archiveFullPath, string entryPath ) {
@@ -146,6 +185,52 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
             logger.Error( $"dictionary 読込に失敗した。Archive={archiveFullPath}, Entry={entryPath}", ex );
             return Result.Fail( ResultErrorFactory.Unexpected( ex, "DICTIONARY_LOAD_EXCEPTION" ) );
         }
+    }
+
+    private Result<IReadOnlyList<TranslationDictionaryItem>> TryLoadDictionaryEntry(
+        ZipArchive archive,
+        string archiveFullPath,
+        string entryPath ) {
+        var normalizedEntryPath = NormalizeArchiveEntryPath( entryPath );
+        var entry = archive.Entries.FirstOrDefault( value =>
+            string.Equals(
+                NormalizeArchiveEntryPath( value.FullName ),
+                normalizedEntryPath,
+                StringComparison.OrdinalIgnoreCase ) );
+
+        if(entry is null) {
+            logger.Warn( $"dictionary エントリが存在しない。Archive={archiveFullPath}, Entry={normalizedEntryPath}" );
+            return Result.Fail( ResultErrorFactory.NotFound( "dictionary エントリが存在しません", "DICTIONARY_ENTRY_NOT_FOUND" ) );
+        }
+
+        using var stream = entry.Open();
+        using var reader = new StreamReader( stream, Encoding.UTF8, true );
+        var luaText = NormalizeLineEndings( reader.ReadToEnd() );
+        var editableDictionary = ParseEditableDictionary( luaText );
+        return Result.Ok<IReadOnlyList<TranslationDictionaryItem>>( editableDictionary.Items );
+    }
+
+    private Result<OptionalDictionaryLoadResult> TryLoadOptionalDictionaryEntry(
+        ZipArchive archive,
+        string archiveFullPath,
+        string entryPath ) {
+        var normalizedEntryPath = NormalizeArchiveEntryPath( entryPath );
+        var entry = archive.Entries.FirstOrDefault( value =>
+            string.Equals(
+                NormalizeArchiveEntryPath( value.FullName ),
+                normalizedEntryPath,
+                StringComparison.OrdinalIgnoreCase ) );
+
+        if(entry is null) {
+            logger.Info( $"任意 dictionary エントリが存在しない。Archive={archiveFullPath}, Entry={normalizedEntryPath}" );
+            return Result.Ok( new OptionalDictionaryLoadResult( false, [] ) );
+        }
+
+        using var stream = entry.Open();
+        using var reader = new StreamReader( stream, Encoding.UTF8, true );
+        var luaText = NormalizeLineEndings( reader.ReadToEnd() );
+        var editableDictionary = ParseEditableDictionary( luaText );
+        return Result.Ok( new OptionalDictionaryLoadResult( true, editableDictionary.Items ) );
     }
 
     private Result ValidateArchivePath( string archiveFullPath ) {
@@ -702,6 +787,8 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     private static string EscapePoHeaderValue( string value ) => value
         .Replace( "\\", "\\\\", StringComparison.Ordinal )
         .Replace( "\"", "\\\"", StringComparison.Ordinal );
+
+    private sealed record OptionalDictionaryLoadResult( bool HasValue, IReadOnlyList<TranslationDictionaryItem> Items );
 
     private static List<TranslationCsvEntry> ParseCsv( string csvText ) {
         var records = ParseCsvRecords( csvText );

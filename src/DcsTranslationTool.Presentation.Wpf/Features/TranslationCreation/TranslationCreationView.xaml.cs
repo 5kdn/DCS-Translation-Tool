@@ -16,6 +16,9 @@ public partial class TranslationCreationView : Window {
         DependencyPropertyDescriptor.FromProperty( ToggleButton.IsCheckedProperty, typeof( CheckBox ) );
     private TranslationCreationViewModel? _currentViewModel;
     private bool _isDictionaryDetailsWrapCheckBoxObserved;
+    private bool _isCloseConfirmationInProgress;
+    private bool _isCloseConfirmed;
+    private bool _isCloseCleanupCompleted;
 
     public TranslationCreationView() {
         InitializeComponent();
@@ -99,7 +102,40 @@ public partial class TranslationCreationView : Window {
         await ExecuteWindowLoadedAsync( Dispatcher, () => viewModel.HandleWindowLoadedAsync() );
     }
 
-    private void Window_Closing( object? sender, CancelEventArgs e ) {
+    private async void Window_Closing( object? sender, CancelEventArgs e ) {
+        if(_isCloseConfirmed) {
+            CompleteClosing();
+            return;
+        }
+
+        e.Cancel = true;
+        if(_isCloseConfirmationInProgress) {
+            return;
+        }
+
+        _isCloseConfirmationInProgress = true;
+        try {
+            if(DataContext is TranslationCreationViewModel viewModel && !await viewModel.ConfirmCloseAsync()) {
+                return;
+            }
+
+            _isCloseConfirmed = true;
+            await Dispatcher.InvokeAsync( Close, DispatcherPriority.Background );
+        }
+        finally {
+            _isCloseConfirmationInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// 実際にウィンドウを閉じる直前の後始末を一度だけ実行する。
+    /// </summary>
+    private void CompleteClosing() {
+        if(_isCloseCleanupCompleted) {
+            return;
+        }
+
+        _isCloseCleanupCompleted = true;
         if(_isDictionaryDetailsWrapCheckBoxObserved) {
             DictionaryDetailsWrapCheckBoxDescriptor.RemoveValueChanged( DictionaryDetailsWrapCheckBox, DictionaryDetailsWrapCheckBox_ValueChanged );
             _isDictionaryDetailsWrapCheckBoxObserved = false;

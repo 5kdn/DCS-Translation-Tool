@@ -50,7 +50,6 @@ public sealed class TranslationCreationViewModel(
     public const double MinDictionaryPaneRatio = 0.2;
     public const double MaxDictionaryPaneRatio = 8;
     private static readonly TimeSpan SelectedTranslatedCommitDelay = TimeSpan.FromMilliseconds( 250 );
-    private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string DictionaryOpenFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
     private const string DictionarySaveFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
     private const string CsvFileFilter = "CSV files|*.csv|すべてのファイル|*.*";
@@ -70,8 +69,12 @@ public sealed class TranslationCreationViewModel(
     private bool _hideEmptyOriginal = true;
     private bool _isDictionaryDetailsWrapEnabled = appSettingsService.Settings.TranslationCreationWrapDictionaryDetailsText;
     private bool _hasProcessedJapaneseDictionaryPrompt;
+    private Task? _initializeAfterShownTask;
     private bool _hasPendingSelectedTranslatedEdit;
+    private bool _hasJapaneseDictionary;
+    private IReadOnlyList<TranslationDictionaryItem> _japaneseDictionaryItems = [];
     private IReadOnlyList<TranslationDictionaryItem> _loadedDictionaryItems = [];
+    private int _dirtyItemCount;
     private DispatcherTimer? _selectedTranslatedCommitTimer;
     private double _windowWidth = NormalizeWindowLength(
         appSettingsService.Settings.TranslationCreationWindowWidth,
@@ -152,14 +155,17 @@ public sealed class TranslationCreationViewModel(
     public ObservableCollection<TranslationDictionaryItemRowViewModel> DictionaryItems {
         get => _dictionaryItems;
         private set {
+            var previousItems = _dictionaryItems;
             if(!Set( ref _dictionaryItems, value )) {
                 return;
             }
 
+            UnsubscribeDictionaryItems( previousItems );
             SubscribeDictionaryItems( value );
             FilteredDictionaryItemsView = CollectionViewSource.GetDefaultView( value );
             FilteredDictionaryItemsView.Filter = FilterDictionaryItem;
             FilteredDictionaryItemsView.Refresh();
+            NotifyOfPropertyChange( nameof( FilteredDictionaryItemsView ) );
             NotifyOfPropertyChange( nameof( HasDictionaryItems ) );
         }
     }
@@ -514,21 +520,29 @@ public sealed class TranslationCreationViewModel(
     }
 
     /// <summary>
-    /// アクティブ化完了時に dictionary を読み込む。
+    /// アクティブ化完了時に表示準備のみを行う。
     /// </summary>
     /// <param name="cancellationToken">キャンセルトークン。</param>
     /// <returns>非同期タスク。</returns>
     protected override async Task OnActivatedAsync( CancellationToken cancellationToken ) {
         await base.OnActivatedAsync( cancellationToken );
-        await LoadDictionaryAsync( cancellationToken );
     }
 
     /// <summary>
-    /// ウィンドウ表示後に埋め込みJP dictionary の確認と取り込みを行う。
+    /// ウィンドウ表示後の初期化を一度だけ実行する。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
+    internal Task InitializeAfterShownAsync( CancellationToken cancellationToken = default ) =>
+        _initializeAfterShownTask ??= LoadDictionaryAsync( cancellationToken );
+
+    /// <summary>
+    /// ウィンドウ表示後に dictionary 読込と埋め込みJP dictionary の確認を行う。
     /// </summary>
     /// <param name="cancellationToken">キャンセルトークン。</param>
     /// <returns>非同期タスク。</returns>
     internal async Task HandleWindowLoadedAsync( CancellationToken cancellationToken = default ) {
+        await InitializeAfterShownAsync( cancellationToken );
         if(_hasProcessedJapaneseDictionaryPrompt) {
             return;
         }
@@ -536,18 +550,7 @@ public sealed class TranslationCreationViewModel(
         _hasProcessedJapaneseDictionaryPrompt = true;
         cancellationToken.ThrowIfCancellationRequested();
 
-        var hasJapaneseDictionaryResult = translationDictionaryService.HasArchiveEntry( ArchiveFullPath, JapaneseDictionaryEntryPath );
-        if(hasJapaneseDictionaryResult is null) {
-            logger.Warn( $"JP dictionary 存在確認結果が null のため警告処理をスキップする。Archive={ArchiveFullPath}" );
-            return;
-        }
-
-        if(hasJapaneseDictionaryResult.IsFailed) {
-            logger.Warn( $"JP dictionary 存在確認に失敗したため警告処理をスキップする。Archive={ArchiveFullPath}" );
-            return;
-        }
-
-        if(!hasJapaneseDictionaryResult.Value || _loadedDictionaryItems.Count == 0) {
+        if(!_hasJapaneseDictionary || _loadedDictionaryItems.Count == 0) {
             return;
         }
 
@@ -561,13 +564,12 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        var japaneseSourceResult = translationDictionaryService.LoadDictionary( ArchiveFullPath, JapaneseDictionaryEntryPath );
-        if(japaneseSourceResult.IsFailed) {
+        if(_japaneseDictionaryItems.Count == 0) {
             logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={ArchiveFullPath}" );
             return;
         }
 
-        var japaneseSourceItems = japaneseSourceResult.Value
+        var japaneseSourceItems = _japaneseDictionaryItems
             .Select( item => new TranslationDictionaryItem( item.Key, item.Original )
             {
                 Translated = item.Original
@@ -586,7 +588,7 @@ public sealed class TranslationCreationViewModel(
         logger.Info( $"JP dictionary の初期取り込みが完了した。Archive={ArchiveFullPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
     }
 
-    private Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
+    private async Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
         cancellationToken.ThrowIfCancellationRequested();
 
         logger.Info( $"TranslationCreationViewModel の dictionary 読込を開始する。Archive={ArchiveFullPath}" );
@@ -594,30 +596,43 @@ public sealed class TranslationCreationViewModel(
         StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadingMessage;
 
         try {
-            var result = translationDictionaryService.LoadDictionary( ArchiveFullPath );
+            var result = await Task.Run(
+                () => LoadArchiveDictionaryState( ArchiveFullPath ),
+                cancellationToken ).ConfigureAwait( false );
+
             if(result.IsFailed) {
-                SetDictionaryLoadFailedState();
-                return Task.CompletedTask;
+                await Execute.OnUIThreadAsync( () => {
+                    SetDictionaryLoadFailedState();
+                    return Task.CompletedTask;
+                } ).ConfigureAwait( false );
+                return;
             }
 
-            var loadState = BuildDictionaryLoadState( result.Value );
-
-            ApplyDictionaryLoadState( loadState );
-            SelectedDictionaryItem = null;
-            StatusMessage = DictionaryItems.Count == 0
-                ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
-                : string.Empty;
-            NotifyDictionaryAvailabilityChanged();
+            await Execute.OnUIThreadAsync( () => {
+                _hasJapaneseDictionary = result.Value.HasJapaneseDictionary;
+                _japaneseDictionaryItems = result.Value.JapaneseDictionaryItems;
+                ApplyDictionaryLoadState( result.Value.LoadState );
+                SelectedDictionaryItem = null;
+                StatusMessage = DictionaryItems.Count == 0
+                    ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
+                    : string.Empty;
+                NotifyDictionaryAvailabilityChanged();
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
             logger.Info( $"TranslationCreationViewModel の dictionary 読込詳細。Archive={ArchiveFullPath}" );
-            return Task.CompletedTask;
         }
         catch(Exception ex) {
             logger.Error( $"TranslationCreationViewModel の dictionary 読込中に例外が発生した。Archive={ArchiveFullPath}", ex );
-            SetDictionaryLoadFailedState();
-            return Task.CompletedTask;
+            await Execute.OnUIThreadAsync( () => {
+                SetDictionaryLoadFailedState();
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
         }
         finally {
-            IsLoading = false;
+            await Execute.OnUIThreadAsync( () => {
+                IsLoading = false;
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
             logger.Info( $"TranslationCreationViewModel の dictionary 読込を終了する。Archive={ArchiveFullPath}, Count={DictionaryItems.Count}" );
         }
     }
@@ -911,7 +926,7 @@ public sealed class TranslationCreationViewModel(
             return false;
         }
 
-        if(HidePossibleNonTranslationTargets && IsPossibleNonTranslationTarget( row )) {
+        if(HidePossibleNonTranslationTargets && row.IsPossibleNonTranslationTarget) {
             return false;
         }
 
@@ -924,10 +939,6 @@ public sealed class TranslationCreationViewModel(
         }
 
         return true;
-    }
-
-    private static bool IsPossibleNonTranslationTarget( TranslationDictionaryItemRowViewModel row ) {
-        return IsPossibleNonTranslationTarget( row.Key, row.Original );
     }
 
     private static bool IsPossibleNonTranslationTarget( TranslationDictionaryItem item ) =>
@@ -966,21 +977,42 @@ public sealed class TranslationCreationViewModel(
         List<TranslationDictionaryItem> loadedItems = new( initializedItems.Length );
         List<TranslationDictionaryItemRowViewModel> rowItems = new( initializedItems.Length );
         foreach(var item in initializedItems) {
+            var isPossibleNonTranslationTarget = IsPossibleNonTranslationTarget( item );
             loadedItems.Add( new TranslationDictionaryItem( item.Key, item.Original )
             {
                 Translated = item.Translated,
                 IsEnabled = item.IsEnabled
             } );
-            rowItems.Add( new TranslationDictionaryItemRowViewModel( item ) );
+            rowItems.Add( new TranslationDictionaryItemRowViewModel( item, isPossibleNonTranslationTarget ) );
         }
 
         return new DictionaryLoadState( loadedItems, rowItems );
     }
 
+    private Result<ArchiveDictionaryLoadState> LoadArchiveDictionaryState( string archiveFullPath ) {
+        var result = translationDictionaryService.LoadArchiveDictionaries( archiveFullPath );
+        if(result.IsFailed) {
+            return Result.Fail<ArchiveDictionaryLoadState>( result.Errors );
+        }
+
+        return Result.Ok( new ArchiveDictionaryLoadState(
+            BuildDictionaryLoadState( result.Value.DefaultDictionaryItems ),
+            result.Value.HasJapaneseDictionary,
+            [.. result.Value.JapaneseDictionaryItems.Select( CloneDictionaryItem )] ) );
+    }
+
     private void ApplyDictionaryLoadState( DictionaryLoadState state ) {
         _loadedDictionaryItems = state.LoadedItems;
         DictionaryItems = [.. state.RowItems];
+        ResetDirtyState();
     }
+
+    private static TranslationDictionaryItem CloneDictionaryItem( TranslationDictionaryItem item ) =>
+        new( item.Key, item.Original )
+        {
+            Translated = item.Translated,
+            IsEnabled = item.IsEnabled
+        };
 
     private void RefreshFilter() => FilteredDictionaryItemsView.Refresh();
 
@@ -988,6 +1020,13 @@ public sealed class TranslationCreationViewModel(
         dictionaryItems.CollectionChanged += OnDictionaryItemsCollectionChanged;
         foreach(var item in dictionaryItems) {
             item.PropertyChanged += OnDictionaryItemPropertyChanged;
+        }
+    }
+
+    private void UnsubscribeDictionaryItems( ObservableCollection<TranslationDictionaryItemRowViewModel> dictionaryItems ) {
+        dictionaryItems.CollectionChanged -= OnDictionaryItemsCollectionChanged;
+        foreach(var item in dictionaryItems) {
+            item.PropertyChanged -= OnDictionaryItemPropertyChanged;
         }
     }
 
@@ -1008,16 +1047,24 @@ public sealed class TranslationCreationViewModel(
     }
 
     private void OnDictionaryItemPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
+        if(sender is not TranslationDictionaryItemRowViewModel row) {
+            return;
+        }
+
         if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.Translated )) {
-            if(ReferenceEquals( sender, SelectedDictionaryItem ) && !_hasPendingSelectedTranslatedEdit) {
+            UpdateDirtyState( row );
+            if(ReferenceEquals( row, SelectedDictionaryItem ) && !_hasPendingSelectedTranslatedEdit) {
                 SyncSelectedTranslatedFromSelection();
             }
 
-            RefreshFilter();
+            if(ShowOnlyUntranslated) {
+                RefreshFilter();
+            }
         }
 
         if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.IsEnabled )) {
-            if(ReferenceEquals( sender, SelectedDictionaryItem )) {
+            UpdateDirtyState( row );
+            if(ReferenceEquals( row, SelectedDictionaryItem )) {
                 if(SelectedDictionaryItem?.IsEnabled != true) {
                     CancelSelectedTranslatedCommit();
                     SyncSelectedTranslatedFromSelection();
@@ -1026,7 +1073,9 @@ public sealed class TranslationCreationViewModel(
                 NotifyOfPropertyChange( nameof( CanEditSelectedTranslated ) );
             }
 
-            RefreshFilter();
+            if(ShouldRefreshFilterForIsEnabledChange()) {
+                RefreshFilter();
+            }
         }
     }
 
@@ -1047,6 +1096,34 @@ public sealed class TranslationCreationViewModel(
 
         SelectedDictionaryItem.Translated = _selectedTranslated;
     }
+
+    /// <summary>
+    /// ウィンドウを閉じてもよいかどうかを確認する。
+    /// </summary>
+    /// <returns>ウィンドウを閉じてよい場合は <see langword="true"/> を返す。</returns>
+    internal async Task<bool> ConfirmCloseAsync() {
+        if(!HasPendingChangesForClose()) {
+            return true;
+        }
+
+        var result = await dialogService.ConfirmationDialogShowAsync(
+            new ConfirmationDialogParameters
+            {
+                Title = Strings_Translation.CreateTranslationCloseConfirmationTitle,
+                Message = Strings_Translation.CreateTranslationCloseConfirmationMessage,
+                ConfirmButtonText = Strings_Translation.CreateTranslationCloseConfirmationConfirmButtonText,
+                CancelButtonText = Strings_Translation.CreateTranslationCloseConfirmationCancelButtonText,
+                DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
+            } );
+        return result == ConfirmationDialogResult.Confirm;
+    }
+
+    /// <summary>
+    /// 閉じる確認が必要な未反映変更が存在するかどうかを判定する。
+    /// </summary>
+    /// <returns>未反映変更が存在する場合は <see langword="true"/> を返す。</returns>
+    internal bool HasPendingChangesForClose() =>
+        HasPendingChangesForClose( SelectedDictionaryItem, _selectedTranslated );
 
     private DispatcherTimer CreateSelectedTranslatedCommitTimer() {
         var timer = new DispatcherTimer( DispatcherPriority.Background )
@@ -1410,6 +1487,26 @@ public sealed class TranslationCreationViewModel(
             IsEnabled = item.IsEnabled
         } )];
 
+    private bool HasDirtyRows() {
+        if(_loadedDictionaryItems.Count != DictionaryItems.Count) {
+            return true;
+        }
+
+        return _dirtyItemCount > 0;
+    }
+
+    private bool HasPendingChangesForClose( TranslationDictionaryItemRowViewModel? selectedRow, string selectedTranslated ) {
+        if(selectedRow is null || !_hasPendingSelectedTranslatedEdit || !selectedRow.IsEnabled) {
+            return HasDirtyRows();
+        }
+
+        if(selectedRow.HasPendingChangesWithTranslatedOverride( selectedTranslated )) {
+            return true;
+        }
+
+        return HasDirtyRows() && !selectedRow.HasPendingChanges;
+    }
+
     private bool HasTranslatedText() => DictionaryItems.Any( item => !string.IsNullOrWhiteSpace( item.Translated ) );
 
     private string GetProjectIdVersion() => $"DCS Translation Japanese {applicationInfoService.GetVersion()}";
@@ -1551,6 +1648,32 @@ public sealed class TranslationCreationViewModel(
         .Replace( "\r\n", "\n", StringComparison.Ordinal )
         .Replace( '\r', '\n' );
 
+    private void ResetDirtyState() {
+        _dirtyItemCount = 0;
+        foreach(var row in DictionaryItems) {
+            row.ResetPendingChangesBaseline();
+        }
+    }
+
+    private void UpdateDirtyState( TranslationDictionaryItemRowViewModel row ) {
+        var wasDirty = row.HasPendingChanges;
+        if(!row.UpdatePendingChanges()) {
+            return;
+        }
+
+        if(row.HasPendingChanges) {
+            if(!wasDirty) {
+                _dirtyItemCount++;
+            }
+            return;
+        }
+
+        _dirtyItemCount = Math.Max( 0, _dirtyItemCount - 1 );
+    }
+
+    private bool ShouldRefreshFilterForIsEnabledChange() =>
+        !ShowEnabledItems || !ShowDisabledItems;
+
     private string GetJapaneseDictionaryEmbeddedMessage() =>
         string.Format(
             GetArchiveTypeSpecificJapaneseDictionaryEmbeddedMessage(),
@@ -1562,6 +1685,8 @@ public sealed class TranslationCreationViewModel(
             : Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage;
 
     private void SetDictionaryLoadFailedState() {
+        _hasJapaneseDictionary = false;
+        _japaneseDictionaryItems = [];
         _loadedDictionaryItems = [];
         StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadFailedMessage;
         DictionaryItems = [];
@@ -1629,6 +1754,11 @@ public sealed class TranslationCreationViewModel(
     private sealed record DictionaryLoadState(
         IReadOnlyList<TranslationDictionaryItem> LoadedItems,
         IReadOnlyList<TranslationDictionaryItemRowViewModel> RowItems );
+
+    private sealed record ArchiveDictionaryLoadState(
+        DictionaryLoadState LoadState,
+        bool HasJapaneseDictionary,
+        IReadOnlyList<TranslationDictionaryItem> JapaneseDictionaryItems );
 
     private enum TranslationImportFormat {
         Dictionary,

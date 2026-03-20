@@ -9,6 +9,13 @@ namespace DcsTranslationTool.Application.Interfaces;
 /// </summary>
 public interface ITranslationDictionaryService {
     /// <summary>
+    /// アーカイブ起動時に必要な dictionary 群をまとめて読み込む。
+    /// </summary>
+    /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
+    /// <returns>default / JP dictionary を含む結果。</returns>
+    Result<TranslationArchiveDictionaries> LoadArchiveDictionaries( string archiveFullPath );
+
+    /// <summary>
     /// アーカイブ内に指定エントリが存在するかどうかを判定する。
     /// </summary>
     /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>

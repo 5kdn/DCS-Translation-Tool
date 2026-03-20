@@ -82,6 +82,18 @@
   <data name="CreateTranslationButtonContent" xml:space="preserve">
     <value>翻訳を作成</value>
   </data>
+  <data name="CreateTranslationCloseConfirmationCancelButtonText" xml:space="preserve">
+    <value>キャンセル</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationConfirmButtonText" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationMessage" xml:space="preserve">
+    <value>翻訳内容が変更されています。閉じてもよろしいですか？</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationTitle" xml:space="preserve">
+    <value>確認</value>
+  </data>
   <data name="CreateTranslationWindowTitle" xml:space="preserve">
     <value>翻訳を作成</value>
   </data>

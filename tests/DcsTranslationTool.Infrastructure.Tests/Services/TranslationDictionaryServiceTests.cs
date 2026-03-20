@@ -104,6 +104,57 @@ dictionary = {
     }
 
     [Fact]
+    public void LoadArchiveDictionariesはdefaultのみ存在するときJPなしで返す() {
+        var archivePath = CreateArchive( "l10n/DEFAULT/dictionary", """
+dictionary = {
+    ["key1"] = "value1"
+}
+""" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadArchiveDictionaries( archivePath );
+
+        Assert.True( result.IsSuccess );
+        Assert.Single( result.Value.DefaultDictionaryItems );
+        Assert.False( result.Value.HasJapaneseDictionary );
+        Assert.Empty( result.Value.JapaneseDictionaryItems );
+    }
+
+    [Fact]
+    public void LoadArchiveDictionariesはdefaultとJPをまとめて返す() {
+        var archivePath = CreateArchive(
+            ("l10n/DEFAULT/dictionary", """
+dictionary = {
+    ["key1"] = "value1"
+}
+"""),
+            ("l10n/JP/dictionary", """
+dictionary = {
+    ["key1"] = "jp1"
+}
+""") );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadArchiveDictionaries( archivePath );
+
+        Assert.True( result.IsSuccess );
+        Assert.Single( result.Value.DefaultDictionaryItems );
+        Assert.True( result.Value.HasJapaneseDictionary );
+        Assert.Single( result.Value.JapaneseDictionaryItems );
+        Assert.Equal( "jp1", result.Value.JapaneseDictionaryItems[0].Original );
+    }
+
+    [Fact]
+    public void LoadArchiveDictionariesはdefaultが欠落するとき失敗する() {
+        var archivePath = CreateArchive( "l10n/JP/dictionary", "dictionary = {}" );
+        var sut = new TranslationDictionaryService( new Mock<ILoggingService>().Object );
+
+        var result = sut.LoadArchiveDictionaries( archivePath );
+
+        Assert.True( result.IsFailed );
+    }
+
+    [Fact]
     public void LoadDictionaryは指定エントリから項目一覧を読み込む() {
         var archivePath = CreateArchive( "l10n/JP/dictionary", """
 dictionary = {
@@ -934,12 +985,19 @@ msgstr ""
     }
 
     private string CreateArchive( string entryPath, string content ) {
+        return CreateArchive( (entryPath, content) );
+    }
+
+    private string CreateArchive( params (string EntryPath, string Content)[] entries ) {
         var archivePath = Path.Combine( _tempDirectory, $"{Guid.NewGuid():N}.miz" );
         using var archive = ZipFile.Open( archivePath, ZipArchiveMode.Create );
-        var entry = archive.CreateEntry( entryPath );
-        using var stream = entry.Open();
-        using var writer = new StreamWriter( stream );
-        writer.Write( content );
+        foreach(var (entryPath, content) in entries) {
+            var entry = archive.CreateEntry( entryPath );
+            using var stream = entry.Open();
+            using var writer = new StreamWriter( stream );
+            writer.Write( content );
+        }
+
         return archivePath;
     }
 
