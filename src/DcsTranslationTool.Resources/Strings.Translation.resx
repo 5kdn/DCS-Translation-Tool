@@ -142,6 +142,9 @@
   <data name="CreateTranslationDataGridTranslatedHeaderText" xml:space="preserve">
     <value>翻訳</value>
   </data>
+  <data name="CreateTranslationDictionaryDetailsWrapCheckBoxContent" xml:space="preserve">
+    <value>右端で折り返す</value>
+  </data>
   <data name="CreateTranslationCopyButtonContent" xml:space="preserve">
     <value>コピー</value>
   </data>

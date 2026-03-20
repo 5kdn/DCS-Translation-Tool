@@ -35,6 +35,7 @@ public class AppSettings : INotifyPropertyChanged {
     private double _translationCreationWindowWidth = 1200;
     private double _translationCreationWindowHeight = 900;
     private double _translationCreationDictionaryPaneRatio = 2;
+    private bool _translationCreationWrapDictionaryDetailsText = true;
     private ApiRoutePreference _apiPreferredRoute = ApiRoutePreference.None;
     private DateTimeOffset? _apiPreferredRouteValidUntilUtc;
     private DateTimeOffset? _apiRouteLastVerifiedAtUtc;
@@ -131,6 +132,12 @@ public class AppSettings : INotifyPropertyChanged {
     public double TranslationCreationDictionaryPaneRatio {
         get => _translationCreationDictionaryPaneRatio;
         set => Set( ref _translationCreationDictionaryPaneRatio, value );
+    }
+
+    /// <summary>TranslationCreation Window の詳細テキストを右端で折り返すかどうかを保持する。</summary>
+    public bool TranslationCreationWrapDictionaryDetailsText {
+        get => _translationCreationWrapDictionaryDetailsText;
+        set => Set( ref _translationCreationWrapDictionaryDetailsText, value );
     }
 
     /// <summary>API通信で優先する経路を保持する。</summary>

@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
 
@@ -22,7 +23,7 @@ using MaterialDesignThemes.Wpf;
 namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 
 /// <summary>
-/// 翻訳作成ウィンドウの状態を管理する ViewModel である。
+/// 翻訳作成ウィンドウの状態を管理する ViewModel。
 /// </summary>
 /// <param name="archiveFullPath">翻訳対象のアーカイブ絶対パス。</param>
 /// <param name="appSettingsService">アプリケーション設定サービス。</param>
@@ -67,6 +68,7 @@ public sealed class TranslationCreationViewModel(
     private bool _showOnlyUntranslated;
     private bool _hidePossibleNonTranslationTargets = true;
     private bool _hideEmptyOriginal = true;
+    private bool _isDictionaryDetailsWrapEnabled = appSettingsService.Settings.TranslationCreationWrapDictionaryDetailsText;
     private bool _hasProcessedJapaneseDictionaryPrompt;
     private bool _hasPendingSelectedTranslatedEdit;
     private IReadOnlyList<TranslationDictionaryItem> _loadedDictionaryItems = [];
@@ -215,6 +217,35 @@ public sealed class TranslationCreationViewModel(
     /// 選択中項目の翻訳文を編集可能かどうかを取得する。
     /// </summary>
     public bool CanEditSelectedTranslated => SelectedDictionaryItem?.IsEnabled == true;
+
+    /// <summary>
+    /// dictionary 詳細テキストを右端で折り返すかどうかを取得または設定する。
+    /// </summary>
+    public bool IsDictionaryDetailsWrapEnabled {
+        get => _isDictionaryDetailsWrapEnabled;
+        set {
+            if(!Set( ref _isDictionaryDetailsWrapEnabled, value )) {
+                return;
+            }
+
+            appSettingsService.Settings.TranslationCreationWrapDictionaryDetailsText = value;
+            NotifyOfPropertyChange( nameof( DictionaryDetailsTextWrapping ) );
+        }
+    }
+
+    /// <summary>
+    /// dictionary 詳細テキストの折り返し方法を取得する。
+    /// </summary>
+    public TextWrapping DictionaryDetailsTextWrapping => IsDictionaryDetailsWrapEnabled
+        ? TextWrapping.Wrap
+        : TextWrapping.NoWrap;
+
+    /// <summary>
+    /// dictionary 詳細テキストの折り返し状態を設定する。
+    /// </summary>
+    /// <param name="isEnabled">右端で折り返すかどうか。</param>
+    public void SetDictionaryDetailsWrapEnabled( bool isEnabled ) =>
+        IsDictionaryDetailsWrapEnabled = isEnabled;
 
     /// <summary>
     /// 読み込み中かどうかを取得または設定する。

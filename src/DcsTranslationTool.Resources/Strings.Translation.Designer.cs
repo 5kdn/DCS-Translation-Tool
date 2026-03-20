@@ -214,6 +214,15 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   右端で折り返す に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationDictionaryDetailsWrapCheckBoxContent {
+            get {
+                return ResourceManager.GetString("CreateTranslationDictionaryDetailsWrapCheckBoxContent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   dictionary に項目がありません。 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationDictionaryEmptyMessage {

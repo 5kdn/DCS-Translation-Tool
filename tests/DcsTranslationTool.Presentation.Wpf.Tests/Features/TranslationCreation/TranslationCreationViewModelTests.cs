@@ -47,13 +47,15 @@ public sealed partial class TranslationCreationViewModelTests {
             DcsWorldInstallDir = @"C:\DCSWorld",
             TranslationCreationWindowWidth = 1400,
             TranslationCreationWindowHeight = 920,
-            TranslationCreationDictionaryPaneRatio = 3.5
+            TranslationCreationDictionaryPaneRatio = 3.5,
+            TranslationCreationWrapDictionaryDetailsText = false
         } );
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         Assert.Equal( 1400, viewModel.WindowWidth );
         Assert.Equal( 920, viewModel.WindowHeight );
         Assert.Equal( 3.5, viewModel.DictionaryPaneRatio );
+        Assert.False( viewModel.IsDictionaryDetailsWrapEnabled );
     }
 
     [Fact]
@@ -126,6 +128,18 @@ public sealed partial class TranslationCreationViewModelTests {
         Assert.Equal( string.Empty, viewModel.SelectedOriginal );
         Assert.Equal( string.Empty, viewModel.SelectedTranslated );
         Assert.False( viewModel.CanEditSelectedTranslated );
+        Assert.True( viewModel.IsDictionaryDetailsWrapEnabled );
+    }
+
+    [Fact]
+    public void IsDictionaryDetailsWrapEnabled設定はAppSettingsへ同期する() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        viewModel.IsDictionaryDetailsWrapEnabled = false;
+
+        Assert.False( viewModel.IsDictionaryDetailsWrapEnabled );
+        Assert.False( context.Settings.TranslationCreationWrapDictionaryDetailsText );
     }
 
     [Fact]

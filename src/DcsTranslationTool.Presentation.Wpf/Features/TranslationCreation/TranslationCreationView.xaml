@@ -36,6 +36,16 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="DictionaryDetailsTextBoxStyle"
+               TargetType="TextBox"
+               BasedOn="{StaticResource MaterialDesignOutlinedTextBox}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsChecked, ElementName=DictionaryDetailsWrapCheckBox}" Value="False">
+                    <Setter Property="TextWrapping" Value="NoWrap" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <WindowChrome.WindowChrome>
@@ -232,41 +242,49 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
+                    <CheckBox Grid.Row="0"
+                              Grid.ColumnSpan="2"
+                              x:Name="DictionaryDetailsWrapCheckBox"
+                              Content="{x:Static resx:Strings_Translation.CreateTranslationDictionaryDetailsWrapCheckBoxContent}"
+                              IsChecked="{Binding DataContext.IsDictionaryDetailsWrapEnabled, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+
+                    <TextBlock Grid.Row="1"
                                Grid.Column="0"
                                x:Name="SelectedOriginalLabel"
                                Text="{x:Static resx:Strings_Translation.CreateTranslationDataGridOriginalHeaderText}"
                                Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
-                    <TextBlock Grid.Row="0"
+                    <TextBlock Grid.Row="1"
                                Grid.Column="1"
                                x:Name="SelectedTranslatedLabel"
                                Margin="{StaticResource SmallLeftMargin}"
                                Text="{x:Static resx:Strings_Translation.CreateTranslationDataGridTranslatedHeaderText}"
                                Style="{StaticResource MaterialDesignBodyLargeTextBlock}" />
 
-                    <TextBox Grid.Row="1"
+                    <TextBox Grid.Row="2"
                              Grid.Column="0"
+                             x:Name="SelectedOriginalTextBox"
                              Text="{Binding SelectedOriginal, Mode=OneWay}"
-                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Style="{StaticResource DictionaryDetailsTextBoxStyle}"
                              local:TextBoxNewlineMarker.IsEnabled="True"
                              IsReadOnly="True"
                              IsReadOnlyCaretVisible="True"
                              AcceptsReturn="True"
-                             TextWrapping="Wrap"
+                             HorizontalScrollBarVisibility="Auto"
                              VerticalScrollBarVisibility="Auto" />
-                    <TextBox Grid.Row="1"
+                    <TextBox Grid.Row="2"
                              Grid.Column="1"
                              x:Name="SelectedTranslatedTextBox"
                              Margin="{StaticResource SmallLeftMargin}"
                              Text="{Binding SelectedTranslated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanEditSelectedTranslated}"
-                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Style="{StaticResource DictionaryDetailsTextBoxStyle}"
                              local:TextBoxNewlineMarker.IsEnabled="True"
                              AcceptsReturn="True"
-                             TextWrapping="Wrap"
+                             HorizontalScrollBarVisibility="Auto"
                              VerticalScrollBarVisibility="Auto" />
                 </Grid>
 

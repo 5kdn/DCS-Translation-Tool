@@ -189,6 +189,21 @@ public sealed class AppSettingsServiceTests : IDisposable {
         Assert.Equal( 960, reloaded.Settings.TranslationCreationWindowHeight );
     }
 
+    [Fact]
+    public async Task SaveAsyncはTranslationCreation詳細折り返し設定を保存して再読込できる() {
+        // Arrange
+        await using(var sut = CreateService()) {
+            sut.Settings.TranslationCreationWrapDictionaryDetailsText = false;
+
+            // Act
+            await sut.SaveAsync( TestContext.Current.CancellationToken );
+        }
+
+        // Assert
+        await using var reloaded = CreateService();
+        Assert.False( reloaded.Settings.TranslationCreationWrapDictionaryDetailsText );
+    }
+
     #endregion
 
     #region DisposeAsync

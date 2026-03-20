@@ -391,6 +391,171 @@ public sealed class TranslationCreationViewTests {
     }
 
     [StaFact]
+    public async Task TranslationCreationViewは詳細折り返しチェックボックスを持ち日本語リソースを参照する() {
+        EnsureApplicationResources();
+
+        var view = new TranslationCreationView();
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        var dialogServiceMock = new Mock<IDialogService>();
+        var dialogProviderMock = new Mock<IDialogProvider>();
+        var systemServiceMock = new Mock<ISystemService>();
+        var applicationInfoServiceMock = new Mock<IApplicationInfoService>();
+        var loggerMock = new Mock<ILoggingService>();
+        var dictionaryServiceMock = new Mock<ITranslationDictionaryService>();
+        appSettingsServiceMock
+            .Setup( service => service.Settings )
+            .Returns( new AppSettings
+            {
+                TranslateFileDir = @"C:\Translate",
+                DcsWorldInstallDir = @"C:\DCSWorld"
+            } );
+        dictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "original" )
+                ] ) );
+        var viewModel = new TranslationCreationViewModel(
+            @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+            appSettingsServiceMock.Object,
+            applicationInfoServiceMock.Object,
+            dialogServiceMock.Object,
+            dialogProviderMock.Object,
+            systemServiceMock.Object,
+            loggerMock.Object,
+            dictionaryServiceMock.Object );
+        view.DataContext = viewModel;
+        await Caliburn.Micro.ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+
+        view.Show();
+        view.UpdateLayout();
+
+        var wrapCheckBox = Assert.IsType<CheckBox>( view.FindName( "DictionaryDetailsWrapCheckBox" ) );
+
+        view.Close();
+
+        Assert.Equal( Strings_Translation.CreateTranslationDictionaryDetailsWrapCheckBoxContent, wrapCheckBox.Content );
+        Assert.NotNull( BindingOperations.GetBindingExpressionBase( wrapCheckBox, System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty ) );
+    }
+
+    [StaFact]
+    public async Task TranslationCreationViewは保存済み折り返し設定を詳細TextBoxへ反映する() {
+        EnsureApplicationResources();
+
+        var view = new TranslationCreationView();
+        var settings = new AppSettings
+        {
+            TranslateFileDir = @"C:\Translate",
+            DcsWorldInstallDir = @"C:\DCSWorld",
+            TranslationCreationWrapDictionaryDetailsText = false
+        };
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        var dialogServiceMock = new Mock<IDialogService>();
+        var dialogProviderMock = new Mock<IDialogProvider>();
+        var systemServiceMock = new Mock<ISystemService>();
+        var applicationInfoServiceMock = new Mock<IApplicationInfoService>();
+        var loggerMock = new Mock<ILoggingService>();
+        var dictionaryServiceMock = new Mock<ITranslationDictionaryService>();
+        appSettingsServiceMock
+            .Setup( service => service.Settings )
+            .Returns( settings );
+        dictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "original" ) { Translated = "translated" }
+                ] ) );
+        var viewModel = new TranslationCreationViewModel(
+            @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+            appSettingsServiceMock.Object,
+            applicationInfoServiceMock.Object,
+            dialogServiceMock.Object,
+            dialogProviderMock.Object,
+            systemServiceMock.Object,
+            loggerMock.Object,
+            dictionaryServiceMock.Object );
+        view.DataContext = viewModel;
+        await Caliburn.Micro.ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+
+        view.Show();
+        view.UpdateLayout();
+
+        var originalTextBox = Assert.IsType<TextBox>( view.FindName( "SelectedOriginalTextBox" ) );
+        var translatedTextBox = Assert.IsType<TextBox>( view.FindName( "SelectedTranslatedTextBox" ) );
+
+        view.Close();
+
+        Assert.Equal( TextWrapping.NoWrap, originalTextBox.TextWrapping );
+        Assert.Equal( TextWrapping.NoWrap, translatedTextBox.TextWrapping );
+        Assert.Equal( ScrollBarVisibility.Auto, originalTextBox.HorizontalScrollBarVisibility );
+        Assert.Equal( ScrollBarVisibility.Auto, translatedTextBox.HorizontalScrollBarVisibility );
+    }
+
+    [StaFact]
+    public async Task TranslationCreationViewの詳細折り返し設定変更は両TextBoxの折り返しを切り替える() {
+        EnsureApplicationResources();
+
+        var view = new TranslationCreationView();
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        var dialogServiceMock = new Mock<IDialogService>();
+        var dialogProviderMock = new Mock<IDialogProvider>();
+        var systemServiceMock = new Mock<ISystemService>();
+        var applicationInfoServiceMock = new Mock<IApplicationInfoService>();
+        var loggerMock = new Mock<ILoggingService>();
+        var dictionaryServiceMock = new Mock<ITranslationDictionaryService>();
+        var settings = new AppSettings
+        {
+            TranslateFileDir = @"C:\Translate",
+            DcsWorldInstallDir = @"C:\DCSWorld",
+            TranslationCreationWrapDictionaryDetailsText = true
+        };
+        appSettingsServiceMock
+            .Setup( service => service.Settings )
+            .Returns( settings );
+        dictionaryServiceMock
+            .Setup( service => service.LoadDictionary( It.IsAny<string>() ) )
+            .Returns( Result.Ok<IReadOnlyList<TranslationDictionaryItem>>(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "original" ) { Translated = "translated" }
+                ] ) );
+        var viewModel = new TranslationCreationViewModel(
+            @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
+            appSettingsServiceMock.Object,
+            applicationInfoServiceMock.Object,
+            dialogServiceMock.Object,
+            dialogProviderMock.Object,
+            systemServiceMock.Object,
+            loggerMock.Object,
+            dictionaryServiceMock.Object );
+        view.DataContext = viewModel;
+        await Caliburn.Micro.ScreenExtensions.TryActivateAsync( viewModel, TestContext.Current.CancellationToken );
+        viewModel.SelectedDictionaryItem = viewModel.DictionaryItems.Single();
+
+        view.Show();
+        view.UpdateLayout();
+
+        var wrapCheckBox = Assert.IsType<CheckBox>( view.FindName( "DictionaryDetailsWrapCheckBox" ) );
+        var originalTextBox = Assert.IsType<TextBox>( view.FindName( "SelectedOriginalTextBox" ) );
+        var translatedTextBox = Assert.IsType<TextBox>( view.FindName( "SelectedTranslatedTextBox" ) );
+        Assert.Equal( TextWrapping.Wrap, originalTextBox.TextWrapping );
+        Assert.Equal( TextWrapping.Wrap, translatedTextBox.TextWrapping );
+
+        viewModel.SetDictionaryDetailsWrapEnabled( false );
+        view.UpdateLayout();
+
+        view.Close();
+
+        Assert.False( wrapCheckBox.IsChecked );
+        Assert.Equal( TextWrapping.NoWrap, originalTextBox.TextWrapping );
+        Assert.Equal( TextWrapping.NoWrap, translatedTextBox.TextWrapping );
+        Assert.Equal( ScrollBarVisibility.Auto, originalTextBox.HorizontalScrollBarVisibility );
+        Assert.Equal( ScrollBarVisibility.Auto, translatedTextBox.HorizontalScrollBarVisibility );
+        Assert.False( settings.TranslationCreationWrapDictionaryDetailsText );
+    }
+
+    [StaFact]
     public async Task TranslationCreationViewは保存済み比率を初期レイアウトへ反映する() {
         EnsureApplicationResources();
 
@@ -1049,8 +1214,8 @@ public sealed class TranslationCreationViewTests {
                     invocationStartedSource.TrySetResult();
                     await actionCompletionSource.Task;
                 },
-                TestContext.Current.CancellationToken,
-                DispatcherPriority.Background );
+                DispatcherPriority.Background,
+                TestContext.Current.CancellationToken );
 
             await invocationStartedSource.Task.WaitAsync( TestContext.Current.CancellationToken );
 

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -11,6 +12,10 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// </summary>
 public partial class TranslationCreationView : Window {
     private const double DetailPaneBaseRatio = 1;
+    private static readonly DependencyPropertyDescriptor DictionaryDetailsWrapCheckBoxDescriptor =
+        DependencyPropertyDescriptor.FromProperty( ToggleButton.IsCheckedProperty, typeof( CheckBox ) );
+    private TranslationCreationViewModel? _currentViewModel;
+    private bool _isDictionaryDetailsWrapCheckBoxObserved;
 
     public TranslationCreationView() {
         InitializeComponent();
@@ -61,15 +66,26 @@ public partial class TranslationCreationView : Window {
     }
 
     private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) {
+        DetachViewModelEvents( e.OldValue as TranslationCreationViewModel );
+        AttachViewModelEvents( e.NewValue as TranslationCreationViewModel );
         ApplyMinimumWindowSize();
         ApplyWindowSize();
         ApplyDictionaryPaneRatio();
+        ApplyDictionaryDetailsTextWrapping();
     }
 
     private void Window_Loaded( object sender, RoutedEventArgs e ) {
         ApplyMinimumWindowSize();
         ApplyWindowSize();
         ApplyDictionaryPaneRatio();
+        ApplyDictionaryDetailsTextWrapping();
+
+        if(_isDictionaryDetailsWrapCheckBoxObserved) {
+            return;
+        }
+
+        DictionaryDetailsWrapCheckBoxDescriptor.AddValueChanged( DictionaryDetailsWrapCheckBox, DictionaryDetailsWrapCheckBox_ValueChanged );
+        _isDictionaryDetailsWrapCheckBoxObserved = true;
     }
 
     private async void Window_ContentRendered( object? sender, EventArgs e ) {
@@ -84,12 +100,26 @@ public partial class TranslationCreationView : Window {
     }
 
     private void Window_Closing( object? sender, CancelEventArgs e ) {
+        if(_isDictionaryDetailsWrapCheckBoxObserved) {
+            DictionaryDetailsWrapCheckBoxDescriptor.RemoveValueChanged( DictionaryDetailsWrapCheckBox, DictionaryDetailsWrapCheckBox_ValueChanged );
+            _isDictionaryDetailsWrapCheckBoxObserved = false;
+        }
+
+        DetachViewModelEvents( _currentViewModel );
         PersistWindowSize();
         PersistDictionaryPaneRatio();
     }
 
     private void DictionaryPaneGridSplitter_DragCompleted( object sender, DragCompletedEventArgs e ) =>
         PersistDictionaryPaneRatio();
+
+    private void DictionaryDetailsWrapCheckBox_ValueChanged( object? sender, EventArgs e ) {
+        if(DataContext is not TranslationCreationViewModel viewModel) {
+            return;
+        }
+
+        viewModel.SetDictionaryDetailsWrapEnabled( DictionaryDetailsWrapCheckBox.IsChecked != false );
+    }
 
     /// <summary>
     /// 保存済みの dictionary 領域比率をレイアウトへ反映する。
@@ -126,6 +156,61 @@ public partial class TranslationCreationView : Window {
     private void ApplyMinimumWindowSize() {
         MinWidth = TranslationCreationViewModel.MinWindowWidth;
         MinHeight = TranslationCreationViewModel.MinWindowHeight;
+    }
+
+    /// <summary>
+    /// 現在の折り返し設定を詳細テキストボックスへ反映する。
+    /// </summary>
+    private void ApplyDictionaryDetailsTextWrapping() {
+        var textWrapping = DataContext is TranslationCreationViewModel viewModel
+            ? viewModel.DictionaryDetailsTextWrapping
+            : TextWrapping.Wrap;
+
+        if(SelectedOriginalTextBox is not null) {
+            SelectedOriginalTextBox.TextWrapping = textWrapping;
+        }
+
+        if(SelectedTranslatedTextBox is not null) {
+            SelectedTranslatedTextBox.TextWrapping = textWrapping;
+        }
+    }
+
+    /// <summary>
+    /// ViewModel の変更監視を開始する。
+    /// </summary>
+    /// <param name="viewModel">監視対象の ViewModel。</param>
+    private void AttachViewModelEvents( TranslationCreationViewModel? viewModel ) {
+        if(viewModel is null || ReferenceEquals( _currentViewModel, viewModel )) {
+            _currentViewModel = viewModel;
+            return;
+        }
+
+        _currentViewModel = viewModel;
+        _currentViewModel.PropertyChanged += ViewModel_PropertyChanged;
+    }
+
+    /// <summary>
+    /// ViewModel の変更監視を解除する。
+    /// </summary>
+    /// <param name="viewModel">解除対象の ViewModel。</param>
+    private void DetachViewModelEvents( TranslationCreationViewModel? viewModel ) {
+        if(viewModel is null) {
+            return;
+        }
+
+        viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        if(ReferenceEquals( _currentViewModel, viewModel )) {
+            _currentViewModel = null;
+        }
+    }
+
+    /// <summary>
+    /// ViewModel の折り返し設定変更を画面へ反映する。
+    /// </summary>
+    private void ViewModel_PropertyChanged( object? sender, PropertyChangedEventArgs e ) {
+        if(e.PropertyName is nameof( TranslationCreationViewModel.IsDictionaryDetailsWrapEnabled ) or nameof( TranslationCreationViewModel.DictionaryDetailsTextWrapping )) {
+            ApplyDictionaryDetailsTextWrapping();
+        }
     }
 
     /// <summary>
@@ -178,14 +263,14 @@ public partial class TranslationCreationView : Window {
     /// </summary>
     /// <param name="dispatcher">実行に利用するディスパッチャー。</param>
     /// <param name="windowLoadedAction">実行対象の初期化処理。</param>
-    /// <param name="cancellationToken">キャンセルトークン。</param>
     /// <param name="priority">ディスパッチャー実行優先度。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
     /// <returns>非同期タスクを返す。</returns>
     internal static async Task ExecuteWindowLoadedAsync(
         Dispatcher dispatcher,
         Func<Task> windowLoadedAction,
-        CancellationToken cancellationToken = default,
-        DispatcherPriority priority = DispatcherPriority.ContextIdle ) {
+        DispatcherPriority priority = DispatcherPriority.ContextIdle,
+        CancellationToken cancellationToken = default ) {
         ArgumentNullException.ThrowIfNull( dispatcher );
         ArgumentNullException.ThrowIfNull( windowLoadedAction );
 
