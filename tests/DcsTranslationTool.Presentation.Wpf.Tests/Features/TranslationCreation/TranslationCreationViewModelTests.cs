@@ -148,6 +148,14 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public void TranslationCreationViewModelはView専用契約を実装する() {
+        var context = new TranslationCreationViewModelTestContext();
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        Assert.IsType<ITranslationCreationViewModel>( viewModel, exactMatch: false );
+    }
+
+    [Fact]
     public async Task ConfirmCloseAsyncは初期読込直後に確認なしでtrueを返す() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock

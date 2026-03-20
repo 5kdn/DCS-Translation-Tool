@@ -41,7 +41,9 @@ public sealed class TranslationCreationViewModel(
     ISystemService systemService,
     ILoggingService logger,
     ITranslationDictionaryService translationDictionaryService
-) : Screen {
+) : Screen, ITranslationCreationViewModel {
+    #region Constants
+
     public const double DefaultWindowWidth = 900;
     public const double DefaultWindowHeight = 760;
     public const double MinWindowWidth = 900;
@@ -54,6 +56,10 @@ public sealed class TranslationCreationViewModel(
     private const string DictionarySaveFileFilter = "dictionary|dictionary|すべてのファイル|*.*";
     private const string CsvFileFilter = "CSV files|*.csv|すべてのファイル|*.*";
     private const string PoSaveFileFilter = "PO files|*.po|すべてのファイル|*.*";
+    #endregion
+
+    #region Fields
+
     private TranslationImportFormat _selectedImportFormat = TranslationImportFormat.Dictionary;
     private TranslationExportFormat _selectedExportFormat = TranslationExportFormat.Dictionary;
     private ObservableCollection<TranslationDictionaryItemRowViewModel> _dictionaryItems = [];
@@ -76,6 +82,8 @@ public sealed class TranslationCreationViewModel(
     private IReadOnlyList<TranslationDictionaryItem> _loadedDictionaryItems = [];
     private int _dirtyItemCount;
     private DispatcherTimer? _selectedTranslatedCommitTimer;
+    private TranslationCreationPathResolver? _pathResolver;
+    private readonly TranslationCreationDictionaryLoader _dictionaryLoader = new( translationDictionaryService );
     private double _windowWidth = NormalizeWindowLength(
         appSettingsService.Settings.TranslationCreationWindowWidth,
         DefaultWindowWidth,
@@ -86,6 +94,9 @@ public sealed class TranslationCreationViewModel(
         MinWindowHeight );
     private double _dictionaryPaneRatio = NormalizeDictionaryPaneRatio(
         appSettingsService.Settings.TranslationCreationDictionaryPaneRatio );
+    #endregion
+
+    #region Properties
 
     /// <summary>
     /// ウィンドウの表示名を取得する。
@@ -148,6 +159,10 @@ public sealed class TranslationCreationViewModel(
     public string ArchiveFullPath { get; } = string.IsNullOrWhiteSpace( archiveFullPath )
         ? throw new ArgumentException( "アーカイブ絶対パスは必須です。", nameof( archiveFullPath ) )
         : archiveFullPath;
+
+    private TranslationCreationPathResolver PathResolver => _pathResolver ??= new( appSettingsService.Settings, ArchiveFullPath );
+
+    private DispatcherTimer SelectedTranslatedCommitTimer => _selectedTranslatedCommitTimer ??= CreateSelectedTranslatedCommitTimer();
 
     /// <summary>
     /// dictionary 項目一覧を取得または設定する。
@@ -247,13 +262,6 @@ public sealed class TranslationCreationViewModel(
         : TextWrapping.NoWrap;
 
     /// <summary>
-    /// dictionary 詳細テキストの折り返し状態を設定する。
-    /// </summary>
-    /// <param name="isEnabled">右端で折り返すかどうか。</param>
-    public void SetDictionaryDetailsWrapEnabled( bool isEnabled ) =>
-        IsDictionaryDetailsWrapEnabled = isEnabled;
-
-    /// <summary>
     /// 読み込み中かどうかを取得または設定する。
     /// </summary>
     public bool IsLoading {
@@ -295,36 +303,6 @@ public sealed class TranslationCreationViewModel(
     /// dictionary 項目が存在するかどうかを取得する。
     /// </summary>
     public bool HasDictionaryItems => DictionaryItems.Count > 0;
-
-    /// <summary>
-    /// dictionary を書き出し可能かどうかを取得する。
-    /// </summary>
-    public bool CanExport =>
-        !IsLoading
-        && _loadedDictionaryItems.Count > 0
-        && !string.IsNullOrWhiteSpace( appSettingsService.Settings.TranslateFileDir );
-
-    /// <summary>
-    /// dictionary ファイルを読み込み可能かどうかを取得する。
-    /// </summary>
-    public bool CanImportDictionary =>
-        !IsLoading
-        && _loadedDictionaryItems.Count > 0;
-
-    /// <summary>
-    /// PO ファイルを読み込み可能かどうかを取得する。
-    /// </summary>
-    public bool CanImportPo => CanImportDictionary;
-
-    /// <summary>
-    /// CSV ファイルを読み込み可能かどうかを取得する。
-    /// </summary>
-    public bool CanImportCsv => CanImportDictionary;
-
-    /// <summary>
-    /// いずれかの形式で読み込み可能かどうかを取得する。
-    /// </summary>
-    public bool CanImport => CanImportDictionary;
 
     /// <summary>
     /// 現在の読み込み主動作用表示文言を取得する。
@@ -417,6 +395,222 @@ public sealed class TranslationCreationViewModel(
             RefreshFilter();
         }
     }
+
+    #endregion
+
+    #region Lifecycle
+
+    /// <summary>
+    /// アクティブ化完了時に表示準備のみを行う。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
+    protected override async Task OnActivatedAsync( CancellationToken cancellationToken ) {
+        await base.OnActivatedAsync( cancellationToken );
+    }
+
+    /// <summary>
+    /// ウィンドウ表示後の初期化を一度だけ実行する。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
+    internal Task InitializeAfterShownAsync( CancellationToken cancellationToken = default ) =>
+        _initializeAfterShownTask ??= LoadDictionaryAsync( cancellationToken );
+
+    /// <summary>
+    /// ウィンドウ表示後に dictionary 読込と埋め込みJP dictionary の確認を行う。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
+    public async Task HandleWindowLoadedAsync( CancellationToken cancellationToken = default ) {
+        await InitializeAfterShownAsync( cancellationToken );
+        if(_hasProcessedJapaneseDictionaryPrompt) {
+            return;
+        }
+
+        _hasProcessedJapaneseDictionaryPrompt = true;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if(!_hasJapaneseDictionary || _loadedDictionaryItems.Count == 0) {
+            return;
+        }
+
+        if(!await ConfirmArchiveContainsJapaneseDictionaryAsync()) {
+            logger.Info( $"既存JP dictionary 警告でキャンセルされたためウィンドウを閉じる。Archive={ArchiveFullPath}" );
+            await TryCloseAsync( false );
+            return;
+        }
+
+        if(!await ConfirmJapaneseDictionaryImportAsync()) {
+            return;
+        }
+
+        if(_japaneseDictionaryItems.Count == 0) {
+            logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={ArchiveFullPath}" );
+            return;
+        }
+
+        var japaneseSourceItems = TranslationCreationDictionaryLoader.CreateJapaneseImportSourceItems( _japaneseDictionaryItems );
+        var importAnalysis = AnalyzeDictionaryImport( japaneseSourceItems );
+        if(!importAnalysis.IsFullMatch && !await ConfirmDictionaryPartialImportAsync( importAnalysis.Matches.Count )) {
+            logger.Info( $"JP dictionary 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, MatchCount={importAnalysis.Matches.Count}" );
+            return;
+        }
+
+        foreach(var match in importAnalysis.Matches) {
+            match.Row.Translated = match.Translated;
+        }
+
+        logger.Info( $"JP dictionary の初期取り込みが完了した。Archive={ArchiveFullPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
+    }
+
+    /// <summary>
+    /// アーカイブから dictionary を読み込んで画面状態へ反映する。
+    /// </summary>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスク。</returns>
+    private async Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        logger.Info( $"TranslationCreationViewModel の dictionary 読込を開始する。Archive={ArchiveFullPath}" );
+        IsLoading = true;
+        StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadingMessage;
+
+        try {
+            var result = await Task.Run(
+                () => _dictionaryLoader.LoadArchiveDictionaryState( ArchiveFullPath ),
+                cancellationToken ).ConfigureAwait( false );
+
+            if(result.IsFailed) {
+                await Execute.OnUIThreadAsync( () => {
+                    SetDictionaryLoadFailedState();
+                    return Task.CompletedTask;
+                } ).ConfigureAwait( false );
+                return;
+            }
+
+            await Execute.OnUIThreadAsync( () => {
+                _hasJapaneseDictionary = result.Value.HasJapaneseDictionary;
+                _japaneseDictionaryItems = result.Value.JapaneseDictionaryItems;
+                ApplyDictionaryLoadState( result.Value.LoadState );
+                SelectedDictionaryItem = null;
+                StatusMessage = DictionaryItems.Count == 0
+                    ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
+                    : string.Empty;
+                NotifyDictionaryAvailabilityChanged();
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
+            logger.Info( $"TranslationCreationViewModel の dictionary 読込詳細。Archive={ArchiveFullPath}" );
+        }
+        catch(Exception ex) {
+            logger.Error( $"TranslationCreationViewModel の dictionary 読込中に例外が発生した。Archive={ArchiveFullPath}", ex );
+            await Execute.OnUIThreadAsync( () => {
+                SetDictionaryLoadFailedState();
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
+        }
+        finally {
+            await Execute.OnUIThreadAsync( () => {
+                IsLoading = false;
+                return Task.CompletedTask;
+            } ).ConfigureAwait( false );
+            logger.Info( $"TranslationCreationViewModel の dictionary 読込を終了する。Archive={ArchiveFullPath}, Count={DictionaryItems.Count}" );
+        }
+    }
+    #endregion
+
+    #region Action Guards
+
+    /// <summary>
+    /// dictionary を書き出し可能かどうかを取得する。
+    /// </summary>
+    public bool CanExport =>
+        !IsLoading
+        && _loadedDictionaryItems.Count > 0
+        && !string.IsNullOrWhiteSpace( appSettingsService.Settings.TranslateFileDir );
+
+    /// <summary>
+    /// dictionary ファイルを読み込み可能かどうかを取得する。
+    /// </summary>
+    public bool CanImportDictionary =>
+        !IsLoading
+        && _loadedDictionaryItems.Count > 0;
+
+    /// <summary>
+    /// PO ファイルを読み込み可能かどうかを取得する。
+    /// </summary>
+    public bool CanImportPo => CanImportDictionary;
+
+    /// <summary>
+    /// CSV ファイルを読み込み可能かどうかを取得する。
+    /// </summary>
+    public bool CanImportCsv => CanImportDictionary;
+
+    /// <summary>
+    /// いずれかの形式で読み込み可能かどうかを取得する。
+    /// </summary>
+    public bool CanImport => CanImportDictionary;
+
+    /// <summary>
+    /// 閉じる確認が必要な未反映変更が存在するかどうかを判定する。
+    /// </summary>
+    /// <returns>未反映変更が存在する場合は <see langword="true"/> を返す。</returns>
+    internal bool HasPendingChangesForClose() =>
+        HasPendingChangesForClose( SelectedDictionaryItem, _selectedTranslated );
+
+    /// <summary>
+    /// 読み込み基準と比較して dirty 行が存在するかどうかを判定する。
+    /// </summary>
+    /// <returns>dirty 行が存在する場合は <see langword="true"/> を返す。</returns>
+    private bool HasDirtyRows() {
+        if(_loadedDictionaryItems.Count != DictionaryItems.Count) {
+            return true;
+        }
+
+        return _dirtyItemCount > 0;
+    }
+
+    /// <summary>
+    /// 選択中詳細編集の保留値を加味して未反映変更が存在するかどうかを判定する。
+    /// </summary>
+    /// <param name="selectedRow">選択中行。</param>
+    /// <param name="selectedTranslated">保留中の翻訳文。</param>
+    /// <returns>未反映変更が存在する場合は <see langword="true"/> を返す。</returns>
+    private bool HasPendingChangesForClose( TranslationDictionaryItemRowViewModel? selectedRow, string selectedTranslated ) {
+        if(selectedRow is null || !_hasPendingSelectedTranslatedEdit || !selectedRow.IsEnabled) {
+            return HasDirtyRows();
+        }
+
+        if(selectedRow.HasPendingChangesWithTranslatedOverride( selectedTranslated )) {
+            return true;
+        }
+
+        return HasDirtyRows() && !selectedRow.HasPendingChanges;
+    }
+
+    /// <summary>
+    /// 1 件以上の翻訳文が入力済みかどうかを判定する。
+    /// </summary>
+    /// <returns>翻訳文が存在する場合は <see langword="true"/> を返す。</returns>
+    private bool HasTranslatedText() => DictionaryItems.Any( item => !string.IsNullOrWhiteSpace( item.Translated ) );
+
+    /// <summary>
+    /// 有効状態変更時にフィルタ再適用が必要かどうかを判定する。
+    /// </summary>
+    /// <returns>再適用が必要な場合は <see langword="true"/> を返す。</returns>
+    private bool ShouldRefreshFilterForIsEnabledChange() =>
+        !ShowEnabledItems || !ShowDisabledItems;
+
+    #endregion
+
+    #region Actions
+
+    /// <summary>
+    /// dictionary 詳細テキストの折り返し状態を設定する。
+    /// </summary>
+    /// <param name="isEnabled">右端で折り返すかどうか。</param>
+    public void SetDictionaryDetailsWrapEnabled( bool isEnabled ) =>
+        IsDictionaryDetailsWrapEnabled = isEnabled;
 
     /// <summary>
     /// 表示中の dictionary 項目選択を 1 件上へ移動する。
@@ -520,121 +714,24 @@ public sealed class TranslationCreationViewModel(
     }
 
     /// <summary>
-    /// アクティブ化完了時に表示準備のみを行う。
+    /// ウィンドウを閉じてもよいかどうかを確認する。
     /// </summary>
-    /// <param name="cancellationToken">キャンセルトークン。</param>
-    /// <returns>非同期タスク。</returns>
-    protected override async Task OnActivatedAsync( CancellationToken cancellationToken ) {
-        await base.OnActivatedAsync( cancellationToken );
-    }
-
-    /// <summary>
-    /// ウィンドウ表示後の初期化を一度だけ実行する。
-    /// </summary>
-    /// <param name="cancellationToken">キャンセルトークン。</param>
-    /// <returns>非同期タスク。</returns>
-    internal Task InitializeAfterShownAsync( CancellationToken cancellationToken = default ) =>
-        _initializeAfterShownTask ??= LoadDictionaryAsync( cancellationToken );
-
-    /// <summary>
-    /// ウィンドウ表示後に dictionary 読込と埋め込みJP dictionary の確認を行う。
-    /// </summary>
-    /// <param name="cancellationToken">キャンセルトークン。</param>
-    /// <returns>非同期タスク。</returns>
-    internal async Task HandleWindowLoadedAsync( CancellationToken cancellationToken = default ) {
-        await InitializeAfterShownAsync( cancellationToken );
-        if(_hasProcessedJapaneseDictionaryPrompt) {
-            return;
+    /// <returns>ウィンドウを閉じてよい場合は <see langword="true"/> を返す。</returns>
+    public async Task<bool> ConfirmCloseAsync() {
+        if(!HasPendingChangesForClose()) {
+            return true;
         }
 
-        _hasProcessedJapaneseDictionaryPrompt = true;
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if(!_hasJapaneseDictionary || _loadedDictionaryItems.Count == 0) {
-            return;
-        }
-
-        if(!await ConfirmArchiveContainsJapaneseDictionaryAsync()) {
-            logger.Info( $"既存JP dictionary 警告でキャンセルされたためウィンドウを閉じる。Archive={ArchiveFullPath}" );
-            await TryCloseAsync( false );
-            return;
-        }
-
-        if(!await ConfirmJapaneseDictionaryImportAsync()) {
-            return;
-        }
-
-        if(_japaneseDictionaryItems.Count == 0) {
-            logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={ArchiveFullPath}" );
-            return;
-        }
-
-        var japaneseSourceItems = _japaneseDictionaryItems
-            .Select( item => new TranslationDictionaryItem( item.Key, item.Original )
+        var result = await dialogService.ConfirmationDialogShowAsync(
+            new ConfirmationDialogParameters
             {
-                Translated = item.Original
-            } )
-            .ToArray();
-        var importAnalysis = AnalyzeDictionaryImport( japaneseSourceItems );
-        if(!importAnalysis.IsFullMatch && !await ConfirmDictionaryPartialImportAsync( importAnalysis.Matches.Count )) {
-            logger.Info( $"JP dictionary 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, MatchCount={importAnalysis.Matches.Count}" );
-            return;
-        }
-
-        foreach(var match in importAnalysis.Matches) {
-            match.Row.Translated = match.Translated;
-        }
-
-        logger.Info( $"JP dictionary の初期取り込みが完了した。Archive={ArchiveFullPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
-    }
-
-    private async Task LoadDictionaryAsync( CancellationToken cancellationToken ) {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        logger.Info( $"TranslationCreationViewModel の dictionary 読込を開始する。Archive={ArchiveFullPath}" );
-        IsLoading = true;
-        StatusMessage = Strings_Translation.CreateTranslationDictionaryLoadingMessage;
-
-        try {
-            var result = await Task.Run(
-                () => LoadArchiveDictionaryState( ArchiveFullPath ),
-                cancellationToken ).ConfigureAwait( false );
-
-            if(result.IsFailed) {
-                await Execute.OnUIThreadAsync( () => {
-                    SetDictionaryLoadFailedState();
-                    return Task.CompletedTask;
-                } ).ConfigureAwait( false );
-                return;
-            }
-
-            await Execute.OnUIThreadAsync( () => {
-                _hasJapaneseDictionary = result.Value.HasJapaneseDictionary;
-                _japaneseDictionaryItems = result.Value.JapaneseDictionaryItems;
-                ApplyDictionaryLoadState( result.Value.LoadState );
-                SelectedDictionaryItem = null;
-                StatusMessage = DictionaryItems.Count == 0
-                    ? Strings_Translation.CreateTranslationDictionaryEmptyMessage
-                    : string.Empty;
-                NotifyDictionaryAvailabilityChanged();
-                return Task.CompletedTask;
-            } ).ConfigureAwait( false );
-            logger.Info( $"TranslationCreationViewModel の dictionary 読込詳細。Archive={ArchiveFullPath}" );
-        }
-        catch(Exception ex) {
-            logger.Error( $"TranslationCreationViewModel の dictionary 読込中に例外が発生した。Archive={ArchiveFullPath}", ex );
-            await Execute.OnUIThreadAsync( () => {
-                SetDictionaryLoadFailedState();
-                return Task.CompletedTask;
-            } ).ConfigureAwait( false );
-        }
-        finally {
-            await Execute.OnUIThreadAsync( () => {
-                IsLoading = false;
-                return Task.CompletedTask;
-            } ).ConfigureAwait( false );
-            logger.Info( $"TranslationCreationViewModel の dictionary 読込を終了する。Archive={ArchiveFullPath}, Count={DictionaryItems.Count}" );
-        }
+                Title = Strings_Translation.CreateTranslationCloseConfirmationTitle,
+                Message = Strings_Translation.CreateTranslationCloseConfirmationMessage,
+                ConfirmButtonText = Strings_Translation.CreateTranslationCloseConfirmationConfirmButtonText,
+                CancelButtonText = Strings_Translation.CreateTranslationCloseConfirmationCancelButtonText,
+                DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
+            } );
+        return result == ConfirmationDialogResult.Confirm;
     }
 
     /// <summary>
@@ -735,184 +832,92 @@ public sealed class TranslationCreationViewModel(
     /// PO ファイルを読み込んで Translated へ反映する。
     /// </summary>
     /// <returns>非同期タスク。</returns>
-    public async Task ImportPoAsync() {
-        FlushPendingSelectedTranslatedEdit();
-
+    public Task ImportPoAsync() {
         if(!CanImportPo) {
             logger.Warn( "PO を読み込めない状態のため処理を中断する。" );
-            return;
+            return Task.CompletedTask;
         }
 
-        var initialPath = GetPoImportInitialPath();
-        if(!dialogProvider.ShowOpenFilePicker( initialPath, PoSaveFileFilter, out var selectedPath )) {
-            logger.Info( $"PO 読み込みファイル選択がキャンセルされた。Archive={ArchiveFullPath}, InitialPath={initialPath}" );
-            return;
-        }
-
-        if(HasTranslatedText() && !await ConfirmPoOverwriteAsync()) {
-            logger.Info( $"PO 読み込みの上書き確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}" );
-            return;
-        }
-
-        Result<IReadOnlyList<TranslationPoEntry>> loadResult;
-        try {
-            IsLoading = true;
-            StatusMessage = Strings_Translation.CreateTranslationPoImportingMessage;
-            loadResult = translationDictionaryService.LoadPo( selectedPath );
-        }
-        catch(Exception ex) {
-            logger.Error( $"PO 読み込み中に例外が発生した。Archive={ArchiveFullPath}, Path={selectedPath}", ex );
-            StatusMessage = Strings_Translation.CreateTranslationPoImportFailedMessage;
-            return;
-        }
-        finally {
-            IsLoading = false;
-        }
-
-        if(loadResult.IsFailed) {
-            StatusMessage = Strings_Translation.CreateTranslationPoImportFailedMessage;
-            return;
-        }
-
-        var importAnalysis = AnalyzePoImport( loadResult.Value );
-        if(!importAnalysis.IsFullMatch && !await ConfirmPoPartialImportAsync( importAnalysis.Matches.Count )) {
-            logger.Info( $"PO 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}, MatchCount={importAnalysis.Matches.Count}" );
-            return;
-        }
-
-        foreach(var match in importAnalysis.Matches) {
-            match.Row.Translated = match.Translated;
-            match.Row.IsEnabled = match.IsEnabled;
-        }
-
-        StatusMessage = importAnalysis.IsFullMatch
-            ? string.Format( Strings_Translation.CreateTranslationPoImportSucceededMessage, selectedPath )
-            : string.Format( Strings_Translation.CreateTranslationPoImportPartialSucceededMessage, importAnalysis.Matches.Count, selectedPath );
-        ShowCompletedSnackbar( StatusMessage );
-        logger.Info( $"PO 読み込みが完了した。Archive={ArchiveFullPath}, Path={selectedPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
+        return ImportFileAsync(
+            initialPath: GetPoImportInitialPath(),
+            openFileFilter: PoSaveFileFilter,
+            importingMessage: Strings_Translation.CreateTranslationPoImportingMessage,
+            failedMessage: Strings_Translation.CreateTranslationPoImportFailedMessage,
+            logTargetName: "PO",
+            confirmOverwriteAsync: ConfirmPoOverwriteAsync,
+            loadEntries: translationDictionaryService.LoadPo,
+            analyzeImport: AnalyzePoImport,
+            confirmPartialImportAsync: ConfirmPoPartialImportAsync,
+            applyMatch: static match => {
+                match.Row.Translated = match.Translated;
+                match.Row.IsEnabled = match.IsEnabled;
+            },
+            successMessageFactory: path => string.Format( Strings_Translation.CreateTranslationPoImportSucceededMessage, path ),
+            partialSuccessMessageFactory: ( matchedCount, path ) => string.Format( Strings_Translation.CreateTranslationPoImportPartialSucceededMessage, matchedCount, path ) );
     }
 
     /// <summary>
     /// dictionary ファイルを読み込んで Translated へ反映する。
     /// </summary>
     /// <returns>非同期タスク。</returns>
-    public async Task ImportDictionaryAsync() {
-        FlushPendingSelectedTranslatedEdit();
-
+    public Task ImportDictionaryAsync() {
         if(!CanImportDictionary) {
             logger.Warn( "dictionary を読み込めない状態のため処理を中断する。" );
-            return;
+            return Task.CompletedTask;
         }
 
-        var initialPath = GetDictionaryImportInitialPath();
-        if(!dialogProvider.ShowOpenFilePicker( initialPath, DictionaryOpenFileFilter, out var selectedPath )) {
-            logger.Info( $"dictionary 読み込みファイル選択がキャンセルされた。Archive={ArchiveFullPath}, InitialPath={initialPath}" );
-            return;
-        }
-
-        if(HasTranslatedText() && !await ConfirmDictionaryOverwriteAsync()) {
-            logger.Info( $"dictionary 読み込みの上書き確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}" );
-            return;
-        }
-
-        Result<IReadOnlyList<TranslationDictionaryItem>> loadResult;
-        try {
-            IsLoading = true;
-            StatusMessage = Strings_Translation.CreateTranslationDictionaryImportingMessage;
-            loadResult = translationDictionaryService.LoadDictionaryFile( selectedPath );
-        }
-        catch(Exception ex) {
-            logger.Error( $"dictionary 読み込み中に例外が発生した。Archive={ArchiveFullPath}, Path={selectedPath}", ex );
-            StatusMessage = Strings_Translation.CreateTranslationDictionaryImportFailedMessage;
-            return;
-        }
-        finally {
-            IsLoading = false;
-        }
-
-        if(loadResult.IsFailed) {
-            StatusMessage = Strings_Translation.CreateTranslationDictionaryImportFailedMessage;
-            return;
-        }
-
-        var importAnalysis = AnalyzeDictionaryImport( loadResult.Value );
-        if(!importAnalysis.IsFullMatch && !await ConfirmDictionaryPartialImportAsync( importAnalysis.Matches.Count )) {
-            logger.Info( $"dictionary 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}, MatchCount={importAnalysis.Matches.Count}" );
-            return;
-        }
-
-        foreach(var match in importAnalysis.Matches) {
-            match.Row.Translated = match.Translated;
-        }
-
-        StatusMessage = importAnalysis.IsFullMatch
-            ? string.Format( Strings_Translation.CreateTranslationDictionaryImportSucceededMessage, selectedPath )
-            : string.Format( Strings_Translation.CreateTranslationDictionaryImportPartialSucceededMessage, importAnalysis.Matches.Count, selectedPath );
-        ShowCompletedSnackbar( StatusMessage );
-        logger.Info( $"dictionary 読み込みが完了した。Archive={ArchiveFullPath}, Path={selectedPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
+        return ImportFileAsync(
+            initialPath: GetDictionaryImportInitialPath(),
+            openFileFilter: DictionaryOpenFileFilter,
+            importingMessage: Strings_Translation.CreateTranslationDictionaryImportingMessage,
+            failedMessage: Strings_Translation.CreateTranslationDictionaryImportFailedMessage,
+            logTargetName: "dictionary",
+            confirmOverwriteAsync: ConfirmDictionaryOverwriteAsync,
+            loadEntries: translationDictionaryService.LoadDictionaryFile,
+            analyzeImport: AnalyzeDictionaryImport,
+            confirmPartialImportAsync: ConfirmDictionaryPartialImportAsync,
+            applyMatch: static match => match.Row.Translated = match.Translated,
+            successMessageFactory: path => string.Format( Strings_Translation.CreateTranslationDictionaryImportSucceededMessage, path ),
+            partialSuccessMessageFactory: ( matchedCount, path ) => string.Format( Strings_Translation.CreateTranslationDictionaryImportPartialSucceededMessage, matchedCount, path ) );
     }
 
     /// <summary>
     /// CSV ファイルを読み込んで Translated へ反映する。
     /// </summary>
     /// <returns>非同期タスク。</returns>
-    public async Task ImportCsvAsync() {
-        FlushPendingSelectedTranslatedEdit();
-
+    public Task ImportCsvAsync() {
         if(!CanImportCsv) {
             logger.Warn( "CSV を読み込めない状態のため処理を中断する。" );
-            return;
+            return Task.CompletedTask;
         }
 
-        var initialPath = GetCsvImportInitialPath();
-        if(!dialogProvider.ShowOpenFilePicker( initialPath, CsvFileFilter, out var selectedPath )) {
-            logger.Info( $"CSV 読み込みファイル選択がキャンセルされた。Archive={ArchiveFullPath}, InitialPath={initialPath}" );
-            return;
-        }
-
-        if(HasTranslatedText() && !await ConfirmCsvOverwriteAsync()) {
-            logger.Info( $"CSV 読み込みの上書き確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}" );
-            return;
-        }
-
-        Result<IReadOnlyList<TranslationCsvEntry>> loadResult;
-        try {
-            IsLoading = true;
-            StatusMessage = Strings_Translation.CreateTranslationCsvImportingMessage;
-            loadResult = translationDictionaryService.LoadCsv( selectedPath );
-        }
-        catch(Exception ex) {
-            logger.Error( $"CSV 読み込み中に例外が発生した。Archive={ArchiveFullPath}, Path={selectedPath}", ex );
-            StatusMessage = Strings_Translation.CreateTranslationCsvImportFailedMessage;
-            return;
-        }
-        finally {
-            IsLoading = false;
-        }
-
-        if(loadResult.IsFailed) {
-            StatusMessage = Strings_Translation.CreateTranslationCsvImportFailedMessage;
-            return;
-        }
-
-        var importAnalysis = AnalyzeCsvImport( loadResult.Value );
-        if(!importAnalysis.IsFullMatch && !await ConfirmCsvPartialImportAsync( importAnalysis.Matches.Count )) {
-            logger.Info( $"CSV 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}, MatchCount={importAnalysis.Matches.Count}" );
-            return;
-        }
-
-        foreach(var match in importAnalysis.Matches) {
-            match.Row.Translated = match.Translated;
-            match.Row.IsEnabled = match.IsEnabled;
-        }
-
-        StatusMessage = importAnalysis.IsFullMatch
-            ? string.Format( Strings_Translation.CreateTranslationCsvImportSucceededMessage, selectedPath )
-            : string.Format( Strings_Translation.CreateTranslationCsvImportPartialSucceededMessage, importAnalysis.Matches.Count, selectedPath );
-        ShowCompletedSnackbar( StatusMessage );
-        logger.Info( $"CSV 読み込みが完了した。Archive={ArchiveFullPath}, Path={selectedPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
+        return ImportFileAsync(
+            initialPath: GetCsvImportInitialPath(),
+            openFileFilter: CsvFileFilter,
+            importingMessage: Strings_Translation.CreateTranslationCsvImportingMessage,
+            failedMessage: Strings_Translation.CreateTranslationCsvImportFailedMessage,
+            logTargetName: "CSV",
+            confirmOverwriteAsync: ConfirmCsvOverwriteAsync,
+            loadEntries: translationDictionaryService.LoadCsv,
+            analyzeImport: AnalyzeCsvImport,
+            confirmPartialImportAsync: ConfirmCsvPartialImportAsync,
+            applyMatch: static match => {
+                match.Row.Translated = match.Translated;
+                match.Row.IsEnabled = match.IsEnabled;
+            },
+            successMessageFactory: path => string.Format( Strings_Translation.CreateTranslationCsvImportSucceededMessage, path ),
+            partialSuccessMessageFactory: ( matchedCount, path ) => string.Format( Strings_Translation.CreateTranslationCsvImportPartialSucceededMessage, matchedCount, path ) );
     }
 
+    #endregion
+
+    #region Private Helpers
+
+    /// <summary>
+    /// 現在のフィルタ条件に基づいて行の表示可否を判定する。
+    /// </summary>
+    /// <param name="item">判定対象の行。</param>
+    /// <returns>表示対象の場合は <see langword="true"/> を返す。</returns>
     private bool FilterDictionaryItem( object item ) {
         if(item is not TranslationDictionaryItemRowViewModel row) {
             return false;
@@ -941,81 +946,25 @@ public sealed class TranslationCreationViewModel(
         return true;
     }
 
-    private static bool IsPossibleNonTranslationTarget( TranslationDictionaryItem item ) =>
-        IsPossibleNonTranslationTarget( item.Key, item.Original );
-
-    private static bool IsPossibleNonTranslationTarget( string key, string original ) {
-        if(string.IsNullOrWhiteSpace( original )) {
-            return true;
-        }
-
-        if(!key.StartsWith( "DictKey_", StringComparison.Ordinal )) {
-            return true;
-        }
-
-        return key.StartsWith( "DictKey_WptName_", StringComparison.Ordinal )
-            || key.StartsWith( "DictKey_ActionComment_", StringComparison.Ordinal )
-            || key.StartsWith( "DictKey_GroupName_", StringComparison.Ordinal )
-            || key.StartsWith( "DictKey_UnitName_", StringComparison.Ordinal )
-            || LuaCodeStringDetector.IsLuaCodeString( original );
-    }
-
-    private static TranslationDictionaryItem InitializeDictionaryItem( TranslationDictionaryItem item ) =>
-        new( item.Key, item.Original )
-        {
-            Translated = item.Translated,
-            IsEnabled = item.IsEnabled && !IsPossibleNonTranslationTarget( item )
-        };
-
-    private static DictionaryLoadState BuildDictionaryLoadState( IReadOnlyList<TranslationDictionaryItem> items ) {
-        var initializedItems = items
-            .Select( InitializeDictionaryItem )
-            .OrderBy( GetDictionaryItemSortOrder )
-            .ThenBy( item => item.Key, TranslationCreationNaturalKeyComparer.Instance )
-            .ToArray();
-
-        List<TranslationDictionaryItem> loadedItems = new( initializedItems.Length );
-        List<TranslationDictionaryItemRowViewModel> rowItems = new( initializedItems.Length );
-        foreach(var item in initializedItems) {
-            var isPossibleNonTranslationTarget = IsPossibleNonTranslationTarget( item );
-            loadedItems.Add( new TranslationDictionaryItem( item.Key, item.Original )
-            {
-                Translated = item.Translated,
-                IsEnabled = item.IsEnabled
-            } );
-            rowItems.Add( new TranslationDictionaryItemRowViewModel( item, isPossibleNonTranslationTarget ) );
-        }
-
-        return new DictionaryLoadState( loadedItems, rowItems );
-    }
-
-    private Result<ArchiveDictionaryLoadState> LoadArchiveDictionaryState( string archiveFullPath ) {
-        var result = translationDictionaryService.LoadArchiveDictionaries( archiveFullPath );
-        if(result.IsFailed) {
-            return Result.Fail<ArchiveDictionaryLoadState>( result.Errors );
-        }
-
-        return Result.Ok( new ArchiveDictionaryLoadState(
-            BuildDictionaryLoadState( result.Value.DefaultDictionaryItems ),
-            result.Value.HasJapaneseDictionary,
-            [.. result.Value.JapaneseDictionaryItems.Select( CloneDictionaryItem )] ) );
-    }
-
-    private void ApplyDictionaryLoadState( DictionaryLoadState state ) {
+    /// <summary>
+    /// 読み込み済み dictionary 状態を ViewModel へ適用する。
+    /// </summary>
+    /// <param name="state">適用対象の状態。</param>
+    private void ApplyDictionaryLoadState( TranslationCreationDictionaryLoadState state ) {
         _loadedDictionaryItems = state.LoadedItems;
         DictionaryItems = [.. state.RowItems];
         ResetDirtyState();
     }
 
-    private static TranslationDictionaryItem CloneDictionaryItem( TranslationDictionaryItem item ) =>
-        new( item.Key, item.Original )
-        {
-            Translated = item.Translated,
-            IsEnabled = item.IsEnabled
-        };
-
+    /// <summary>
+    /// dictionary 一覧ビューへフィルタを再適用する。
+    /// </summary>
     private void RefreshFilter() => FilteredDictionaryItemsView.Refresh();
 
+    /// <summary>
+    /// dictionary 行コレクションの変更監視を開始する。
+    /// </summary>
+    /// <param name="dictionaryItems">監視対象の行コレクション。</param>
     private void SubscribeDictionaryItems( ObservableCollection<TranslationDictionaryItemRowViewModel> dictionaryItems ) {
         dictionaryItems.CollectionChanged += OnDictionaryItemsCollectionChanged;
         foreach(var item in dictionaryItems) {
@@ -1023,6 +972,10 @@ public sealed class TranslationCreationViewModel(
         }
     }
 
+    /// <summary>
+    /// dictionary 行コレクションの変更監視を解除する。
+    /// </summary>
+    /// <param name="dictionaryItems">解除対象の行コレクション。</param>
     private void UnsubscribeDictionaryItems( ObservableCollection<TranslationDictionaryItemRowViewModel> dictionaryItems ) {
         dictionaryItems.CollectionChanged -= OnDictionaryItemsCollectionChanged;
         foreach(var item in dictionaryItems) {
@@ -1030,6 +983,11 @@ public sealed class TranslationCreationViewModel(
         }
     }
 
+    /// <summary>
+    /// dictionary 行コレクション変更時に行監視とフィルタ再適用を更新する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
     private void OnDictionaryItemsCollectionChanged( object? sender, NotifyCollectionChangedEventArgs e ) {
         if(e.OldItems is not null) {
             foreach(var item in e.OldItems.OfType<TranslationDictionaryItemRowViewModel>()) {
@@ -1046,6 +1004,11 @@ public sealed class TranslationCreationViewModel(
         RefreshFilter();
     }
 
+    /// <summary>
+    /// dictionary 行の状態変更に応じて dirty 状態とフィルタを更新する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
     private void OnDictionaryItemPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
         if(sender is not TranslationDictionaryItemRowViewModel row) {
             return;
@@ -1079,6 +1042,9 @@ public sealed class TranslationCreationViewModel(
         }
     }
 
+    /// <summary>
+    /// 選択中翻訳文の保留中編集を現在の行へ反映する。
+    /// </summary>
     internal void FlushPendingSelectedTranslatedEdit() {
         if(!_hasPendingSelectedTranslatedEdit) {
             return;
@@ -1098,33 +1064,9 @@ public sealed class TranslationCreationViewModel(
     }
 
     /// <summary>
-    /// ウィンドウを閉じてもよいかどうかを確認する。
+    /// 選択中翻訳文の遅延反映用タイマーを生成する。
     /// </summary>
-    /// <returns>ウィンドウを閉じてよい場合は <see langword="true"/> を返す。</returns>
-    internal async Task<bool> ConfirmCloseAsync() {
-        if(!HasPendingChangesForClose()) {
-            return true;
-        }
-
-        var result = await dialogService.ConfirmationDialogShowAsync(
-            new ConfirmationDialogParameters
-            {
-                Title = Strings_Translation.CreateTranslationCloseConfirmationTitle,
-                Message = Strings_Translation.CreateTranslationCloseConfirmationMessage,
-                ConfirmButtonText = Strings_Translation.CreateTranslationCloseConfirmationConfirmButtonText,
-                CancelButtonText = Strings_Translation.CreateTranslationCloseConfirmationCancelButtonText,
-                DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
-            } );
-        return result == ConfirmationDialogResult.Confirm;
-    }
-
-    /// <summary>
-    /// 閉じる確認が必要な未反映変更が存在するかどうかを判定する。
-    /// </summary>
-    /// <returns>未反映変更が存在する場合は <see langword="true"/> を返す。</returns>
-    internal bool HasPendingChangesForClose() =>
-        HasPendingChangesForClose( SelectedDictionaryItem, _selectedTranslated );
-
+    /// <returns>生成したタイマーを返す。</returns>
     private DispatcherTimer CreateSelectedTranslatedCommitTimer() {
         var timer = new DispatcherTimer( DispatcherPriority.Background )
         {
@@ -1134,21 +1076,35 @@ public sealed class TranslationCreationViewModel(
         return timer;
     }
 
+    /// <summary>
+    /// 遅延反映タイマー満了時に保留中の編集を確定する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
     private void OnSelectedTranslatedCommitTimerTick( object? sender, EventArgs e ) {
         FlushPendingSelectedTranslatedEdit();
     }
 
+    /// <summary>
+    /// 選択中翻訳文の遅延反映を予約する。
+    /// </summary>
     private void ScheduleSelectedTranslatedCommit() {
         _hasPendingSelectedTranslatedEdit = true;
         SelectedTranslatedCommitTimer.Stop();
         SelectedTranslatedCommitTimer.Start();
     }
 
+    /// <summary>
+    /// 選択中翻訳文の遅延反映を取り消す。
+    /// </summary>
     private void CancelSelectedTranslatedCommit() {
         _hasPendingSelectedTranslatedEdit = false;
         _selectedTranslatedCommitTimer?.Stop();
     }
 
+    /// <summary>
+    /// 選択中行の翻訳文を詳細編集欄へ同期する。
+    /// </summary>
     private void SyncSelectedTranslatedFromSelection() {
         var nextValue = SelectedDictionaryItem?.Translated ?? string.Empty;
         if(string.Equals( _selectedTranslated, nextValue, StringComparison.Ordinal )) {
@@ -1159,100 +1115,50 @@ public sealed class TranslationCreationViewModel(
         NotifyOfPropertyChange( nameof( SelectedTranslated ) );
     }
 
-    private DispatcherTimer SelectedTranslatedCommitTimer => _selectedTranslatedCommitTimer ??= CreateSelectedTranslatedCommitTimer();
+    /// <summary>
+    /// PO 項目一覧と画面上の dictionary 行との一致結果を解析する。
+    /// </summary>
+    /// <param name="entries">解析対象の PO 項目一覧。</param>
+    /// <returns>一致解析結果を返す。</returns>
+    private TranslationCreationImportAnalysis<PoImportMatch> AnalyzePoImport( IReadOnlyList<TranslationPoEntry> entries ) =>
+        TranslationCreationImportMatcher.MatchByTranslationPair(
+            DictionaryItems,
+            entries,
+            static row => (row.Key, row.Original),
+            static entry => (entry.Context, entry.Original),
+            static ( row, entry ) => new PoImportMatch( row, entry.Translated, entry.IsEnabled ) );
 
-    private static int GetDictionaryItemSortOrder( TranslationDictionaryItem item ) {
-        if(item.Key.StartsWith( "DictKey_sortie_", StringComparison.Ordinal )) {
-            return 0;
-        }
+    /// <summary>
+    /// CSV 項目一覧と画面上の dictionary 行との一致結果を解析する。
+    /// </summary>
+    /// <param name="entries">解析対象の CSV 項目一覧。</param>
+    /// <returns>一致解析結果を返す。</returns>
+    private TranslationCreationImportAnalysis<CsvImportMatch> AnalyzeCsvImport( IReadOnlyList<TranslationCsvEntry> entries ) =>
+        TranslationCreationImportMatcher.MatchByTranslationPair(
+            DictionaryItems,
+            entries,
+            static row => (row.Key, row.Original),
+            static entry => (entry.Key, entry.Original),
+            static ( row, entry ) => new CsvImportMatch( row, entry.Translated, entry.IsEnabled ) );
 
-        if(item.Key.StartsWith( "DictKey_descriptionText_", StringComparison.Ordinal )) {
-            return 1;
-        }
+    /// <summary>
+    /// dictionary 項目一覧と画面上の dictionary 行との一致結果を解析する。
+    /// </summary>
+    /// <param name="items">解析対象の dictionary 項目一覧。</param>
+    /// <returns>一致解析結果を返す。</returns>
+    private TranslationCreationImportAnalysis<DictionaryImportMatch> AnalyzeDictionaryImport( IReadOnlyList<TranslationDictionaryItem> items ) =>
+        TranslationCreationImportMatcher.MatchByNormalizedKey(
+            DictionaryItems,
+            items,
+            static row => row.Key,
+            static item => item.Key,
+            static ( row, item ) => new DictionaryImportMatch( row, item.Translated ) );
 
-        if(item.Key.StartsWith( "DictKey_descriptionBlueTask_", StringComparison.Ordinal )) {
-            return 2;
-        }
-
-        if(item.Key.StartsWith( "DictKey_descriptionRedTask_", StringComparison.Ordinal )) {
-            return 3;
-        }
-
-        if(item.Key.StartsWith( "DictKey_descriptionNeutralsTask_", StringComparison.Ordinal )) {
-            return 4;
-        }
-
-        if(item.Key.StartsWith( "DictKey_description", StringComparison.Ordinal )) {
-            return 5;
-        }
-
-        if(item.Key.StartsWith( "DictKey_", StringComparison.Ordinal )) {
-            return 6;
-        }
-
-        return 7;
-    }
-
-    private PoImportAnalysis AnalyzePoImport( IReadOnlyList<TranslationPoEntry> entries ) {
-        var rowGroups = DictionaryItems
-            .GroupBy( row => CreateTranslationPair( row.Key, row.Original ) )
-            .ToDictionary( group => group.Key, group => group.ToArray() );
-        var entryGroups = entries
-            .GroupBy( entry => CreateTranslationPair( entry.Context, entry.Original ) )
-            .ToDictionary( group => group.Key, group => group.ToArray() );
-        var matches = rowGroups.Keys
-            .Intersect( entryGroups.Keys )
-            .Where( key => rowGroups[key].Length == 1 && entryGroups[key].Length == 1 )
-            .Select( key => new PoImportMatch( rowGroups[key][0], entryGroups[key][0].Translated, entryGroups[key][0].IsEnabled ) )
-            .ToArray();
-        var isFullMatch =
-            DictionaryItems.Count == entries.Count
-            && rowGroups.Count == DictionaryItems.Count
-            && entryGroups.Count == entries.Count
-            && matches.Length == DictionaryItems.Count;
-        return new PoImportAnalysis( isFullMatch, matches );
-    }
-
-    private CsvImportAnalysis AnalyzeCsvImport( IReadOnlyList<TranslationCsvEntry> entries ) {
-        var rowGroups = DictionaryItems
-            .GroupBy( row => CreateTranslationPair( row.Key, row.Original ) )
-            .ToDictionary( group => group.Key, group => group.ToArray() );
-        var entryGroups = entries
-            .GroupBy( entry => CreateTranslationPair( entry.Key, entry.Original ) )
-            .ToDictionary( group => group.Key, group => group.ToArray() );
-        var matches = rowGroups.Keys
-            .Intersect( entryGroups.Keys )
-            .Where( key => rowGroups[key].Length == 1 && entryGroups[key].Length == 1 )
-            .Select( key => new CsvImportMatch( rowGroups[key][0], entryGroups[key][0].Translated, entryGroups[key][0].IsEnabled ) )
-            .ToArray();
-        var isFullMatch =
-            DictionaryItems.Count == entries.Count
-            && rowGroups.Count == DictionaryItems.Count
-            && entryGroups.Count == entries.Count
-            && matches.Length == DictionaryItems.Count;
-        return new CsvImportAnalysis( isFullMatch, matches );
-    }
-
-    private DictionaryImportAnalysis AnalyzeDictionaryImport( IReadOnlyList<TranslationDictionaryItem> items ) {
-        var rowGroups = DictionaryItems
-            .GroupBy( row => NormalizeTranslationPairValue( row.Key ) )
-            .ToDictionary( group => group.Key, group => group.ToArray() );
-        var itemGroups = items
-            .GroupBy( item => NormalizeTranslationPairValue( item.Key ) )
-            .ToDictionary( group => group.Key, group => group.ToArray() );
-        var matches = rowGroups.Keys
-            .Intersect( itemGroups.Keys )
-            .Where( key => rowGroups[key].Length == 1 && itemGroups[key].Length == 1 )
-            .Select( key => new DictionaryImportMatch( rowGroups[key][0], itemGroups[key][0].Translated ) )
-            .ToArray();
-        var isFullMatch =
-            DictionaryItems.Count == items.Count
-            && rowGroups.Count == DictionaryItems.Count
-            && itemGroups.Count == items.Count
-            && matches.Length == DictionaryItems.Count;
-        return new DictionaryImportAnalysis( isFullMatch, matches );
-    }
-
+    /// <summary>
+    /// 表示中行の選択位置を指定オフセットだけ移動する。
+    /// </summary>
+    /// <param name="offset">移動量。</param>
+    /// <returns>選択項目が変化した場合は <see langword="true"/> を返す。</returns>
     private bool MoveSelection( int offset ) {
         var visibleItems = FilteredDictionaryItemsView
             .Cast<TranslationDictionaryItemRowViewModel>()
@@ -1285,6 +1191,10 @@ public sealed class TranslationCreationViewModel(
         return true;
     }
 
+    /// <summary>
+    /// 選択中の読み込み形式を更新する。
+    /// </summary>
+    /// <param name="format">設定する形式。</param>
     private void SetSelectedImportFormat( TranslationImportFormat format ) {
         if(_selectedImportFormat == format) {
             return;
@@ -1294,6 +1204,10 @@ public sealed class TranslationCreationViewModel(
         NotifyOfPropertyChange( nameof( ImportSplitButtonContent ) );
     }
 
+    /// <summary>
+    /// 選択中の書き出し形式を更新する。
+    /// </summary>
+    /// <param name="format">設定する形式。</param>
     private void SetSelectedExportFormat( TranslationExportFormat format ) {
         if(_selectedExportFormat == format) {
             return;
@@ -1303,6 +1217,97 @@ public sealed class TranslationCreationViewModel(
         NotifyOfPropertyChange( nameof( ExportSplitButtonContent ) );
     }
 
+    /// <summary>
+    /// 指定形式の取り込み処理共通フローを実行する。
+    /// </summary>
+    /// <typeparam name="TEntry">取り込み元項目型。</typeparam>
+    /// <typeparam name="TMatch">一致結果型。</typeparam>
+    /// <param name="initialPath">ファイル選択初期パス。</param>
+    /// <param name="openFileFilter">ファイル選択フィルタ。</param>
+    /// <param name="importingMessage">取り込み中メッセージ。</param>
+    /// <param name="failedMessage">失敗時メッセージ。</param>
+    /// <param name="logTargetName">ログ出力用対象名。</param>
+    /// <param name="confirmOverwriteAsync">上書き確認処理。</param>
+    /// <param name="loadEntries">項目一覧読込処理。</param>
+    /// <param name="analyzeImport">一致解析処理。</param>
+    /// <param name="confirmPartialImportAsync">部分一致確認処理。</param>
+    /// <param name="applyMatch">一致結果適用処理。</param>
+    /// <param name="successMessageFactory">全件一致時メッセージ生成処理。</param>
+    /// <param name="partialSuccessMessageFactory">部分一致時メッセージ生成処理。</param>
+    /// <returns>非同期タスク。</returns>
+    private async Task ImportFileAsync<TEntry, TMatch>(
+        string initialPath,
+        string openFileFilter,
+        string importingMessage,
+        string failedMessage,
+        string logTargetName,
+        Func<Task<bool>> confirmOverwriteAsync,
+        Func<string, Result<IReadOnlyList<TEntry>>> loadEntries,
+        Func<IReadOnlyList<TEntry>, TranslationCreationImportAnalysis<TMatch>> analyzeImport,
+        Func<int, Task<bool>> confirmPartialImportAsync,
+        Action<TMatch> applyMatch,
+        Func<string, string> successMessageFactory,
+        Func<int, string, string> partialSuccessMessageFactory ) {
+        FlushPendingSelectedTranslatedEdit();
+
+        if(!dialogProvider.ShowOpenFilePicker( initialPath, openFileFilter, out var selectedPath )) {
+            logger.Info( $"{logTargetName} 読み込みファイル選択がキャンセルされた。Archive={ArchiveFullPath}, InitialPath={initialPath}" );
+            return;
+        }
+
+        if(HasTranslatedText() && !await confirmOverwriteAsync()) {
+            logger.Info( $"{logTargetName} 読み込みの上書き確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}" );
+            return;
+        }
+
+        Result<IReadOnlyList<TEntry>> loadResult;
+        try {
+            IsLoading = true;
+            StatusMessage = importingMessage;
+            loadResult = loadEntries( selectedPath );
+        }
+        catch(Exception ex) {
+            logger.Error( $"{logTargetName} 読み込み中に例外が発生した。Archive={ArchiveFullPath}, Path={selectedPath}", ex );
+            StatusMessage = failedMessage;
+            return;
+        }
+        finally {
+            IsLoading = false;
+        }
+
+        if(loadResult.IsFailed) {
+            StatusMessage = failedMessage;
+            return;
+        }
+
+        var importAnalysis = analyzeImport( loadResult.Value );
+        if(!importAnalysis.IsFullMatch && !await confirmPartialImportAsync( importAnalysis.Matches.Count )) {
+            logger.Info( $"{logTargetName} 読み込みの部分取り込み確認がキャンセルされた。Archive={ArchiveFullPath}, Path={selectedPath}, MatchCount={importAnalysis.Matches.Count}" );
+            return;
+        }
+
+        foreach(var match in importAnalysis.Matches) {
+            applyMatch( match );
+        }
+
+        StatusMessage = importAnalysis.IsFullMatch
+            ? successMessageFactory( selectedPath )
+            : partialSuccessMessageFactory( importAnalysis.Matches.Count, selectedPath );
+        ShowCompletedSnackbar( StatusMessage );
+        logger.Info( $"{logTargetName} 読み込みが完了した。Archive={ArchiveFullPath}, Path={selectedPath}, FullMatch={importAnalysis.IsFullMatch}, AppliedCount={importAnalysis.Matches.Count}" );
+    }
+
+    /// <summary>
+    /// 指定形式の書き出し処理共通フローを実行する。
+    /// </summary>
+    /// <param name="exportPathFactory">既定出力先生成処理。</param>
+    /// <param name="exportingMessage">書き出し中メッセージ。</param>
+    /// <param name="failedMessage">失敗時メッセージ。</param>
+    /// <param name="succeededMessageFactory">成功時メッセージ生成処理。</param>
+    /// <param name="saveFileFilter">保存ダイアログフィルタ。</param>
+    /// <param name="saveAsync">保存処理。</param>
+    /// <param name="logTargetName">ログ出力用対象名。</param>
+    /// <returns>非同期タスク。</returns>
     private async Task ExportFileAsync(
         Func<string> exportPathFactory,
         string exportingMessage,
@@ -1344,6 +1349,13 @@ public sealed class TranslationCreationViewModel(
         }
     }
 
+    /// <summary>
+    /// 書き出し先パスを確認し、必要に応じて上書きまたは別名保存を選択させる。
+    /// </summary>
+    /// <param name="exportPath">既定の書き出し先パス。</param>
+    /// <param name="saveFileFilter">保存ダイアログフィルタ。</param>
+    /// <param name="logTargetName">ログ出力用対象名。</param>
+    /// <returns>確定した保存先パス。キャンセル時は <see langword="null"/> を返す。</returns>
     private async Task<string?> ConfirmExportPathAsync( string exportPath, string saveFileFilter, string logTargetName ) {
         if(!File.Exists( exportPath )) {
             return exportPath;
@@ -1377,6 +1389,10 @@ public sealed class TranslationCreationViewModel(
         return selectedPath;
     }
 
+    /// <summary>
+    /// PO 取り込み時の上書き確認を行う。
+    /// </summary>
+    /// <returns>上書きする場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmPoOverwriteAsync() {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1390,6 +1406,10 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// dictionary 取り込み時の上書き確認を行う。
+    /// </summary>
+    /// <returns>上書きする場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmDictionaryOverwriteAsync() {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1403,6 +1423,10 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// CSV 取り込み時の上書き確認を行う。
+    /// </summary>
+    /// <returns>上書きする場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmCsvOverwriteAsync() {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1416,6 +1440,11 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// dictionary の部分一致取り込み確認を行う。
+    /// </summary>
+    /// <param name="matchedCount">一致件数。</param>
+    /// <returns>取り込む場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmDictionaryPartialImportAsync( int matchedCount ) {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1429,6 +1458,10 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// アーカイブ内の JP dictionary 存在警告を表示する。
+    /// </summary>
+    /// <returns>継続する場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmArchiveContainsJapaneseDictionaryAsync() {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1442,6 +1475,10 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// 埋め込み JP dictionary の初期取り込み確認を行う。
+    /// </summary>
+    /// <returns>取り込む場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmJapaneseDictionaryImportAsync() {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1455,6 +1492,11 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// PO の部分一致取り込み確認を行う。
+    /// </summary>
+    /// <param name="matchedCount">一致件数。</param>
+    /// <returns>取り込む場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmPoPartialImportAsync( int matchedCount ) {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1468,6 +1510,11 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// CSV の部分一致取り込み確認を行う。
+    /// </summary>
+    /// <param name="matchedCount">一致件数。</param>
+    /// <returns>取り込む場合は <see langword="true"/> を返す。</returns>
     private async Task<bool> ConfirmCsvPartialImportAsync( int matchedCount ) {
         var result = await dialogService.ConfirmationDialogShowAsync(
             new ConfirmationDialogParameters
@@ -1481,136 +1528,70 @@ public sealed class TranslationCreationViewModel(
         return result == ConfirmationDialogResult.Confirm;
     }
 
+    /// <summary>
+    /// 現在の画面状態から書き出し用 dictionary 項目一覧を生成する。
+    /// </summary>
+    /// <returns>生成した項目一覧を返す。</returns>
     private IReadOnlyList<TranslationDictionaryItem> CreateCurrentDictionaryItems() =>
         [.. DictionaryItems.Select( item => new TranslationDictionaryItem( item.Key, item.Original ) {
             Translated = item.Translated,
             IsEnabled = item.IsEnabled
         } )];
 
-    private bool HasDirtyRows() {
-        if(_loadedDictionaryItems.Count != DictionaryItems.Count) {
-            return true;
-        }
-
-        return _dirtyItemCount > 0;
-    }
-
-    private bool HasPendingChangesForClose( TranslationDictionaryItemRowViewModel? selectedRow, string selectedTranslated ) {
-        if(selectedRow is null || !_hasPendingSelectedTranslatedEdit || !selectedRow.IsEnabled) {
-            return HasDirtyRows();
-        }
-
-        if(selectedRow.HasPendingChangesWithTranslatedOverride( selectedTranslated )) {
-            return true;
-        }
-
-        return HasDirtyRows() && !selectedRow.HasPendingChanges;
-    }
-
-    private bool HasTranslatedText() => DictionaryItems.Any( item => !string.IsNullOrWhiteSpace( item.Translated ) );
-
+    /// <summary>
+    /// PO 出力用の Project-Id-Version 値を生成する。
+    /// </summary>
+    /// <returns>生成した値を返す。</returns>
     private string GetProjectIdVersion() => $"DCS Translation Japanese {applicationInfoService.GetVersion()}";
 
+    /// <summary>
+    /// PO ヘッダー用タイムスタンプ文字列へ変換する。
+    /// </summary>
+    /// <param name="value">変換対象の日時。</param>
+    /// <returns>変換後文字列を返す。</returns>
     private static string FormatPoTimestamp( DateTimeOffset value ) => value.ToString( "yyyy-MM-dd HH:mmzzz", CultureInfo.InvariantCulture );
 
+    /// <summary>
+    /// PO 出力用の X-Generator 値を生成する。
+    /// </summary>
+    /// <returns>生成した値を返す。</returns>
     private string GetXGenerator() => $"{Strings_Shared.AppDisplayName} {applicationInfoService.GetVersion()}";
 
-    private string GetDictionaryExportPath() {
-        var exportDirectoryPath = GetExportDirectoryPath();
-        return Path.Combine( exportDirectoryPath, "dictionary" );
-    }
+    /// <summary>
+    /// dictionary の既定書き出し先パスを取得する。
+    /// </summary>
+    /// <returns>書き出し先パスを返す。</returns>
+    private string GetDictionaryExportPath() => PathResolver.GetDictionaryExportPath();
 
-    private string GetPoExportPath() {
-        var exportDirectoryPath = GetExportDirectoryPath();
-        return Path.Combine( exportDirectoryPath, $"{Path.GetFileNameWithoutExtension( ArchiveFullPath )}.po" );
-    }
+    /// <summary>
+    /// PO の既定書き出し先パスを取得する。
+    /// </summary>
+    /// <returns>書き出し先パスを返す。</returns>
+    private string GetPoExportPath() => PathResolver.GetPoExportPath();
 
-    private string GetCsvExportPath() {
-        var exportDirectoryPath = GetExportDirectoryPath();
-        return Path.Combine( exportDirectoryPath, $"{Path.GetFileNameWithoutExtension( ArchiveFullPath )}.csv" );
-    }
+    /// <summary>
+    /// CSV の既定書き出し先パスを取得する。
+    /// </summary>
+    /// <returns>書き出し先パスを返す。</returns>
+    private string GetCsvExportPath() => PathResolver.GetCsvExportPath();
 
-    private string GetPoImportInitialPath() {
-        try {
-            return GetPoExportPath();
-        }
-        catch {
-            var archiveDirectory = Path.GetDirectoryName( ArchiveFullPath );
-            return string.IsNullOrWhiteSpace( archiveDirectory )
-                ? $"{Path.GetFileNameWithoutExtension( ArchiveFullPath )}.po"
-                : Path.Combine( archiveDirectory, $"{Path.GetFileNameWithoutExtension( ArchiveFullPath )}.po" );
-        }
-    }
+    /// <summary>
+    /// PO 取り込みダイアログの初期パスを取得する。
+    /// </summary>
+    /// <returns>初期パスを返す。</returns>
+    private string GetPoImportInitialPath() => PathResolver.GetPoImportInitialPath();
 
-    private string GetDictionaryImportInitialPath() {
-        try {
-            return GetDictionaryExportPath();
-        }
-        catch {
-            var archiveDirectory = Path.GetDirectoryName( ArchiveFullPath );
-            return string.IsNullOrWhiteSpace( archiveDirectory )
-                ? "dictionary"
-                : Path.Combine( archiveDirectory, "dictionary" );
-        }
-    }
+    /// <summary>
+    /// dictionary 取り込みダイアログの初期パスを取得する。
+    /// </summary>
+    /// <returns>初期パスを返す。</returns>
+    private string GetDictionaryImportInitialPath() => PathResolver.GetDictionaryImportInitialPath();
 
-    private string GetCsvImportInitialPath() {
-        try {
-            return GetCsvExportPath();
-        }
-        catch {
-            var archiveDirectory = Path.GetDirectoryName( ArchiveFullPath );
-            return string.IsNullOrWhiteSpace( archiveDirectory )
-                ? $"{Path.GetFileNameWithoutExtension( ArchiveFullPath )}.csv"
-                : Path.Combine( archiveDirectory, $"{Path.GetFileNameWithoutExtension( ArchiveFullPath )}.csv" );
-        }
-    }
-
-    private string GetExportDirectoryPath() {
-        var translateFileDir = appSettingsService.Settings.TranslateFileDir;
-        if(string.IsNullOrWhiteSpace( translateFileDir )) {
-            throw new InvalidOperationException( "翻訳ファイル出力先ディレクトリが未設定である。" );
-        }
-
-        if(TryBuildExportPath(
-            appSettingsService.Settings.DcsWorldInstallDir,
-            "DCSWorld",
-            out var dcsWorldPath )) {
-            return dcsWorldPath;
-        }
-
-        if(TryBuildExportPath(
-            appSettingsService.Settings.SourceUserMissionDir,
-            "UserMissions",
-            out var userMissionPath )) {
-            return userMissionPath;
-        }
-
-        throw new InvalidOperationException( "アーカイブが既知のルート配下に存在しません。" );
-
-        bool TryBuildExportPath( string baseDirectory, string relativeRoot, out string exportDirectoryPath ) {
-            exportDirectoryPath = string.Empty;
-            if(string.IsNullOrWhiteSpace( baseDirectory )) {
-                return false;
-            }
-
-            var normalizedBasePath = Path.GetFullPath( baseDirectory );
-            var normalizedArchivePath = Path.GetFullPath( ArchiveFullPath );
-            if(!IsPathWithinBaseDirectory( normalizedBasePath, normalizedArchivePath )) {
-                return false;
-            }
-
-            var relativePath = Path.GetRelativePath( normalizedBasePath, normalizedArchivePath );
-            exportDirectoryPath = Path.Combine( translateFileDir, relativeRoot, relativePath, "l10n", "JP" );
-            return true;
-        }
-    }
-
-    private static bool IsPathWithinBaseDirectory( string baseDirectory, string targetPath ) {
-        var relativePath = Path.GetRelativePath( baseDirectory, targetPath );
-        return !relativePath.StartsWith( "..", StringComparison.Ordinal )
-            && !Path.IsPathRooted( relativePath );
-    }
+    /// <summary>
+    /// CSV 取り込みダイアログの初期パスを取得する。
+    /// </summary>
+    /// <returns>初期パスを返す。</returns>
+    private string GetCsvImportInitialPath() => PathResolver.GetCsvImportInitialPath();
 
     /// <summary>
     /// dictionary 領域比率を有効範囲へ正規化する。
@@ -1640,14 +1621,9 @@ public sealed class TranslationCreationViewModel(
         return Math.Max( minimum, value );
     }
 
-    private static (string Context, string Original) CreateTranslationPair( string context, string original ) => (
-        NormalizeTranslationPairValue( context ),
-        NormalizeTranslationPairValue( original ));
-
-    private static string NormalizeTranslationPairValue( string value ) => value
-        .Replace( "\r\n", "\n", StringComparison.Ordinal )
-        .Replace( '\r', '\n' );
-
+    /// <summary>
+    /// 現在の dictionary 行状態を dirty 判定基準として再設定する。
+    /// </summary>
     private void ResetDirtyState() {
         _dirtyItemCount = 0;
         foreach(var row in DictionaryItems) {
@@ -1655,6 +1631,10 @@ public sealed class TranslationCreationViewModel(
         }
     }
 
+    /// <summary>
+    /// 指定行の dirty 状態変化を集計へ反映する。
+    /// </summary>
+    /// <param name="row">更新対象の行。</param>
     private void UpdateDirtyState( TranslationDictionaryItemRowViewModel row ) {
         var wasDirty = row.HasPendingChanges;
         if(!row.UpdatePendingChanges()) {
@@ -1671,19 +1651,27 @@ public sealed class TranslationCreationViewModel(
         _dirtyItemCount = Math.Max( 0, _dirtyItemCount - 1 );
     }
 
-    private bool ShouldRefreshFilterForIsEnabledChange() =>
-        !ShowEnabledItems || !ShowDisabledItems;
-
+    /// <summary>
+    /// 埋め込み JP dictionary 警告メッセージを生成する。
+    /// </summary>
+    /// <returns>生成したメッセージを返す。</returns>
     private string GetJapaneseDictionaryEmbeddedMessage() =>
         string.Format(
             GetArchiveTypeSpecificJapaneseDictionaryEmbeddedMessage(),
             ArchiveFullPath );
 
+    /// <summary>
+    /// アーカイブ種別に応じた埋め込み JP dictionary 警告メッセージを取得する。
+    /// </summary>
+    /// <returns>メッセージテンプレートを返す。</returns>
     private string GetArchiveTypeSpecificJapaneseDictionaryEmbeddedMessage() =>
         Path.GetExtension( ArchiveFullPath ).Equals( ".trk", StringComparison.OrdinalIgnoreCase )
             ? Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage
             : Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage;
 
+    /// <summary>
+    /// dictionary 読込失敗時の画面状態へ切り替える。
+    /// </summary>
     private void SetDictionaryLoadFailedState() {
         _hasJapaneseDictionary = false;
         _japaneseDictionaryItems = [];
@@ -1694,6 +1682,9 @@ public sealed class TranslationCreationViewModel(
         NotifyDictionaryAvailabilityChanged();
     }
 
+    /// <summary>
+    /// dictionary 可用性に依存するプロパティ変更通知を発行する。
+    /// </summary>
     private void NotifyDictionaryAvailabilityChanged() {
         NotifyOfPropertyChange( nameof( CanExport ) );
         NotifyOfPropertyChange( nameof( CanImport ) );
@@ -1702,6 +1693,10 @@ public sealed class TranslationCreationViewModel(
         NotifyOfPropertyChange( nameof( CanImportPo ) );
     }
 
+    /// <summary>
+    /// 書き出し成功時の Snackbar を表示する。
+    /// </summary>
+    /// <param name="exportPath">書き出し先パス。</param>
     private void ShowExportSucceededSnackbar( string exportPath ) {
         var exportDirectoryPath = Path.GetDirectoryName( exportPath );
         if(string.IsNullOrWhiteSpace( exportDirectoryPath )) {
@@ -1719,16 +1714,17 @@ public sealed class TranslationCreationViewModel(
             null );
     }
 
+    /// <summary>
+    /// 操作完了メッセージを Snackbar へ表示する。
+    /// </summary>
+    /// <param name="message">表示メッセージ。</param>
     private void ShowCompletedSnackbar( string message ) =>
-        MessageQueue.Enqueue(
-            message,
-            (string?)null,
-            null,
-            null,
-            false,
-            false,
-            null );
+        MessageQueue.Enqueue( message, (string?)null, null, null, false, false, null );
 
+    /// <summary>
+    /// Snackbar から保存先ディレクトリを開く。
+    /// </summary>
+    /// <param name="exportDirectoryPathObject">保存先ディレクトリパス。</param>
     private void OpenExportDirectory( object? exportDirectoryPathObject ) {
         if(exportDirectoryPathObject is not string exportDirectoryPath || string.IsNullOrWhiteSpace( exportDirectoryPath )) {
             logger.Warn( "Snackbar から渡された保存先ディレクトリが不正なため開く処理を中断する。" );
@@ -1739,36 +1735,56 @@ public sealed class TranslationCreationViewModel(
         systemService.OpenDirectory( exportDirectoryPath );
     }
 
-    private sealed record PoImportAnalysis( bool IsFullMatch, IReadOnlyList<PoImportMatch> Matches );
+    #endregion
 
+    #region Nested Types
+
+    /// <summary>
+    /// PO 取り込み時の一致結果を表す。
+    /// </summary>
+    /// <param name="Row">適用先行。</param>
+    /// <param name="Translated">適用する翻訳文。</param>
+    /// <param name="IsEnabled">適用する有効状態。</param>
     private sealed record PoImportMatch( TranslationDictionaryItemRowViewModel Row, string Translated, bool IsEnabled );
 
-    private sealed record DictionaryImportAnalysis( bool IsFullMatch, IReadOnlyList<DictionaryImportMatch> Matches );
-
+    /// <summary>
+    /// dictionary 取り込み時の一致結果を表す。
+    /// </summary>
+    /// <param name="Row">適用先行。</param>
+    /// <param name="Translated">適用する翻訳文。</param>
     private sealed record DictionaryImportMatch( TranslationDictionaryItemRowViewModel Row, string Translated );
 
-    private sealed record CsvImportAnalysis( bool IsFullMatch, IReadOnlyList<CsvImportMatch> Matches );
-
+    /// <summary>
+    /// CSV 取り込み時の一致結果を表す。
+    /// </summary>
+    /// <param name="Row">適用先行。</param>
+    /// <param name="Translated">適用する翻訳文。</param>
+    /// <param name="IsEnabled">適用する有効状態。</param>
     private sealed record CsvImportMatch( TranslationDictionaryItemRowViewModel Row, string Translated, bool IsEnabled );
 
-    private sealed record DictionaryLoadState(
-        IReadOnlyList<TranslationDictionaryItem> LoadedItems,
-        IReadOnlyList<TranslationDictionaryItemRowViewModel> RowItems );
-
-    private sealed record ArchiveDictionaryLoadState(
-        DictionaryLoadState LoadState,
-        bool HasJapaneseDictionary,
-        IReadOnlyList<TranslationDictionaryItem> JapaneseDictionaryItems );
-
+    /// <summary>
+    /// 読み込み形式の選択肢を表す。
+    /// </summary>
     private enum TranslationImportFormat {
+        /// <summary>dictionary 形式を表す。</summary>
         Dictionary,
+        /// <summary>PO 形式を表す。</summary>
         Po,
-        Csv
+        /// <summary>CSV 形式を表す。</summary>
+        Csv,
     }
 
+    /// <summary>
+    /// 書き出し形式の選択肢を表す。
+    /// </summary>
     private enum TranslationExportFormat {
+        /// <summary>dictionary 形式を表す。</summary>
         Dictionary,
+        /// <summary>PO 形式を表す。</summary>
         Po,
-        Csv
+        /// <summary>CSV 形式を表す。</summary>
+        Csv,
     }
+
+    #endregion
 }
