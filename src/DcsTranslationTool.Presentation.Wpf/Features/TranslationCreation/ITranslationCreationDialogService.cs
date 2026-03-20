@@ -50,17 +50,11 @@ public interface ITranslationCreationDialogService {
     Task<bool> ConfirmCsvPartialImportAsync( int matchedCount );
 
     /// <summary>
-    /// アーカイブ内の JP dictionary 存在警告を表示する。
+    /// 埋め込み JP dictionary の起動時選択を表示する。
     /// </summary>
     /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
-    /// <returns>継続する場合は <see langword="true"/> を返す。</returns>
-    Task<bool> ConfirmArchiveContainsJapaneseDictionaryAsync( string archiveFullPath );
-
-    /// <summary>
-    /// 埋め込み JP dictionary の初期取り込み確認を行う。
-    /// </summary>
-    /// <returns>取り込む場合は <see langword="true"/> を返す。</returns>
-    Task<bool> ConfirmJapaneseDictionaryImportAsync();
+    /// <returns>選択結果を返す。</returns>
+    Task<TranslationCreationEmbeddedJapaneseDictionaryStartupChoice> PromptEmbeddedJapaneseDictionaryStartupAsync( string archiveFullPath );
 
     /// <summary>
     /// 書き出し先パスを確認し、必要に応じて上書きまたは別名保存を選択させる。

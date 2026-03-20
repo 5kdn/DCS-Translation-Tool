@@ -13,6 +13,8 @@ public sealed class TranslationCreationLifecycleBehavior : Behavior<Window> {
     private bool _isCloseConfirmationInProgress;
     private bool _isCloseConfirmed;
     private bool _isCloseCleanupCompleted;
+    private bool _bypassCloseConfirmation;
+    private ITranslationCreationViewModel? _subscribedViewModel;
 
     /// <summary>
     /// 関連ウィンドウへイベント購読を接続する。
@@ -22,6 +24,8 @@ public sealed class TranslationCreationLifecycleBehavior : Behavior<Window> {
         AssociatedObject.ContentRendered += Window_ContentRendered;
         AssociatedObject.Closing += Window_Closing;
         AssociatedObject.Closed += Window_Closed;
+        AssociatedObject.DataContextChanged += Window_DataContextChanged;
+        SubscribeViewModel( GetViewModel() );
     }
 
     /// <summary>
@@ -32,8 +36,10 @@ public sealed class TranslationCreationLifecycleBehavior : Behavior<Window> {
             AssociatedObject.ContentRendered -= Window_ContentRendered;
             AssociatedObject.Closing -= Window_Closing;
             AssociatedObject.Closed -= Window_Closed;
+            AssociatedObject.DataContextChanged -= Window_DataContextChanged;
         }
 
+        UnsubscribeViewModel( _subscribedViewModel );
         base.OnDetaching();
     }
 
@@ -68,6 +74,12 @@ public sealed class TranslationCreationLifecycleBehavior : Behavior<Window> {
             return;
         }
 
+        if(_bypassCloseConfirmation) {
+            _isCloseConfirmed = true;
+            CompleteClosing();
+            return;
+        }
+
         if(_isCloseConfirmed) {
             CompleteClosing();
             return;
@@ -97,13 +109,69 @@ public sealed class TranslationCreationLifecycleBehavior : Behavior<Window> {
     /// </summary>
     /// <param name="sender">イベント送信元。</param>
     /// <param name="e">イベント引数。</param>
-    private void Window_Closed( object? sender, EventArgs e ) => CompleteClosing();
+    private void Window_Closed( object? sender, EventArgs e ) {
+        UnsubscribeViewModel( _subscribedViewModel );
+        CompleteClosing();
+    }
+
+    /// <summary>
+    /// DataContext 変更時に ViewModel 購読を差し替える。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
+    private void Window_DataContextChanged( object sender, DependencyPropertyChangedEventArgs e ) {
+        UnsubscribeViewModel( e.OldValue as ITranslationCreationViewModel );
+        SubscribeViewModel( e.NewValue as ITranslationCreationViewModel );
+    }
+
+    /// <summary>
+    /// ViewModel の起動時クローズ要求を監視する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
+    private void ViewModel_PropertyChanged( object? sender, PropertyChangedEventArgs e ) {
+        if(e.PropertyName != nameof( ITranslationCreationViewModel.ShouldCloseAfterStartup )
+           || AssociatedObject is null
+           || GetViewModel() is not { ShouldCloseAfterStartup: true } viewModel) {
+            return;
+        }
+
+        _bypassCloseConfirmation = true;
+        viewModel.AcknowledgeStartupCloseRequest();
+        AssociatedObject.Close();
+    }
 
     /// <summary>
     /// 現在の DataContext から ViewModel を取得する。
     /// </summary>
     /// <returns>関連 ViewModel を返す。</returns>
     private ITranslationCreationViewModel? GetViewModel() => AssociatedObject?.DataContext as ITranslationCreationViewModel;
+
+    /// <summary>
+    /// ViewModel の変更通知購読を開始する。
+    /// </summary>
+    /// <param name="viewModel">購読対象の ViewModel。</param>
+    private void SubscribeViewModel( ITranslationCreationViewModel? viewModel ) {
+        if(viewModel is null || ReferenceEquals( _subscribedViewModel, viewModel )) {
+            return;
+        }
+
+        viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        _subscribedViewModel = viewModel;
+    }
+
+    /// <summary>
+    /// ViewModel の変更通知購読を解除する。
+    /// </summary>
+    /// <param name="viewModel">解除対象の ViewModel。</param>
+    private void UnsubscribeViewModel( ITranslationCreationViewModel? viewModel ) {
+        if(viewModel is null || !ReferenceEquals( _subscribedViewModel, viewModel )) {
+            return;
+        }
+
+        viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        _subscribedViewModel = null;
+    }
 
     /// <summary>
     /// クローズ完了後の後始末を一度だけ実行する。

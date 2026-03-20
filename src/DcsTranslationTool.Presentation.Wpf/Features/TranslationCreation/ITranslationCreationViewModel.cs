@@ -32,6 +32,11 @@ public interface ITranslationCreationViewModel : INotifyPropertyChanged {
     int VisibleDictionaryItemsVersion { get; }
 
     /// <summary>
+    /// 起動時にウィンドウを閉じる要求があるかどうかを取得する。
+    /// </summary>
+    bool ShouldCloseAfterStartup { get; }
+
+    /// <summary>
     /// 選択中の dictionary 項目を取得する。
     /// </summary>
     TranslationDictionaryItemRowViewModel? SelectedDictionaryItem { get; }
@@ -67,4 +72,9 @@ public interface ITranslationCreationViewModel : INotifyPropertyChanged {
     /// </summary>
     /// <returns>ウィンドウを閉じてよい場合は <see langword="true"/> を返す。</returns>
     Task<bool> ConfirmCloseAsync();
+
+    /// <summary>
+    /// 起動時クローズ要求を消費する。
+    /// </summary>
+    void AcknowledgeStartupCloseRequest();
 }

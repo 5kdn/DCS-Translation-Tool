@@ -59,6 +59,16 @@
         <Setter Property="Foreground" Value="{StaticResource MaterialDesign.Brush.Background}" />
     </Style>
 
+    <Style x:Key="MaterialDesignRaisedAffirmativeButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}" />
+
+    <Style x:Key="MaterialDesignRaisedNeutralButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedAffirmativeButton}" />
+
+    <Style x:Key="MaterialDesignRaisedWarnButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedAffirmativeButton}">
+        <Setter Property="Background" Value="#F44336" />
+        <Setter Property="BorderBrush" Value="#F44336" />
+        <Setter Property="Foreground" Value="{StaticResource MaterialDesign.Brush.Background}" />
+    </Style>
+
     <!-- MainPageSelectButtonStyle -->
     <Style x:Key="MainPageSelectButtonStyle" TargetType="{x:Type Button}"  BasedOn="{StaticResource MaterialDesignFlatMidBgButton}">
         <Setter Property="MinHeight" Value="100" />

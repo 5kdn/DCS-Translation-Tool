@@ -44,18 +44,28 @@ public interface ITranslationCreationWorkflowService {
         CancellationToken cancellationToken = default );
 
     /// <summary>
-    /// 埋め込み JP dictionary の確認と初期取り込みを実行する。
+    /// 埋め込み JP dictionary の初期 plan を生成する。
     /// </summary>
-    /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
     /// <param name="importContext">現在の編集状態。</param>
     /// <param name="hasJapaneseDictionary">埋め込み JP dictionary が存在するかどうか。</param>
     /// <param name="japaneseDictionaryItems">埋め込み JP dictionary 項目一覧。</param>
-    /// <param name="cancellationToken">キャンセルトークン。</param>
-    /// <returns>初期確認結果を返す。</returns>
-    Task<TranslationCreationInitialPromptResult> HandleEmbeddedJapaneseDictionaryAsync(
-        string archiveFullPath,
+    /// <returns>初期確認 plan を返す。</returns>
+    TranslationCreationInitialPromptPlan CreateInitialPromptPlan(
         TranslationCreationImportContext importContext,
         bool hasJapaneseDictionary,
+        IReadOnlyList<TranslationDictionaryItem> japaneseDictionaryItems );
+
+    /// <summary>
+    /// 埋め込み JP dictionary の取り込み処理を実行する。
+    /// </summary>
+    /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
+    /// <param name="importContext">現在の編集状態。</param>
+    /// <param name="japaneseDictionaryItems">埋め込み JP dictionary 項目一覧。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>操作結果を返す。</returns>
+    Task<TranslationCreationCommandResult> ImportEmbeddedJapaneseDictionaryAsync(
+        string archiveFullPath,
+        TranslationCreationImportContext importContext,
         IReadOnlyList<TranslationDictionaryItem> japaneseDictionaryItems,
         CancellationToken cancellationToken = default );
 }
@@ -64,12 +74,10 @@ public interface ITranslationCreationWorkflowService {
 /// TranslationCreation の読込と入出力ワークフローを実装する。
 /// </summary>
 /// <param name="dictionaryLoader">dictionary 読込前処理。</param>
-/// <param name="dialogService">対話操作サービス。</param>
 /// <param name="importExportService">入出力サービス。</param>
 /// <param name="logger">ロギングサービス。</param>
 public sealed class TranslationCreationWorkflowService(
     TranslationCreationDictionaryLoader dictionaryLoader,
-    ITranslationCreationDialogService dialogService,
     ITranslationCreationImportExportService importExportService,
     ILoggingService logger ) : ITranslationCreationWorkflowService {
     /// <inheritdoc />
@@ -130,39 +138,32 @@ public sealed class TranslationCreationWorkflowService(
         };
 
     /// <inheritdoc />
-    public async Task<TranslationCreationInitialPromptResult> HandleEmbeddedJapaneseDictionaryAsync(
-        string archiveFullPath,
+    public TranslationCreationInitialPromptPlan CreateInitialPromptPlan(
         TranslationCreationImportContext importContext,
         bool hasJapaneseDictionary,
-        IReadOnlyList<TranslationDictionaryItem> japaneseDictionaryItems,
-        CancellationToken cancellationToken = default ) {
+        IReadOnlyList<TranslationDictionaryItem> japaneseDictionaryItems ) {
         if(!hasJapaneseDictionary || importContext.Rows.Count == 0) {
-            return TranslationCreationInitialPromptResult.None;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if(!await dialogService.ConfirmArchiveContainsJapaneseDictionaryAsync( archiveFullPath )) {
-            logger.Info( $"既存JP dictionary 警告でキャンセルされたためウィンドウを閉じる。Archive={archiveFullPath}" );
-            return new TranslationCreationInitialPromptResult( true, null );
-        }
-
-        if(!await dialogService.ConfirmJapaneseDictionaryImportAsync()) {
-            return TranslationCreationInitialPromptResult.None;
+            return TranslationCreationInitialPromptPlan.None;
         }
 
         if(japaneseDictionaryItems.Count == 0) {
-            logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={archiveFullPath}" );
-            return TranslationCreationInitialPromptResult.None;
+            return new TranslationCreationInitialPromptPlan( false, false, [] );
         }
 
-        var commandResult = await importExportService.ImportJapaneseDictionaryAsync(
+        return new TranslationCreationInitialPromptPlan( true, true, japaneseDictionaryItems );
+    }
+
+    /// <inheritdoc />
+    public Task<TranslationCreationCommandResult> ImportEmbeddedJapaneseDictionaryAsync(
+        string archiveFullPath,
+        TranslationCreationImportContext importContext,
+        IReadOnlyList<TranslationDictionaryItem> japaneseDictionaryItems,
+        CancellationToken cancellationToken = default ) =>
+        importExportService.ImportJapaneseDictionaryAsync(
             archiveFullPath,
             importContext.Rows,
             japaneseDictionaryItems,
             cancellationToken );
-        return new TranslationCreationInitialPromptResult( false, commandResult );
-    }
 }
 
 /// <summary>
@@ -247,17 +248,39 @@ public enum TranslationCreationNotificationKind {
 }
 
 /// <summary>
-/// 埋め込み JP dictionary 初期確認の結果を表す。
+/// 埋め込み JP dictionary 初期確認の plan を表す。
 /// </summary>
-/// <param name="ShouldCloseWindow">ウィンドウを閉じる必要があるかどうか。</param>
-/// <param name="CommandResult">実行した操作結果。</param>
-public sealed record TranslationCreationInitialPromptResult(
-    bool ShouldCloseWindow,
-    TranslationCreationCommandResult? CommandResult ) {
+/// <param name="RequiresEmbeddedJapaneseDictionaryPrompt">起動時 prompt が必要かどうか。</param>
+/// <param name="CanImportEmbeddedJapaneseDictionary">埋め込み JP dictionary を取り込み可能かどうか。</param>
+/// <param name="JapaneseDictionaryItems">埋め込み JP dictionary 項目一覧。</param>
+public sealed record TranslationCreationInitialPromptPlan(
+    bool RequiresEmbeddedJapaneseDictionaryPrompt,
+    bool CanImportEmbeddedJapaneseDictionary,
+    IReadOnlyList<TranslationDictionaryItem> JapaneseDictionaryItems ) {
     /// <summary>
-    /// 何も行わない結果を表す。
+    /// 何も行わない plan を表す。
     /// </summary>
-    public static TranslationCreationInitialPromptResult None { get; } = new( false, null );
+    public static TranslationCreationInitialPromptPlan None { get; } = new( false, false, [] );
+}
+
+/// <summary>
+/// 埋め込み JP dictionary の起動時選択を表す。
+/// </summary>
+public enum TranslationCreationEmbeddedJapaneseDictionaryStartupChoice {
+    /// <summary>
+    /// 埋め込み JP dictionary を取り込む選択を表す。
+    /// </summary>
+    Import,
+
+    /// <summary>
+    /// 埋め込み JP dictionary を取り込まず継続する選択を表す。
+    /// </summary>
+    ContinueWithoutImport,
+
+    /// <summary>
+    /// TranslationCreation を閉じる選択を表す。
+    /// </summary>
+    Close,
 }
 
 /// <summary>

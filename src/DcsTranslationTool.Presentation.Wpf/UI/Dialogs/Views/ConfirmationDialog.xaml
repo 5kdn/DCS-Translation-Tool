@@ -4,45 +4,34 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:dialogs="clr-namespace:DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results"
              mc:Ignorable="d"
              d:DesignHeight="200"
              d:DesignWidth="360">
-    <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-    </UserControl.Resources>
     <Border Background="{DynamicResource MaterialDesign.Brush.Background}"
-            Padding="24"
+            Padding="{StaticResource MediumMargin}"
             BorderBrush="{DynamicResource MaterialDesign.Brush.OutlineVariant}"
             BorderThickness="1">
 
         <StackPanel>
             <TextBlock Text="{Binding Title}"
                        Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}"
-                       Margin="0,0,0,8" />
+                       Margin="{StaticResource XSmallBottomMargin}" />
             <TextBlock Text="{Binding Message}"
                        Style="{StaticResource MaterialDesignBodyMediumTextBlock}"
                        TextWrapping="Wrap"
-                       Margin="0,0,0,16" />
+                       Margin="{StaticResource SmallBottomMargin}" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="{Binding SecondaryButtonText}"
-                        Visibility="{Binding HasSecondaryButton, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        Style="{StaticResource MaterialDesignFlatButton}"
+                <Button x:Name="LeftButton"
                         Command="{x:Static md:DialogHost.CloseDialogCommand}"
-                        CommandParameter="{x:Static dialogs:ConfirmationDialogResult.Secondary}"
-                        Margin="0,0,8,0" />
+                        Margin="{StaticResource XSmallRightMargin}" />
 
-                <Button Content="{Binding CancelButtonText}"
-                        Style="{StaticResource MaterialDesignFlatButton}"
+                <Button x:Name="CenterButton"
                         Command="{x:Static md:DialogHost.CloseDialogCommand}"
-                        CommandParameter="{x:Static dialogs:ConfirmationDialogResult.Cancel}"
-                        Margin="0,0,8,0" />
+                        Margin="{StaticResource XSmallRightMargin}" />
                 
-                <Button Content="{Binding ConfirmButtonText}"
-                        Style="{StaticResource MaterialDesignFlatButton}"
-                        Command="{x:Static md:DialogHost.CloseDialogCommand}"
-                        CommandParameter="{x:Static dialogs:ConfirmationDialogResult.Confirm}" />
+                <Button x:Name="RightButton"
+                        Command="{x:Static md:DialogHost.CloseDialogCommand}" />
             </StackPanel>
         </StackPanel>
     </Border>

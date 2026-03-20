@@ -560,6 +560,27 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
+    public async Task HandleWindowLoadedAsyncはJPdictionary項目が空のときDEFAULTdictionaryで継続する() {
+        var context = new TranslationCreationViewModelTestContext();
+        context.TranslationDictionaryServiceMock
+            .Setup( service => service.LoadArchiveDictionaries( It.IsAny<string>() ) )
+            .Returns( Result.Ok( new TranslationArchiveDictionaries(
+                [
+                    new TranslationDictionaryItem( "DictKey_sortie_1", "o1" )
+                ],
+                true,
+                [] ) ) );
+        var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
+
+        await ActivateAndInitializeAfterShownAsync( viewModel );
+        await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
+
+        Assert.Single( viewModel.DictionaryItems );
+        Assert.Equal( string.Empty, viewModel.DictionaryItems.Single().Translated );
+        context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ), Times.Never );
+    }
+
+    [Fact]
     public async Task HandleWindowLoadedAsyncはJPdictionary確認でも追加のarchive読込を行わない() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
@@ -574,8 +595,7 @@ public sealed partial class TranslationCreationViewModelTests {
                 ] ) ) );
         context.DialogServiceMock
             .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
-            .ReturnsAsync( ConfirmationDialogResult.Confirm )
-            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+            .ReturnsAsync( ConfirmationDialogResult.Secondary );
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
@@ -588,7 +608,7 @@ public sealed partial class TranslationCreationViewModelTests {
     }
 
     [Fact]
-    public async Task ActivateAsyncはJPdictionary警告でキャンセルされたときDEFAULTdictionary読込後に閉じる() {
+    public async Task ActivateAsyncはJPdictionary起動時選択でCloseを選んだときDEFAULTdictionary読込後に閉じる() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
             .Setup( service => service.LoadArchiveDictionaries( It.IsAny<string>() ) )
@@ -608,17 +628,22 @@ public sealed partial class TranslationCreationViewModelTests {
         await ActivateAndInitializeAfterShownAsync( viewModel );
         await viewModel.HandleWindowLoadedAsync( TestContext.Current.CancellationToken );
 
+        Assert.True( viewModel.ShouldCloseAfterStartup );
         context.TranslationDictionaryServiceMock.Verify( service => service.LoadArchiveDictionaries( It.IsAny<string>() ), Times.Once );
         context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync(
             It.Is<ConfirmationDialogParameters>( parameters =>
                 parameters.Title == Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle
                 && parameters.Message == string.Format( Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage, @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" )
-                && parameters.ConfirmButtonText == "継続"
-                && parameters.CancelButtonText == "キャンセル" ) ), Times.Once );
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage
+                && parameters.ConfirmButtonText == Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryImportButtonText
+                && parameters.SecondaryButtonText == Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryContinueWithoutImportButtonText
+                && parameters.CancelButtonText == Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryCloseButtonText ) ), Times.Once );
     }
 
     [Fact]
-    public async Task ActivateAsyncはJPdictionaryをソースにしないときDEFAULTdictionaryを読み込む() {
+    public async Task ActivateAsyncはJPdictionaryを読み込まず続けるときDEFAULTdictionaryを読み込む() {
         var context = new TranslationCreationViewModelTestContext();
         context.TranslationDictionaryServiceMock
             .Setup( service => service.LoadArchiveDictionaries( It.IsAny<string>() ) )
@@ -632,8 +657,7 @@ public sealed partial class TranslationCreationViewModelTests {
                 ] ) ) );
         context.DialogServiceMock
             .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
-            .ReturnsAsync( ConfirmationDialogResult.Confirm )
-            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+            .ReturnsAsync( ConfirmationDialogResult.Secondary );
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
         await ActivateAndInitializeAfterShownAsync( viewModel );
@@ -661,7 +685,6 @@ public sealed partial class TranslationCreationViewModelTests {
                 ] ) ) );
         context.DialogServiceMock
             .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
-            .ReturnsAsync( ConfirmationDialogResult.Confirm )
             .ReturnsAsync( ConfirmationDialogResult.Confirm );
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
@@ -721,7 +744,6 @@ public sealed partial class TranslationCreationViewModelTests {
         context.DialogServiceMock
             .SetupSequence( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
             .ReturnsAsync( ConfirmationDialogResult.Confirm )
-            .ReturnsAsync( ConfirmationDialogResult.Confirm )
             .ReturnsAsync( ConfirmationDialogResult.Cancel );
         var viewModel = context.CreateViewModel( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" );
 
@@ -754,7 +776,10 @@ public sealed partial class TranslationCreationViewModelTests {
 
         context.DialogServiceMock.Verify( service => service.ConfirmationDialogShowAsync(
             It.Is<ConfirmationDialogParameters>( parameters =>
-                parameters.Message == string.Format( Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage, @"C:\Tracks\Mission1.trk" ) ) ), Times.Once );
+                parameters.Message == string.Format( Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage, @"C:\Tracks\Mission1.trk" )
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage ) ), Times.Once );
     }
 
     [Fact]
@@ -3111,7 +3136,6 @@ dictionary = {
                 new TranslationCreationSession(),
                 new TranslationCreationWorkflowService(
                     new TranslationCreationDictionaryLoader( TranslationDictionaryServiceMock.Object ),
-                    new TranslationCreationDialogService( DialogServiceMock.Object, DialogProviderMock.Object, LoggerMock.Object ),
                     new TranslationCreationImportExportService(
                         AppSettingsServiceMock.Object,
                         ApplicationInfoServiceMock.Object,

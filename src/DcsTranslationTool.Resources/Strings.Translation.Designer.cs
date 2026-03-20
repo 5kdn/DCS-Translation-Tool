@@ -394,6 +394,15 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   閉じる に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationEmbeddedJapaneseDictionaryCloseButtonText {
+            get {
+                return ResourceManager.GetString("CreateTranslationEmbeddedJapaneseDictionaryCloseButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   警告 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle {
@@ -403,7 +412,25 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
-        ///   この dictionary を翻訳の初期値として取り込みますか？ に類似しているローカライズされた文字列を検索します。
+        ///   取り込まずに続ける に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationEmbeddedJapaneseDictionaryContinueWithoutImportButtonText {
+            get {
+                return ResourceManager.GetString("CreateTranslationEmbeddedJapaneseDictionaryContinueWithoutImportButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   取り込む に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationEmbeddedJapaneseDictionaryImportButtonText {
+            get {
+                return ResourceManager.GetString("CreateTranslationEmbeddedJapaneseDictionaryImportButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   l10n/JP/dictionary を翻訳の初期値として取り込みますか？ に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage {
             get {
@@ -426,6 +453,15 @@ namespace DcsTranslationTool.Resources {
         public static string CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage {
             get {
                 return ResourceManager.GetString("CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   埋め込み JP dictionary を翻訳の初期値として取り込みますか？ に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage {
+            get {
+                return ResourceManager.GetString("CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage", resourceCulture);
             }
         }
         
@@ -457,7 +493,7 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
-        ///   poファイルに書き出し に類似しているローカライズされた文字列を検索します。
+        ///   POファイルに書き出し に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationExportPoButtonContent {
             get {
@@ -535,7 +571,7 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
-        ///   poファイルから読み込み に類似しているローカライズされた文字列を検索します。
+        ///   POファイルから読み込み に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string CreateTranslationImportPoButtonContent {
             get {

@@ -169,13 +169,25 @@
     <value>警告</value>
   </data>
   <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage" xml:space="preserve">
-    <value>この dictionary を翻訳の初期値として取り込みますか？</value>
+    <value>l10n/JP/dictionary を翻訳の初期値として取り込みますか？</value>
   </data>
   <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationTitle" xml:space="preserve">
     <value>取り込み確認</value>
   </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryImportButtonText" xml:space="preserve">
+    <value>取り込む</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryContinueWithoutImportButtonText" xml:space="preserve">
+    <value>取り込まずに続ける</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryCloseButtonText" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
   <data name="CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage" xml:space="preserve">
     <value>{0} ファイルには既に日本語のdictionaryファイルが含まれています。継続しますか？</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage" xml:space="preserve">
+    <value>埋め込み JP dictionary を翻訳の初期値として取り込みますか？</value>
   </data>
   <data name="CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage" xml:space="preserve">
     <value>{0} ファイルには既に日本語のdictionaryファイルが含まれています。継続しますか？</value>
@@ -238,10 +250,10 @@
     <value>CSVに書き出し</value>
   </data>
   <data name="CreateTranslationImportPoButtonContent" xml:space="preserve">
-    <value>poファイルから読み込み</value>
+    <value>POファイルから読み込み</value>
   </data>
   <data name="CreateTranslationExportPoButtonContent" xml:space="preserve">
-    <value>poファイルに書き出し</value>
+    <value>POファイルに書き出し</value>
   </data>
   <data name="CreateTranslationHidePossibleNonTranslationTargetsFilterText" xml:space="preserve">
     <value>対象外を非表示</value>

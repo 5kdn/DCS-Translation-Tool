@@ -14,6 +14,23 @@ internal sealed class TranslationCreationDialogService(
     IDialogService dialogService,
     IDialogProvider dialogProvider,
     ILoggingService logger ) : ITranslationCreationDialogService {
+    private const string AffirmativeButtonStyleKey = "MaterialDesignRaisedAffirmativeButton";
+    private const string NeutralButtonStyleKey = "MaterialDesignRaisedNeutralButton";
+    private const string NegativeButtonStyleKey = "MaterialDesignRaisedWarnButton";
+
+    private static readonly IReadOnlyList<ConfirmationDialogResult> PositiveNegativeButtonOrder =
+    [
+        ConfirmationDialogResult.Confirm,
+        ConfirmationDialogResult.Cancel
+    ];
+
+    private static readonly IReadOnlyList<ConfirmationDialogResult> PositiveAlternativeNegativeButtonOrder =
+    [
+        ConfirmationDialogResult.Confirm,
+        ConfirmationDialogResult.Secondary,
+        ConfirmationDialogResult.Cancel
+    ];
+
     /// <inheritdoc />
     public Task<bool> ConfirmCloseAsync() =>
         ConfirmAsync(
@@ -71,24 +88,36 @@ internal sealed class TranslationCreationDialogService(
             "キャンセル" );
 
     /// <inheritdoc />
-    public Task<bool> ConfirmArchiveContainsJapaneseDictionaryAsync( string archiveFullPath ) =>
-        ConfirmAsync(
-            Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle,
-            string.Format(
-                Path.GetExtension( archiveFullPath ).Equals( ".trk", StringComparison.OrdinalIgnoreCase )
-                    ? Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage
-                    : Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage,
-                archiveFullPath ),
-            "継続",
-            "キャンセル" );
+    public async Task<TranslationCreationEmbeddedJapaneseDictionaryStartupChoice> PromptEmbeddedJapaneseDictionaryStartupAsync( string archiveFullPath ) {
+        var result = await dialogService.ConfirmationDialogShowAsync(
+            new ConfirmationDialogParameters
+            {
+                Title = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle,
+                Message = string.Format(
+                    Path.GetExtension( archiveFullPath ).Equals( ".trk", StringComparison.OrdinalIgnoreCase )
+                        ? Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage
+                        : Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage,
+                    archiveFullPath )
+                    + Environment.NewLine
+                    + Environment.NewLine
+                    + Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage,
+                ConfirmButtonText = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryImportButtonText,
+                SecondaryButtonText = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryContinueWithoutImportButtonText,
+                CancelButtonText = Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryCloseButtonText,
+                ConfirmButtonStyleKey = AffirmativeButtonStyleKey,
+                SecondaryButtonStyleKey = NeutralButtonStyleKey,
+                CancelButtonStyleKey = NegativeButtonStyleKey,
+                ButtonOrder = PositiveAlternativeNegativeButtonOrder,
+                DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
+            } );
 
-    /// <inheritdoc />
-    public Task<bool> ConfirmJapaneseDictionaryImportAsync() =>
-        ConfirmAsync(
-            Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationTitle,
-            Strings_Translation.CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage,
-            "取り込む",
-            "取り込まない" );
+        return result switch
+        {
+            ConfirmationDialogResult.Confirm => TranslationCreationEmbeddedJapaneseDictionaryStartupChoice.Import,
+            ConfirmationDialogResult.Secondary => TranslationCreationEmbeddedJapaneseDictionaryStartupChoice.ContinueWithoutImport,
+            _ => TranslationCreationEmbeddedJapaneseDictionaryStartupChoice.Close
+        };
+    }
 
     /// <inheritdoc />
     public async Task<string?> ConfirmExportPathAsync( string exportPath, string saveFileFilter, string logTargetName, string archiveFullPath ) {
@@ -104,6 +133,10 @@ internal sealed class TranslationCreationDialogService(
                 ConfirmButtonText = "上書き",
                 CancelButtonText = "キャンセル",
                 SecondaryButtonText = "別名保存",
+                ConfirmButtonStyleKey = AffirmativeButtonStyleKey,
+                SecondaryButtonStyleKey = NeutralButtonStyleKey,
+                CancelButtonStyleKey = NegativeButtonStyleKey,
+                ButtonOrder = PositiveAlternativeNegativeButtonOrder,
                 DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
             } );
 
@@ -140,6 +173,9 @@ internal sealed class TranslationCreationDialogService(
                 Message = message,
                 ConfirmButtonText = confirmButtonText,
                 CancelButtonText = cancelButtonText,
+                ConfirmButtonStyleKey = AffirmativeButtonStyleKey,
+                CancelButtonStyleKey = NegativeButtonStyleKey,
+                ButtonOrder = PositiveNegativeButtonOrder,
                 DialogIdentifier = TranslationCreationDialogHostIdentifiers.Confirmation,
             } );
         return result == ConfirmationDialogResult.Confirm;

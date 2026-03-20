@@ -110,6 +110,25 @@ public sealed class TranslationCreationViewBehaviorsTests {
         Assert.True( window.WasClosed );
     }
 
+    [StaFact]
+    public void LifecycleBehaviorは起動時Close要求で確認なしにWindowを閉じる() {
+        var viewModel = new TestTranslationCreationViewModel
+        {
+            ConfirmCloseAsyncFunc = () => throw new InvalidOperationException( "should not confirm" )
+        };
+        var window = new TestWindow
+        {
+            DataContext = viewModel
+        };
+        var behavior = new TranslationCreationLifecycleBehavior();
+
+        Interaction.GetBehaviors( window ).Add( behavior );
+        viewModel.RequestStartupClose();
+
+        Assert.True( window.WasClosed );
+        Assert.False( viewModel.ShouldCloseAfterStartup );
+    }
+
     /// <summary>
     /// テスト用の dictionary 行を生成する。
     /// </summary>
@@ -158,6 +177,11 @@ public sealed class TranslationCreationViewBehaviorsTests {
         public int VisibleDictionaryItemsVersion { get; private set; }
 
         /// <summary>
+        /// 起動時クローズ要求があるかどうかを取得する。
+        /// </summary>
+        public bool ShouldCloseAfterStartup { get; private set; }
+
+        /// <summary>
         /// 選択中行を取得する。
         /// </summary>
         public TranslationDictionaryItemRowViewModel? SelectedDictionaryItem { get; init; }
@@ -166,6 +190,11 @@ public sealed class TranslationCreationViewBehaviorsTests {
         /// 可視判定述語を取得または設定する。
         /// </summary>
         public Func<TranslationDictionaryItemRowViewModel, bool> ShouldIncludeRowPredicate { get; set; } = static _ => true;
+
+        /// <summary>
+        /// クローズ確認処理を取得または設定する。
+        /// </summary>
+        public Func<Task<bool>> ConfirmCloseAsyncFunc { get; set; } = () => Task.FromResult( true );
 
         /// <summary>
         /// 表示対象可否を判定する。
@@ -197,7 +226,15 @@ public sealed class TranslationCreationViewBehaviorsTests {
         /// クローズ可否を確認する。
         /// </summary>
         /// <returns>常に <see langword="true"/> を返す。</returns>
-        public Task<bool> ConfirmCloseAsync() => Task.FromResult( true );
+        public Task<bool> ConfirmCloseAsync() => ConfirmCloseAsyncFunc();
+
+        /// <summary>
+        /// 起動時クローズ要求を消費する。
+        /// </summary>
+        public void AcknowledgeStartupCloseRequest() {
+            ShouldCloseAfterStartup = false;
+            PropertyChanged?.Invoke( this, new( nameof( ShouldCloseAfterStartup ) ) );
+        }
 
         /// <summary>
         /// 可視行版数変更通知を発火する。
@@ -205,6 +242,14 @@ public sealed class TranslationCreationViewBehaviorsTests {
         public void RaiseVisibleDictionaryItemsVersionChanged() {
             VisibleDictionaryItemsVersion++;
             PropertyChanged?.Invoke( this, new( nameof( VisibleDictionaryItemsVersion ) ) );
+        }
+
+        /// <summary>
+        /// 起動時クローズ要求を発火する。
+        /// </summary>
+        public void RequestStartupClose() {
+            ShouldCloseAfterStartup = true;
+            PropertyChanged?.Invoke( this, new( nameof( ShouldCloseAfterStartup ) ) );
         }
     }
 

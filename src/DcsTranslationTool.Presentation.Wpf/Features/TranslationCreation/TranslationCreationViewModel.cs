@@ -100,6 +100,7 @@ public sealed class TranslationCreationViewModel(
     private DispatcherTimer? _selectedTranslatedCommitTimer;
     private bool _suppressRowViewModelSync;
     private int _visibleDictionaryItemsVersion;
+    private bool _shouldCloseAfterStartup;
     private readonly Dictionary<TranslationCreationRowState, TranslationDictionaryItemRowViewModel> _rowViewModelsByState = [];
     private readonly Dictionary<TranslationDictionaryItemRowViewModel, TranslationCreationRowState> _rowStatesByViewModel = [];
     #endregion
@@ -294,6 +295,11 @@ public sealed class TranslationCreationViewModel(
     public int VisibleDictionaryItemsVersion => _visibleDictionaryItemsVersion;
 
     /// <summary>
+    /// 起動時にウィンドウを閉じる要求があるかどうかを取得する。
+    /// </summary>
+    public bool ShouldCloseAfterStartup => _shouldCloseAfterStartup;
+
+    /// <summary>
     /// 現在の読み込み主動作用表示文言を取得する。
     /// </summary>
     public string ImportSplitButtonContent => _selectedImportFormat switch
@@ -420,19 +426,11 @@ public sealed class TranslationCreationViewModel(
         _hasProcessedJapaneseDictionaryPrompt = true;
         cancellationToken.ThrowIfCancellationRequested();
 
-        var promptResult = await workflowService.HandleEmbeddedJapaneseDictionaryAsync(
-            ArchiveFullPath,
+        var promptPlan = workflowService.CreateInitialPromptPlan(
             CreateImportContext(),
             _hasJapaneseDictionary,
-            _japaneseDictionaryItems,
-            cancellationToken );
-        if(promptResult.CommandResult is not null) {
-            ApplyCommandResult( promptResult.CommandResult );
-        }
-
-        if(promptResult.ShouldCloseWindow) {
-            await TryCloseAsync( false );
-        }
+            _japaneseDictionaryItems );
+        await HandleEmbeddedJapaneseDictionaryStartupAsync( promptPlan, cancellationToken );
     }
     #endregion
 
@@ -595,6 +593,18 @@ public sealed class TranslationCreationViewModel(
         }
 
         return await dialogService.ConfirmCloseAsync();
+    }
+
+    /// <summary>
+    /// 起動時クローズ要求を消費する。
+    /// </summary>
+    public void AcknowledgeStartupCloseRequest() {
+        if(!_shouldCloseAfterStartup) {
+            return;
+        }
+
+        _shouldCloseAfterStartup = false;
+        NotifyOfPropertyChange( nameof( ShouldCloseAfterStartup ) );
     }
 
     /// <summary>
@@ -958,6 +968,50 @@ public sealed class TranslationCreationViewModel(
         session.Load( new TranslationCreationDictionaryLoadState( [], [] ) );
         ApplySessionRows();
         NotifyDictionaryAvailabilityChanged();
+    }
+
+    /// <summary>
+    /// 埋め込み JP dictionary の起動時フローを処理する。
+    /// </summary>
+    /// <param name="promptPlan">実行対象の初期 plan。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>非同期タスクを返す。</returns>
+    private async Task HandleEmbeddedJapaneseDictionaryStartupAsync(
+        TranslationCreationInitialPromptPlan promptPlan,
+        CancellationToken cancellationToken ) {
+        if(!promptPlan.RequiresEmbeddedJapaneseDictionaryPrompt) {
+            if(_hasJapaneseDictionary && !promptPlan.CanImportEmbeddedJapaneseDictionary) {
+                logger.Warn( $"JP dictionary の読込に失敗したため DEFAULT dictionary のみで継続する。Archive={ArchiveFullPath}" );
+            }
+
+            return;
+        }
+
+        var choice = await dialogService.PromptEmbeddedJapaneseDictionaryStartupAsync( ArchiveFullPath );
+        switch(choice) {
+            case TranslationCreationEmbeddedJapaneseDictionaryStartupChoice.Import:
+                await ExecuteWorkflowCommandAsync( () => workflowService.ImportEmbeddedJapaneseDictionaryAsync(
+                    ArchiveFullPath,
+                    CreateImportContext(),
+                    promptPlan.JapaneseDictionaryItems,
+                    cancellationToken ) );
+                break;
+            case TranslationCreationEmbeddedJapaneseDictionaryStartupChoice.Close:
+                SetStartupCloseRequest();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 起動時クローズ要求を発行する。
+    /// </summary>
+    private void SetStartupCloseRequest() {
+        if(_shouldCloseAfterStartup) {
+            return;
+        }
+
+        _shouldCloseAfterStartup = true;
+        NotifyOfPropertyChange( nameof( ShouldCloseAfterStartup ) );
     }
 
     /// <summary>

@@ -54,16 +54,49 @@ public sealed class TranslationCreationWorkflowServiceTests {
     }
 
     [Fact]
-    public async Task HandleEmbeddedJapaneseDictionaryAsyncは警告確認で拒否されたらウィンドウを閉じる() {
-        var cancellationToken = TestContext.Current.CancellationToken;
+    public void CreateInitialPromptPlanはJPdictionaryがないとき何もしないplanを返す() {
         var context = new TranslationCreationWorkflowServiceTestContext();
-        context.DialogServiceMock
-            .Setup( service => service.ConfirmArchiveContainsJapaneseDictionaryAsync( It.IsAny<string>() ) )
-            .ReturnsAsync( false );
         var sut = context.CreateSut();
 
-        var result = await sut.HandleEmbeddedJapaneseDictionaryAsync(
-            @"C:\DCSWorld\Mission1.miz",
+        var result = sut.CreateInitialPromptPlan(
+            new TranslationCreationImportContext(
+                [
+                    new TranslationDictionaryItemRowViewModel( new TranslationDictionaryItem( "DictKey_sortie_1", "Original" ) )
+                ],
+                false ),
+            false,
+            [] );
+
+        Assert.False( result.RequiresEmbeddedJapaneseDictionaryPrompt );
+        Assert.False( result.CanImportEmbeddedJapaneseDictionary );
+        Assert.Empty( result.JapaneseDictionaryItems );
+    }
+
+    [Fact]
+    public void CreateInitialPromptPlanはJPdictionary項目が空ならDEFAULT継続planを返す() {
+        var context = new TranslationCreationWorkflowServiceTestContext();
+        var sut = context.CreateSut();
+
+        var result = sut.CreateInitialPromptPlan(
+            new TranslationCreationImportContext(
+                [
+                    new TranslationDictionaryItemRowViewModel( new TranslationDictionaryItem( "DictKey_sortie_1", "Original" ) )
+                ],
+                false ),
+            true,
+            [] );
+
+        Assert.False( result.RequiresEmbeddedJapaneseDictionaryPrompt );
+        Assert.False( result.CanImportEmbeddedJapaneseDictionary );
+        Assert.Empty( result.JapaneseDictionaryItems );
+    }
+
+    [Fact]
+    public void CreateInitialPromptPlanはJPdictionaryが利用可能ならprompt必要planを返す() {
+        var context = new TranslationCreationWorkflowServiceTestContext();
+        var sut = context.CreateSut();
+
+        var result = sut.CreateInitialPromptPlan(
             new TranslationCreationImportContext(
                 [
                     new TranslationDictionaryItemRowViewModel( new TranslationDictionaryItem( "DictKey_sortie_1", "Original" ) )
@@ -72,23 +105,17 @@ public sealed class TranslationCreationWorkflowServiceTests {
             true,
             [
                 new TranslationDictionaryItem( "DictKey_sortie_1", "Original" )
-            ],
-            cancellationToken );
+            ] );
 
-        Assert.True( result.ShouldCloseWindow );
-        Assert.Null( result.CommandResult );
+        Assert.True( result.RequiresEmbeddedJapaneseDictionaryPrompt );
+        Assert.True( result.CanImportEmbeddedJapaneseDictionary );
+        Assert.Single( result.JapaneseDictionaryItems );
     }
 
     [Fact]
-    public async Task HandleEmbeddedJapaneseDictionaryAsyncは確認後に取り込み結果を返す() {
+    public async Task ImportEmbeddedJapaneseDictionaryAsyncは取り込みサービスへ委譲する() {
         var cancellationToken = TestContext.Current.CancellationToken;
         var context = new TranslationCreationWorkflowServiceTestContext();
-        context.DialogServiceMock
-            .Setup( service => service.ConfirmArchiveContainsJapaneseDictionaryAsync( It.IsAny<string>() ) )
-            .ReturnsAsync( true );
-        context.DialogServiceMock
-            .Setup( service => service.ConfirmJapaneseDictionaryImportAsync() )
-            .ReturnsAsync( true );
         context.ImportExportServiceMock
             .Setup( service => service.ImportJapaneseDictionaryAsync(
                 It.IsAny<string>(),
@@ -98,22 +125,25 @@ public sealed class TranslationCreationWorkflowServiceTests {
             .ReturnsAsync( new TranslationCreationCommandResult( true, false, false, 1, "imported" ) );
         var sut = context.CreateSut();
 
-        var result = await sut.HandleEmbeddedJapaneseDictionaryAsync(
+        var result = await sut.ImportEmbeddedJapaneseDictionaryAsync(
             @"C:\DCSWorld\Mission1.miz",
             new TranslationCreationImportContext(
                 [
                     new TranslationDictionaryItemRowViewModel( new TranslationDictionaryItem( "DictKey_sortie_1", "Original" ) )
                 ],
                 false ),
-            true,
             [
                 new TranslationDictionaryItem( "DictKey_sortie_1", "Original" )
             ],
             cancellationToken );
 
-        Assert.False( result.ShouldCloseWindow );
-        Assert.NotNull( result.CommandResult );
-        Assert.Equal( "imported", result.CommandResult!.StatusMessage );
+        Assert.True( result.IsSuccess );
+        Assert.Equal( "imported", result.StatusMessage );
+        context.ImportExportServiceMock.Verify( service => service.ImportJapaneseDictionaryAsync(
+            @"C:\DCSWorld\Mission1.miz",
+            It.IsAny<IReadOnlyList<TranslationDictionaryItemRowViewModel>>(),
+            It.IsAny<IReadOnlyList<TranslationDictionaryItem>>(),
+            It.IsAny<CancellationToken>() ), Times.Once );
     }
 
     [Fact]
@@ -144,14 +174,12 @@ public sealed class TranslationCreationWorkflowServiceTests {
 
     private sealed class TranslationCreationWorkflowServiceTestContext {
         internal Mock<ITranslationDictionaryService> TranslationDictionaryServiceMock { get; } = new();
-        internal Mock<ITranslationCreationDialogService> DialogServiceMock { get; } = new();
         internal Mock<ITranslationCreationImportExportService> ImportExportServiceMock { get; } = new();
         internal Mock<ILoggingService> LoggerMock { get; } = new();
 
         internal TranslationCreationWorkflowService CreateSut() =>
             new(
                 new TranslationCreationDictionaryLoader( TranslationDictionaryServiceMock.Object ),
-                DialogServiceMock.Object,
                 ImportExportServiceMock.Object,
                 LoggerMock.Object );
     }
