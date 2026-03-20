@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
@@ -10,12 +9,12 @@ public interface ITranslationCreationSession : INotifyPropertyChanged {
     /// <summary>
     /// 画面表示中の dictionary 行一覧を取得する。
     /// </summary>
-    ObservableCollection<TranslationDictionaryItemRowViewModel> Rows { get; }
+    IReadOnlyList<TranslationCreationRowState> Rows { get; }
 
     /// <summary>
     /// 選択中の dictionary 項目を取得または設定する。
     /// </summary>
-    TranslationDictionaryItemRowViewModel? SelectedDictionaryItem { get; set; }
+    TranslationCreationRowState? SelectedRow { get; set; }
 
     /// <summary>
     /// 選択中項目の Original を取得する。
@@ -25,7 +24,7 @@ public interface ITranslationCreationSession : INotifyPropertyChanged {
     /// <summary>
     /// 選択中項目の Translated 下書きを取得または設定する。
     /// </summary>
-    string SelectedTranslated { get; set; }
+    string SelectedTranslatedDraft { get; set; }
 
     /// <summary>
     /// 選択中項目の翻訳文を編集可能かどうかを取得する。
@@ -63,10 +62,10 @@ public interface ITranslationCreationSession : INotifyPropertyChanged {
     /// <summary>
     /// 表示中の dictionary 項目選択を移動する。
     /// </summary>
-    /// <param name="filteredItemsView">現在表示中の一覧ビュー。</param>
+    /// <param name="visibleRows">現在表示中の一覧。</param>
     /// <param name="offset">移動量。</param>
     /// <returns>選択項目が変化した場合は <see langword="true"/> を返す。</returns>
-    bool MoveSelection( ICollectionView filteredItemsView, int offset );
+    bool MoveSelection( IReadOnlyList<TranslationCreationRowState> visibleRows, int offset );
 
     /// <summary>
     /// 現在の行状態から書き出し用 dictionary 項目一覧を生成する。

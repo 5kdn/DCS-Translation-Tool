@@ -8,10 +8,10 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <param name="row">変更対象の行。</param>
 /// <param name="propertyName">変更対象プロパティ名。</param>
 public sealed class TranslationCreationRowPropertyChangedEventArgs(
-    TranslationDictionaryItemRowViewModel row,
+    TranslationCreationRowState row,
     string propertyName ) : PropertyChangedEventArgs( propertyName ) {
     /// <summary>
     /// 変更対象の行を取得する。
     /// </summary>
-    public TranslationDictionaryItemRowViewModel Row { get; } = row;
+    public TranslationCreationRowState Row { get; } = row;
 }

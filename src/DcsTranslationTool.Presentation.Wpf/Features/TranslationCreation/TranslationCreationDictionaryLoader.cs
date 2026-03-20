@@ -167,20 +167,11 @@ public sealed class TranslationCreationDictionaryLoader(
 /// <summary>
 /// TranslationCreation の読込済み dictionary 状態を表す。
 /// </summary>
-/// <param name="LoadedItems">dirty 判定基準の項目一覧。</param>
+/// <param name="LoadedItems">読み込み済み項目一覧。</param>
 /// <param name="RowStates">画面表示用行状態一覧。</param>
 public sealed record TranslationCreationDictionaryLoadState(
     IReadOnlyList<TranslationDictionaryItem> LoadedItems,
     IReadOnlyList<TranslationCreationRowState> RowStates );
-
-/// <summary>
-/// TranslationCreation の画面表示用行状態を表す。
-/// </summary>
-/// <param name="Item">表示対象の dictionary 項目。</param>
-/// <param name="IsPossibleNonTranslationTarget">翻訳対象ではない可能性があるかどうか。</param>
-public sealed record TranslationCreationRowState(
-    TranslationDictionaryItem Item,
-    bool IsPossibleNonTranslationTarget );
 
 /// <summary>
 /// アーカイブから読み込んだ dictionary 状態を表す。

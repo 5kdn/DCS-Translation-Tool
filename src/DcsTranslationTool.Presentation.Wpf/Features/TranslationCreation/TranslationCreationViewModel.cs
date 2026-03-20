@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 using Caliburn.Micro;
 
@@ -39,6 +40,7 @@ public sealed class TranslationCreationViewModel(
     ITranslationCreationDialogService dialogService,
     ITranslationCreationFilterService filterService,
     ITranslationCreationNotificationService notificationService ) : Screen, ITranslationCreationViewModel {
+    #region Constants
     /// <summary>
     /// 既定のウィンドウ幅を表す。
     /// </summary>
@@ -73,6 +75,9 @@ public sealed class TranslationCreationViewModel(
     /// dictionary 領域比率の最大値を表す。
     /// </summary>
     public const double MaxDictionaryPaneRatio = TranslationCreationLayoutDefaults.MaxDictionaryPaneRatio;
+
+    #endregion
+
     #region Fields
 
     private TranslationCreationImportFormat _selectedImportFormat = TranslationCreationImportFormat.Dictionary;
@@ -94,6 +99,10 @@ public sealed class TranslationCreationViewModel(
     private double _dictionaryPaneRatio = layoutStateService.Load().DictionaryPaneRatio;
     private bool _isDictionaryDetailsWrapEnabled = layoutStateService.Load().IsDictionaryDetailsWrapEnabled;
     private bool _sessionEventsSubscribed;
+    private DispatcherTimer? _selectedTranslatedCommitTimer;
+    private bool _suppressRowViewModelSync;
+    private readonly Dictionary<TranslationCreationRowState, TranslationDictionaryItemRowViewModel> _rowViewModelsByState = [];
+    private readonly Dictionary<TranslationDictionaryItemRowViewModel, TranslationCreationRowState> _rowStatesByViewModel = [];
     #endregion
 
     #region Properties
@@ -204,8 +213,15 @@ public sealed class TranslationCreationViewModel(
     /// 選択中の dictionary 項目を取得または設定する。
     /// </summary>
     public TranslationDictionaryItemRowViewModel? SelectedDictionaryItem {
-        get => session.SelectedDictionaryItem;
-        set => session.SelectedDictionaryItem = value;
+        get => session.SelectedRow is { } row && _rowViewModelsByState.TryGetValue( row, out var viewModel )
+            ? viewModel
+            : null;
+        set {
+            CancelSelectedTranslatedCommit();
+            session.SelectedRow = value is not null && _rowStatesByViewModel.TryGetValue( value, out var row )
+                ? row
+                : null;
+        }
     }
 
     /// <summary>
@@ -217,8 +233,11 @@ public sealed class TranslationCreationViewModel(
     /// 選択中項目の Translated を取得または設定する。
     /// </summary>
     public string SelectedTranslated {
-        get => session.SelectedTranslated;
-        set => session.SelectedTranslated = value;
+        get => session.SelectedTranslatedDraft;
+        set {
+            session.SelectedTranslatedDraft = value;
+            ScheduleSelectedTranslatedCommit();
+        }
     }
 
     /// <summary>
@@ -472,13 +491,13 @@ public sealed class TranslationCreationViewModel(
     /// 表示中の dictionary 項目選択を 1 件上へ移動する。
     /// </summary>
     /// <returns>選択項目が変化した場合は <see langword="true"/> を返す。</returns>
-    public bool MoveSelectionUp() => session.MoveSelection( FilteredDictionaryItemsView, -1 );
+    public bool MoveSelectionUp() => session.MoveSelection( GetVisibleRows(), -1 );
 
     /// <summary>
     /// 表示中の dictionary 項目選択を 1 件下へ移動する。
     /// </summary>
     /// <returns>選択項目が変化した場合は <see langword="true"/> を返す。</returns>
-    public bool MoveSelectionDown() => session.MoveSelection( FilteredDictionaryItemsView, 1 );
+    public bool MoveSelectionDown() => session.MoveSelection( GetVisibleRows(), 1 );
 
     /// <summary>
     /// 上方向への選択移動コマンドを実行する。
@@ -690,7 +709,10 @@ public sealed class TranslationCreationViewModel(
     /// <summary>
     /// 選択中翻訳文の保留中編集を現在の行へ反映する。
     /// </summary>
-    internal void FlushPendingSelectedTranslatedEdit() => session.FlushPendingSelectedTranslatedEdit();
+    internal void FlushPendingSelectedTranslatedEdit() {
+        CancelSelectedTranslatedCommit();
+        session.FlushPendingSelectedTranslatedEdit();
+    }
 
     /// <summary>
     /// dictionary 領域比率を有効範囲へ正規化する。
@@ -771,7 +793,21 @@ public sealed class TranslationCreationViewModel(
             return;
         }
 
-        NotifyOfPropertyChange( e.PropertyName );
+        switch(e.PropertyName) {
+            case nameof( ITranslationCreationSession.SelectedRow ):
+                CancelSelectedTranslatedCommit();
+                NotifyOfPropertyChange( nameof( SelectedDictionaryItem ) );
+                break;
+            case nameof( ITranslationCreationSession.SelectedOriginal ):
+                NotifyOfPropertyChange( nameof( SelectedOriginal ) );
+                break;
+            case nameof( ITranslationCreationSession.SelectedTranslatedDraft ):
+                NotifyOfPropertyChange( nameof( SelectedTranslated ) );
+                break;
+            case nameof( ITranslationCreationSession.CanEditSelectedTranslated ):
+                NotifyOfPropertyChange( nameof( CanEditSelectedTranslated ) );
+                break;
+        }
     }
 
     /// <summary>
@@ -780,11 +816,15 @@ public sealed class TranslationCreationViewModel(
     /// <param name="sender">イベント送信元。</param>
     /// <param name="e">イベント引数。</param>
     private void OnSessionRowPropertyChanged( object? sender, TranslationCreationRowPropertyChangedEventArgs e ) {
-        if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.Translated ) && ShowOnlyUntranslated) {
+        if(_rowViewModelsByState.TryGetValue( e.Row, out var rowViewModel )) {
+            ApplyRowStateToViewModel( e.Row, rowViewModel );
+        }
+
+        if(e.PropertyName == nameof( TranslationCreationRowState.Translated ) && ShowOnlyUntranslated) {
             RefreshFilter();
         }
 
-        if(e.PropertyName == nameof( TranslationDictionaryItemRowViewModel.IsEnabled ) && (!ShowEnabledItems || !ShowDisabledItems)) {
+        if(e.PropertyName == nameof( TranslationCreationRowState.IsEnabled ) && (!ShowEnabledItems || !ShowDisabledItems)) {
             RefreshFilter();
         }
     }
@@ -793,7 +833,20 @@ public sealed class TranslationCreationViewModel(
     /// セッションの行一覧を ViewModel へ反映する。
     /// </summary>
     private void ApplySessionRows() {
-        DictionaryItems = session.Rows;
+        ResetRowViewModelMappings();
+
+        var rowViewModels = session.Rows
+            .Select( static row => new TranslationDictionaryItemRowViewModel( row.ToTranslationDictionaryItem(), row.IsPossibleNonTranslationTarget ) )
+            .ToArray();
+        for(var i = 0; i < rowViewModels.Length; i++) {
+            var rowState = session.Rows[i];
+            var rowViewModel = rowViewModels[i];
+            _rowViewModelsByState[rowState] = rowViewModel;
+            _rowStatesByViewModel[rowViewModel] = rowState;
+            rowViewModel.PropertyChanged += OnRowViewModelPropertyChanged;
+        }
+
+        DictionaryItems = [.. rowViewModels];
         NotifyOfPropertyChange( nameof( SelectedDictionaryItem ) );
         NotifyOfPropertyChange( nameof( SelectedOriginal ) );
         NotifyOfPropertyChange( nameof( SelectedTranslated ) );
@@ -820,6 +873,15 @@ public sealed class TranslationCreationViewModel(
     /// dictionary 一覧ビューへフィルタを再適用する。
     /// </summary>
     private void RefreshFilter() => FilteredDictionaryItemsView.Refresh();
+
+    /// <summary>
+    /// 現在の表示行に対応するセッション行一覧を取得する。
+    /// </summary>
+    /// <returns>現在表示中のセッション行一覧を返す。</returns>
+    private IReadOnlyList<TranslationCreationRowState> GetVisibleRows() =>
+        [.. FilteredDictionaryItemsView
+            .Cast<TranslationDictionaryItemRowViewModel>()
+            .Select( rowViewModel => _rowStatesByViewModel[rowViewModel] )];
 
     /// <summary>
     /// 選択中の読み込み形式を更新する。
@@ -933,7 +995,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>生成したスナップショットを返す。</returns>
     private TranslationCreationDocumentSnapshot CreateDocumentSnapshot() {
-        session.FlushPendingSelectedTranslatedEdit();
+        FlushPendingSelectedTranslatedEdit();
         return session.CreateDocumentSnapshot();
     }
 
@@ -942,9 +1004,112 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <returns>生成した取り込み用コンテキストを返す。</returns>
     private TranslationCreationImportContext CreateImportContext() {
-        session.FlushPendingSelectedTranslatedEdit();
-        return new TranslationCreationImportContext( session.Rows, session.HasAnyTranslatedText() );
+        FlushPendingSelectedTranslatedEdit();
+        return new TranslationCreationImportContext( DictionaryItems, session.HasAnyTranslatedText() );
     }
+
+    /// <summary>
+    /// ViewModel 側の遅延反映タイマーを取得する。
+    /// </summary>
+    private DispatcherTimer SelectedTranslatedCommitTimer => _selectedTranslatedCommitTimer ??= CreateSelectedTranslatedCommitTimer();
+
+    /// <summary>
+    /// 選択中翻訳文の遅延反映タイマーを生成する。
+    /// </summary>
+    /// <returns>生成したタイマーを返す。</returns>
+    private DispatcherTimer CreateSelectedTranslatedCommitTimer() {
+        var timer = new DispatcherTimer( DispatcherPriority.Background )
+        {
+            Interval = TimeSpan.FromMilliseconds( 250 )
+        };
+        timer.Tick += OnSelectedTranslatedCommitTimerTick;
+        return timer;
+    }
+
+    /// <summary>
+    /// 遅延反映タイマー満了時に保留中の編集を確定する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
+    private void OnSelectedTranslatedCommitTimerTick( object? sender, EventArgs e ) => FlushPendingSelectedTranslatedEdit();
+
+    /// <summary>
+    /// 選択中翻訳文の遅延反映を予約する。
+    /// </summary>
+    private void ScheduleSelectedTranslatedCommit() {
+        SelectedTranslatedCommitTimer.Stop();
+        SelectedTranslatedCommitTimer.Start();
+    }
+
+    /// <summary>
+    /// 選択中翻訳文の遅延反映を取り消す。
+    /// </summary>
+    private void CancelSelectedTranslatedCommit() => _selectedTranslatedCommitTimer?.Stop();
+
+    /// <summary>
+    /// セッション行状態を View 用行 ViewModel へ反映する。
+    /// </summary>
+    /// <param name="rowState">反映元の行状態。</param>
+    /// <param name="rowViewModel">反映先の行 ViewModel。</param>
+    private void ApplyRowStateToViewModel( TranslationCreationRowState rowState, TranslationDictionaryItemRowViewModel rowViewModel ) {
+        if(_suppressRowViewModelSync) {
+            return;
+        }
+
+        _suppressRowViewModelSync = true;
+        try {
+            rowViewModel.Translated = rowState.Translated;
+            rowViewModel.IsEnabled = rowState.IsEnabled;
+        }
+        finally {
+            _suppressRowViewModelSync = false;
+        }
+    }
+
+    /// <summary>
+    /// 行 ViewModel の変更をセッション行状態へ同期する。
+    /// </summary>
+    /// <param name="sender">イベント送信元。</param>
+    /// <param name="e">イベント引数。</param>
+    private void OnRowViewModelPropertyChanged( object? sender, PropertyChangedEventArgs e ) {
+        if(_suppressRowViewModelSync || sender is not TranslationDictionaryItemRowViewModel rowViewModel || string.IsNullOrWhiteSpace( e.PropertyName )) {
+            return;
+        }
+
+        if(!_rowStatesByViewModel.TryGetValue( rowViewModel, out var rowState )) {
+            return;
+        }
+
+        switch(e.PropertyName) {
+            case nameof( TranslationDictionaryItemRowViewModel.Translated ):
+                if(ReferenceEquals( rowViewModel, SelectedDictionaryItem ) && !IsSelectedTranslatedCommitPending) {
+                    session.SelectedTranslatedDraft = rowViewModel.Translated;
+                }
+
+                rowState.Translated = rowViewModel.Translated;
+                break;
+            case nameof( TranslationDictionaryItemRowViewModel.IsEnabled ):
+                rowState.IsEnabled = rowViewModel.IsEnabled;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 行 ViewModel と行状態の対応を破棄する。
+    /// </summary>
+    private void ResetRowViewModelMappings() {
+        foreach(var rowViewModel in _rowStatesByViewModel.Keys) {
+            rowViewModel.PropertyChanged -= OnRowViewModelPropertyChanged;
+        }
+
+        _rowViewModelsByState.Clear();
+        _rowStatesByViewModel.Clear();
+    }
+
+    /// <summary>
+    /// 選択中翻訳文の遅延反映が保留中かどうかを取得する。
+    /// </summary>
+    private bool IsSelectedTranslatedCommitPending => _selectedTranslatedCommitTimer?.IsEnabled == true;
 
     /// <summary>
     /// 現在のレイアウト状態を永続化する。
