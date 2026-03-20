@@ -12,52 +12,52 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 internal sealed class TranslationCreationPathResolver(
     AppSettings settings,
     string archiveFullPath ) {
+    #region PublicMethods
+
     /// <summary>
     /// dictionary の既定書き出し先を取得する。
     /// </summary>
     /// <returns>書き出し先パスを返す。</returns>
-    internal string GetDictionaryExportPath() =>
-        Path.Combine( GetExportDirectoryPath(), "dictionary" );
+    /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
+    internal string GetDictionaryExportPath() => Path.Combine( GetExportDirectoryPath(), "dictionary" );
 
     /// <summary>
     /// PO の既定書き出し先を取得する。
     /// </summary>
     /// <returns>書き出し先パスを返す。</returns>
-    internal string GetPoExportPath() =>
-        Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
+    /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
+    internal string GetPoExportPath() => Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
 
     /// <summary>
     /// CSV の既定書き出し先を取得する。
     /// </summary>
     /// <returns>書き出し先パスを返す。</returns>
-    internal string GetCsvExportPath() =>
-        Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
+    /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
+    internal string GetCsvExportPath() => Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
 
     /// <summary>
     /// PO 読み込みダイアログの初期パスを取得する。
     /// </summary>
     /// <returns>初期パスを返す。</returns>
-    internal string GetPoImportInitialPath() =>
-        TryResolve( GetPoExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
+    internal string GetPoImportInitialPath() => TryResolve( GetPoExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
 
     /// <summary>
     /// dictionary 読み込みダイアログの初期パスを取得する。
     /// </summary>
     /// <returns>初期パスを返す。</returns>
-    internal string GetDictionaryImportInitialPath() =>
-        TryResolve( GetDictionaryExportPath, "dictionary" );
+    internal string GetDictionaryImportInitialPath() => TryResolve( GetDictionaryExportPath, "dictionary" );
 
     /// <summary>
     /// CSV 読み込みダイアログの初期パスを取得する。
     /// </summary>
     /// <returns>初期パスを返す。</returns>
-    internal string GetCsvImportInitialPath() =>
-        TryResolve( GetCsvExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
+    internal string GetCsvImportInitialPath() => TryResolve( GetCsvExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
 
     /// <summary>
     /// 既定出力ディレクトリを取得する。
     /// </summary>
     /// <returns>出力ディレクトリパスを返す。</returns>
+    /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
     internal string GetExportDirectoryPath() {
         var translateFileDir = settings.TranslateFileDir;
         if(string.IsNullOrWhiteSpace( translateFileDir )) {
@@ -74,6 +74,13 @@ internal sealed class TranslationCreationPathResolver(
 
         throw new InvalidOperationException( "アーカイブが既知のルート配下に存在しません。" );
 
+        /// <summary>
+        /// 指定基準ディレクトリ配下での書き出し先を構築できるかどうかを判定する。
+        /// </summary>
+        /// <param name="baseDirectory">判定対象の基準ディレクトリ。</param>
+        /// <param name="relativeRoot">書き出し先ルート名。</param>
+        /// <param name="exportDirectoryPath">構築できた場合の書き出し先ディレクトリ。</param>
+        /// <returns>構築できた場合は <see langword="true"/> を返す。</returns>
         bool TryBuildExportPath( string baseDirectory, string relativeRoot, out string exportDirectoryPath ) {
             exportDirectoryPath = string.Empty;
             if(string.IsNullOrWhiteSpace( baseDirectory )) {
@@ -91,7 +98,16 @@ internal sealed class TranslationCreationPathResolver(
             return true;
         }
     }
+    #endregion
 
+    #region PrivateHelpers
+
+    /// <summary>
+    /// 優先パス解決を試み、失敗時はアーカイブ隣接パスへフォールバックする。
+    /// </summary>
+    /// <param name="preferredPathFactory">優先パス生成処理。</param>
+    /// <param name="fallbackFileName">フォールバック時に利用するファイル名。</param>
+    /// <returns>解決したパスを返す。</returns>
     private string TryResolve( Func<string> preferredPathFactory, string fallbackFileName ) {
         try {
             return preferredPathFactory();
@@ -104,9 +120,16 @@ internal sealed class TranslationCreationPathResolver(
         }
     }
 
+    /// <summary>
+    /// 対象パスが基準ディレクトリ配下に存在するかどうかを判定する。
+    /// </summary>
+    /// <param name="baseDirectory">基準ディレクトリ。</param>
+    /// <param name="targetPath">判定対象パス。</param>
+    /// <returns>基準ディレクトリ配下に存在する場合は <see langword="true"/> を返す。</returns>
     private static bool IsPathWithinBaseDirectory( string baseDirectory, string targetPath ) {
         var relativePath = Path.GetRelativePath( baseDirectory, targetPath );
         return !relativePath.StartsWith( "..", StringComparison.Ordinal )
             && !Path.IsPathRooted( relativePath );
     }
+    #endregion
 }

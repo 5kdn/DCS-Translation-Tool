@@ -51,6 +51,8 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
         container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
         container.Singleton<ISnackbarService, SnackbarService>();
+        container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();
+        container.Singleton<ITranslationCreationFilterService, TranslationCreationFilterService>();
         container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
         // ViewModels

@@ -18,9 +18,28 @@ public sealed class TranslationCreationViewModelFactory(
     IDialogProvider dialogProvider,
     ISystemService systemService,
     ILoggingService logger,
-    ITranslationDictionaryService translationDictionaryService
+    ITranslationDictionaryService translationDictionaryService,
+    ITranslationCreationPathService pathService,
+    ITranslationCreationFilterService filterService
 ) : ITranslationCreationViewModelFactory {
     /// <inheritdoc />
     public TranslationCreationViewModel Create( string archiveFullPath ) =>
-        new( archiveFullPath, appSettingsService, applicationInfoService, dialogService, dialogProvider, systemService, logger, translationDictionaryService );
+        new(
+            archiveFullPath,
+            appSettingsService,
+            systemService,
+            logger,
+            new TranslationCreationSession(),
+            new TranslationCreationDictionaryLoader( translationDictionaryService ),
+            new TranslationCreationDialogService( dialogService, dialogProvider, logger ),
+            new TranslationCreationImportExportService(
+                appSettingsService,
+                applicationInfoService,
+                translationDictionaryService,
+                new TranslationCreationDialogService( dialogService, dialogProvider, logger ),
+                pathService,
+                systemService,
+                logger ),
+            filterService,
+            new TranslationCreationNotificationService( systemService, logger ) );
 }

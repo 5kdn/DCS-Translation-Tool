@@ -9,8 +9,10 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// TranslationCreation の dictionary 読込前処理を担う。
 /// </summary>
 /// <param name="translationDictionaryService">dictionary 読込サービス。</param>
-internal sealed class TranslationCreationDictionaryLoader(
+public sealed class TranslationCreationDictionaryLoader(
     ITranslationDictionaryService translationDictionaryService ) {
+    #region PublicMethods
+
     /// <summary>
     /// アーカイブから TranslationCreation 用の dictionary 状態を読み込む。
     /// </summary>
@@ -38,7 +40,15 @@ internal sealed class TranslationCreationDictionaryLoader(
         {
             Translated = item.Original
         } )];
+    #endregion
 
+    #region PrivateHelpers
+
+    /// <summary>
+    /// 読み込んだ dictionary 項目一覧を画面表示用状態へ変換する。
+    /// </summary>
+    /// <param name="items">変換対象の dictionary 項目一覧。</param>
+    /// <returns>変換後の読込状態を返す。</returns>
     private static TranslationCreationDictionaryLoadState BuildDictionaryLoadState( IReadOnlyList<TranslationDictionaryItem> items ) {
         var initializedItems = items
             .Select( InitializeDictionaryItem )
@@ -61,6 +71,11 @@ internal sealed class TranslationCreationDictionaryLoader(
         return new TranslationCreationDictionaryLoadState( loadedItems, rowItems );
     }
 
+    /// <summary>
+    /// 画面初期表示向けに dictionary 項目を初期化する。
+    /// </summary>
+    /// <param name="item">初期化対象の項目。</param>
+    /// <returns>初期化後の項目を返す。</returns>
     private static TranslationDictionaryItem InitializeDictionaryItem( TranslationDictionaryItem item ) =>
         new( item.Key, item.Original )
         {
@@ -68,6 +83,11 @@ internal sealed class TranslationCreationDictionaryLoader(
             IsEnabled = item.IsEnabled && !IsPossibleNonTranslationTarget( item )
         };
 
+    /// <summary>
+    /// dictionary 項目を複製する。
+    /// </summary>
+    /// <param name="item">複製元の項目。</param>
+    /// <returns>複製した項目を返す。</returns>
     private static TranslationDictionaryItem CloneDictionaryItem( TranslationDictionaryItem item ) =>
         new( item.Key, item.Original )
         {
@@ -75,9 +95,20 @@ internal sealed class TranslationCreationDictionaryLoader(
             IsEnabled = item.IsEnabled
         };
 
+    /// <summary>
+    /// 指定項目が翻訳対象ではない可能性があるかどうかを判定する。
+    /// </summary>
+    /// <param name="item">判定対象の項目。</param>
+    /// <returns>翻訳対象ではない可能性がある場合は <see langword="true"/> を返す。</returns>
     private static bool IsPossibleNonTranslationTarget( TranslationDictionaryItem item ) =>
         IsPossibleNonTranslationTarget( item.Key, item.Original );
 
+    /// <summary>
+    /// 指定 key と original が翻訳対象ではない可能性があるかどうかを判定する。
+    /// </summary>
+    /// <param name="key">判定対象の key。</param>
+    /// <param name="original">判定対象の original。</param>
+    /// <returns>翻訳対象ではない可能性がある場合は <see langword="true"/> を返す。</returns>
     private static bool IsPossibleNonTranslationTarget( string key, string original ) {
         if(string.IsNullOrWhiteSpace( original )) {
             return true;
@@ -94,6 +125,11 @@ internal sealed class TranslationCreationDictionaryLoader(
             || LuaCodeStringDetector.IsLuaCodeString( original );
     }
 
+    /// <summary>
+    /// dictionary 項目の表示順序を取得する。
+    /// </summary>
+    /// <param name="item">判定対象の項目。</param>
+    /// <returns>表示順序を表す整数値を返す。</returns>
     private static int GetDictionaryItemSortOrder( TranslationDictionaryItem item ) {
         if(item.Key.StartsWith( "DictKey_sortie_", StringComparison.Ordinal )) {
             return 0;
@@ -125,6 +161,7 @@ internal sealed class TranslationCreationDictionaryLoader(
 
         return 7;
     }
+    #endregion
 }
 
 /// <summary>
@@ -132,7 +169,7 @@ internal sealed class TranslationCreationDictionaryLoader(
 /// </summary>
 /// <param name="LoadedItems">dirty 判定基準の項目一覧。</param>
 /// <param name="RowItems">画面表示用行一覧。</param>
-internal sealed record TranslationCreationDictionaryLoadState(
+public sealed record TranslationCreationDictionaryLoadState(
     IReadOnlyList<TranslationDictionaryItem> LoadedItems,
     IReadOnlyList<TranslationDictionaryItemRowViewModel> RowItems );
 
@@ -142,7 +179,7 @@ internal sealed record TranslationCreationDictionaryLoadState(
 /// <param name="LoadState">DEFAULT dictionary 読込状態。</param>
 /// <param name="HasJapaneseDictionary">JP dictionary を内包するかどうか。</param>
 /// <param name="JapaneseDictionaryItems">JP dictionary 項目一覧。</param>
-internal sealed record TranslationCreationArchiveDictionaryLoadState(
+public sealed record TranslationCreationArchiveDictionaryLoadState(
     TranslationCreationDictionaryLoadState LoadState,
     bool HasJapaneseDictionary,
     IReadOnlyList<TranslationDictionaryItem> JapaneseDictionaryItems );
