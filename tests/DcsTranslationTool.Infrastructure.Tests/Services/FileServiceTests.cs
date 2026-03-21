@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
 using Moq;

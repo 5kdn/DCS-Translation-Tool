@@ -18,6 +18,12 @@
           "Microsoft.TestPlatform.TestHost": "18.0.1"
         }
       },
+      "Microsoft.Xaml.Behaviors.Wpf": {
+        "type": "Direct",
+        "requested": "[1.1.135, )",
+        "resolved": "1.1.135",
+        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
+      },
       "Moq": {
         "type": "Direct",
         "requested": "[4.20.72, )",
@@ -255,10 +261,10 @@
           "System.Security.Principal.Windows": "5.0.0"
         }
       },
-      "Microsoft.Xaml.Behaviors.Wpf": {
+      "MoonSharp": {
         "type": "Transitive",
-        "resolved": "1.1.135",
-        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
+        "resolved": "2.0.0",
+        "contentHash": "uiAcRh7d+53k3xW9pFDJfAFVw4RnjHVCJG05M3oPAVEVwPtFavhg1H/IpC6So4X1j9kJlzuLlA3OghhPcIvc5A=="
       },
       "Newtonsoft.Json": {
         "type": "Transitive",
@@ -465,6 +471,7 @@
           "Microsoft.Kiota.Serialization.Json": "[1.21.3, )",
           "Microsoft.Kiota.Serialization.Multipart": "[1.21.3, )",
           "Microsoft.Kiota.Serialization.Text": "[1.21.3, )",
+          "MoonSharp": "[2.0.0, )",
           "NLog": "[6.1.0, )",
           "UTF.Unknown": "[2.6.0, )"
         }
@@ -477,7 +484,9 @@
           "DcsTranslationTool.Composition": "[1.0.0, )",
           "DcsTranslationTool.Resources": "[1.0.0, )",
           "DcsTranslationTool.Shared": "[1.0.0, )",
-          "MaterialDesignThemes": "[5.3.0, )"
+          "MaterialDesignThemes": "[5.3.0, )",
+          "Microsoft.Xaml.Behaviors.Wpf": "[1.1.135, )",
+          "MoonSharp": "[2.0.0, )"
         }
       },
       "dcstranslationtool.resources": {

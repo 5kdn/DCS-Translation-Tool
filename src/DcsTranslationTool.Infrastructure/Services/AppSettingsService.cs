@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Infrastructure.Services;
@@ -90,8 +89,6 @@ public sealed class AppSettingsService : IAppSettingsService, IDisposable, IAsyn
             DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
         finally {
-            _fileLock.Dispose();
-            _shutdownCts.Dispose();
             _logger.Debug( "AppSettingsService の同期破棄が完了した。" );
         }
     }
@@ -105,7 +102,20 @@ public sealed class AppSettingsService : IAppSettingsService, IDisposable, IAsyn
         _disposed = true;
 
         _logger.Debug( "AppSettingsService を非同期破棄する。" );
+        try {
+            await DisposeAsyncCore().ConfigureAwait( false );
+        }
+        finally {
+            DisposeResources();
+            _logger.Debug( "AppSettingsService の非同期破棄が完了した。" );
+        }
+    }
 
+    /// <summary>
+    /// 非同期破棄の中核処理を実行する。
+    /// </summary>
+    /// <returns>非同期タスク</returns>
+    private async ValueTask DisposeAsyncCore() {
         // 以後のスケジュールを止める
         lock(_timerLock) {
             _saveTimer?.Dispose();
@@ -128,8 +138,14 @@ public sealed class AppSettingsService : IAppSettingsService, IDisposable, IAsyn
         foreach(var obj in _observedObjects.Keys.ToArray()) {
             DetachChangeObservers( obj );
         }
+    }
 
-        _logger.Debug( "AppSettingsService の非同期破棄が完了した。" );
+    /// <summary>
+    /// 同期・非同期破棄の共通後始末を実行する。
+    /// </summary>
+    private void DisposeResources() {
+        _fileLock.Dispose();
+        _shutdownCts.Dispose();
     }
 
     #region Public Methods
@@ -270,20 +286,30 @@ public sealed class AppSettingsService : IAppSettingsService, IDisposable, IAsyn
             return new AppSettings();
         }
         try {
-            using var stream = File.OpenRead(_filePath);
-            var settings = JsonSerializer.Deserialize<AppSettings>( stream, JsonOptions );
-            _logger.Info( "設定ファイルの読み込みに成功した。" );
-            return settings ?? new AppSettings();
+            var stream = File.OpenRead(_filePath);
+            try {
+                var settings = JsonSerializer.Deserialize<AppSettings>( stream, JsonOptions );
+                _logger.Info( "設定ファイルの読み込みに成功した。" );
+                return settings ?? new AppSettings();
+            }
+            finally {
+                stream.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         }
         catch(Exception ex) {
             _logger.Warn( "設定ファイルの読み込みに失敗した。バックアップからの復旧を試みる。", ex );
             // 壊れたJSON時はバックアップからの復旧を試みる
             if(File.Exists( BackupPath )) {
                 try {
-                    using var stream = File.OpenRead(BackupPath);
-                    var backup = JsonSerializer.Deserialize<AppSettings>( stream, JsonOptions );
-                    _logger.Info( "バックアップから設定を復旧した。" );
-                    return backup ?? new AppSettings();
+                    var stream = File.OpenRead(BackupPath);
+                    try {
+                        var backup = JsonSerializer.Deserialize<AppSettings>( stream, JsonOptions );
+                        _logger.Info( "バックアップから設定を復旧した。" );
+                        return backup ?? new AppSettings();
+                    }
+                    finally {
+                        stream.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    }
                 }
                 catch(Exception backupEx) {
                     _logger.Error( "バックアップからの復旧に失敗した。", backupEx );

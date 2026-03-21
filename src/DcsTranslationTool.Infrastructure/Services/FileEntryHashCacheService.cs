@@ -1,7 +1,6 @@
 using System.Reflection;
 
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Infrastructure.Interfaces;
 
 using Microsoft.Data.Sqlite;
 

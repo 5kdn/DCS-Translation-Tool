@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reflection;
 
-using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
 using Moq;
@@ -155,6 +155,53 @@ public sealed class AppSettingsServiceTests : IDisposable {
         // Assert
         Assert.True( File.Exists( path ) );
         Assert.True( new FileInfo( path ).Length > 0 );
+    }
+
+    [Fact]
+    public async Task SaveAsyncはTranslationCreationDictionaryPaneRatioを保存して再読込できる() {
+        // Arrange
+        await using(var sut = CreateService()) {
+            sut.Settings.TranslationCreationDictionaryPaneRatio = 3.5;
+
+            // Act
+            await sut.SaveAsync( TestContext.Current.CancellationToken );
+        }
+
+        // Assert
+        await using var reloaded = CreateService();
+        Assert.Equal( 3.5, reloaded.Settings.TranslationCreationDictionaryPaneRatio );
+    }
+
+    [Fact]
+    public async Task SaveAsyncはTranslationCreationWindowSizeを保存して再読込できる() {
+        // Arrange
+        await using(var sut = CreateService()) {
+            sut.Settings.TranslationCreationWindowWidth = 1440;
+            sut.Settings.TranslationCreationWindowHeight = 960;
+
+            // Act
+            await sut.SaveAsync( TestContext.Current.CancellationToken );
+        }
+
+        // Assert
+        await using var reloaded = CreateService();
+        Assert.Equal( 1440, reloaded.Settings.TranslationCreationWindowWidth );
+        Assert.Equal( 960, reloaded.Settings.TranslationCreationWindowHeight );
+    }
+
+    [Fact]
+    public async Task SaveAsyncはTranslationCreation詳細折り返し設定を保存して再読込できる() {
+        // Arrange
+        await using(var sut = CreateService()) {
+            sut.Settings.TranslationCreationWrapDictionaryDetailsText = false;
+
+            // Act
+            await sut.SaveAsync( TestContext.Current.CancellationToken );
+        }
+
+        // Assert
+        await using var reloaded = CreateService();
+        Assert.False( reloaded.Settings.TranslationCreationWrapDictionaryDetailsText );
     }
 
     #endregion

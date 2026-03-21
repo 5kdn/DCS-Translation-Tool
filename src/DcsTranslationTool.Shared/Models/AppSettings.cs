@@ -32,6 +32,10 @@ public class AppSettings : INotifyPropertyChanged {
     private string _externalAircraftInjectionDir = string.Empty;
     private bool _useExternalCampaignInjectionDir = false;
     private string _externalCampaignInjectionDir = string.Empty;
+    private double _translationCreationWindowWidth = 1200;
+    private double _translationCreationWindowHeight = 900;
+    private double _translationCreationDictionaryPaneRatio = 2;
+    private bool _translationCreationWrapDictionaryDetailsText = true;
     private ApiRoutePreference _apiPreferredRoute = ApiRoutePreference.None;
     private DateTimeOffset? _apiPreferredRouteValidUntilUtc;
     private DateTimeOffset? _apiRouteLastVerifiedAtUtc;
@@ -110,6 +114,30 @@ public class AppSettings : INotifyPropertyChanged {
     public string ExternalCampaignInjectionDir {
         get => _externalCampaignInjectionDir;
         set => Set( ref _externalCampaignInjectionDir, value );
+    }
+
+    /// <summary>TranslationCreation Window の幅を保持する。</summary>
+    public double TranslationCreationWindowWidth {
+        get => _translationCreationWindowWidth;
+        set => Set( ref _translationCreationWindowWidth, value );
+    }
+
+    /// <summary>TranslationCreation Window の高さを保持する。</summary>
+    public double TranslationCreationWindowHeight {
+        get => _translationCreationWindowHeight;
+        set => Set( ref _translationCreationWindowHeight, value );
+    }
+
+    /// <summary>TranslationCreation Window の dictionary 一覧領域の高さ比率を保持する。</summary>
+    public double TranslationCreationDictionaryPaneRatio {
+        get => _translationCreationDictionaryPaneRatio;
+        set => Set( ref _translationCreationDictionaryPaneRatio, value );
+    }
+
+    /// <summary>TranslationCreation Window の詳細テキストを右端で折り返すかどうかを保持する。</summary>
+    public bool TranslationCreationWrapDictionaryDetailsText {
+        get => _translationCreationWrapDictionaryDetailsText;
+        set => Set( ref _translationCreationWrapDictionaryDetailsText, value );
     }
 
     /// <summary>API通信で優先する経路を保持する。</summary>

@@ -41,6 +41,8 @@ public static class CompositionRegistration {
         c.Singleton<IFileContentInspector, FileContentInspector>();
         c.Singleton<IFileEntryService, FileEntryService>();
         c.Singleton<IFileService, FileService>();
+        c.Singleton<ITranslationArchiveDiscoveryService, TranslationArchiveDiscoveryService>();
+        c.Singleton<ITranslationDictionaryService, TranslationDictionaryService>();
         c.Singleton<IZipService, ZipService>();
         c.Singleton<IEnvironmentProvider, EnvironmentProvider>();
         c.Singleton<IProcessLauncher, ProcessLauncher>();

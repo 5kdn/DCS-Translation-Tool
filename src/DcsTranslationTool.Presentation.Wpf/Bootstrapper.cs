@@ -8,6 +8,8 @@ using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -47,8 +49,21 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
         container.Singleton<IFileEntryWatcherLifecycle, FileEntryWatcherLifecycle>();
         container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
+        container.Singleton<ITranslationArchiveTreeService, TranslationArchiveTreeService>();
+        container.Singleton<ITranslationFileSelectionWorkflowService, TranslationFileSelectionWorkflowService>();
+        container.Singleton<ITranslationFileSelectionActionService, TranslationFileSelectionActionService>();
+        container.Singleton<ITranslationFileSelectionWorkflowUiAdapter, TranslationFileSelectionWorkflowUiAdapter>();
         container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
         container.Singleton<ISnackbarService, SnackbarService>();
+        container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();
+        container.Singleton<ITranslationCreationFilterService, TranslationCreationFilterService>();
+        container.Singleton<ITranslationCreationLayoutStateService, TranslationCreationLayoutStateService>();
+        container.Singleton<ITranslationCreationDialogService, TranslationCreationDialogService>();
+        container.Singleton<ITranslationCreationImportExportService, TranslationCreationImportExportService>();
+        container.Singleton<TranslationCreationDictionaryLoader>();
+        container.Singleton<ITranslationCreationNotificationService, TranslationCreationNotificationService>();
+        container.Singleton<ITranslationCreationWorkflowService, TranslationCreationWorkflowService>();
+        container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
         // ViewModels
         container.Singleton<ShellViewModel>();
@@ -56,6 +71,7 @@ public class Bootstrapper : BootstrapperBase {
         container.PerRequest<SettingsViewModel>();
         container.PerRequest<DownloadViewModel>();
         container.PerRequest<UploadViewModel>();
+        container.PerRequest<TranslationFileSelectionViewModel>();
         container.PerRequest<CreatePullRequestViewModel>();
     }
 

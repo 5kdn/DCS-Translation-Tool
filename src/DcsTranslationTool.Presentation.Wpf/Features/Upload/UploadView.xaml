@@ -16,7 +16,6 @@
       d:DesignHeight="450" d:DesignWidth="800">
 
     <Page.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <conv:FileEntryToIconKindConverter x:Key="FileEntryToIconKindConverter"/>
         <conv:FileChangeTypeToBrushConverter x:Key="FileChangeTypeToBrushConverter"/>
     </Page.Resources>
@@ -98,21 +97,21 @@
                 <TabControl.ContentTemplate>
                     <DataTemplate DataType="{x:Type vm:TabItemViewModel}">
                         <TreeView x:Name="TreeViewControl"
+                                  Style="{StaticResource CommonFileTreeViewStyle}"
                                   ItemsSource="{Binding Root.Children}"
                                   Margin="{StaticResource XSmallTopMargin}"
                                   VirtualizingStackPanel.IsVirtualizing="True"
                                   VirtualizingStackPanel.VirtualizationMode="Recycling"
                                   ScrollViewer.CanContentScroll="True">
                             <TreeView.ItemContainerStyle>
-                                <Style TargetType="TreeViewItem">
-                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
-                                    <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                </Style>
+                                <StaticResource ResourceKey="CompactFileTreeViewItemStyle" />
                             </TreeView.ItemContainerStyle>
                             <TreeView.ItemTemplate>
                                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                                     <StackPanel Orientation="Horizontal">
-                                        <CheckBox IsChecked="{Binding CheckState, Mode=TwoWay}" IsEnabled="{Binding CanCheck}" />
+                                        <CheckBox Style="{StaticResource CompactTreeCheckBoxStyle}"
+                                                  IsChecked="{Binding CheckState, Mode=TwoWay}"
+                                                  IsEnabled="{Binding CanCheck}" />
                                         <md:PackIcon Margin="{StaticResource XSmallLeftMargin}" VerticalAlignment="Center">
                                             <md:PackIcon.Foreground>
                                                 <MultiBinding Converter="{StaticResource FileChangeTypeToBrushConverter}">

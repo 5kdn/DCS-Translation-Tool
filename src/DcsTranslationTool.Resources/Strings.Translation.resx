@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Title" xml:space="preserve">
+    <value>翻訳</value>
+  </data>
+  <data name="RefreshButtonContent" xml:space="preserve">
+    <value>再読み込み</value>
+  </data>
+  <data name="EmptyMessage" xml:space="preserve">
+    <value>このカテゴリに翻訳対象アーカイブはありません。</value>
+  </data>
+  <data name="LoadFailedMessage" xml:space="preserve">
+    <value>翻訳対象アーカイブの読み込みに失敗しました</value>
+  </data>
+  <data name="SettingsNotConfiguredMessage" xml:space="preserve">
+    <value>DCS World または User Missions の探索元フォルダーを設定してください。</value>
+  </data>
+  <data name="OpenDirectoryButtonContent" xml:space="preserve">
+    <value>フォルダーを開く</value>
+  </data>
+  <data name="OpenDirectoryFailedMessage" xml:space="preserve">
+    <value>フォルダーを開けませんでした</value>
+  </data>
+  <data name="CreateTranslationButtonContent" xml:space="preserve">
+    <value>翻訳を作成</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationCancelButtonText" xml:space="preserve">
+    <value>キャンセル</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationConfirmButtonText" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationMessage" xml:space="preserve">
+    <value>翻訳内容が変更されています。閉じてもよろしいですか？</value>
+  </data>
+  <data name="CreateTranslationCloseConfirmationTitle" xml:space="preserve">
+    <value>確認</value>
+  </data>
+  <data name="CreateTranslationWindowTitle" xml:space="preserve">
+    <value>翻訳を作成</value>
+  </data>
+  <data name="CreateTranslationWindowOpenFailedMessage" xml:space="preserve">
+    <value>翻訳作成ウィンドウを開けませんでした</value>
+  </data>
+  <data name="CreateTranslationDictionaryLoadingMessage" xml:space="preserve">
+    <value>dictionary を読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationDictionaryLoadFailedMessage" xml:space="preserve">
+    <value>dictionary の読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryConfirmationTitle" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationMessage" xml:space="preserve">
+    <value>l10n/JP/dictionary を翻訳の初期値として取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryImportConfirmationTitle" xml:space="preserve">
+    <value>取り込み確認</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryImportButtonText" xml:space="preserve">
+    <value>取り込む</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryContinueWithoutImportButtonText" xml:space="preserve">
+    <value>取り込まずに続ける</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryCloseButtonText" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryMizConfirmationMessage" xml:space="preserve">
+    <value>{0} ファイルには既に日本語のdictionaryファイルが含まれています。継続しますか？</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryStartupPromptMessage" xml:space="preserve">
+    <value>埋め込み JP dictionary を翻訳の初期値として取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationEmbeddedJapaneseDictionaryTrkConfirmationMessage" xml:space="preserve">
+    <value>{0} ファイルには既に日本語のdictionaryファイルが含まれています。継続しますか？</value>
+  </data>
+  <data name="CreateTranslationDictionaryEmptyMessage" xml:space="preserve">
+    <value>dictionary に項目がありません。</value>
+  </data>
+  <data name="CreateTranslationDictionaryExportFailedMessage" xml:space="preserve">
+    <value>dictionary の書き出しに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationDictionaryExportSucceededMessage" xml:space="preserve">
+    <value>dictionary を書き出しました: {0}</value>
+  </data>
+  <data name="CreateTranslationDictionaryExportingMessage" xml:space="preserve">
+    <value>dictionary を書き出しています。</value>
+  </data>
+  <data name="CreateTranslationShowOnlyUntranslatedFilterText" xml:space="preserve">
+    <value>未翻訳のみ表示</value>
+  </data>
+  <data name="CreateTranslationShowEnabledItemsFilterText" xml:space="preserve">
+    <value>有効状態の項目を表示</value>
+  </data>
+  <data name="CreateTranslationShowDisabledItemsFilterText" xml:space="preserve">
+    <value>無効状態の項目を表示</value>
+  </data>
+  <data name="CreateTranslationDataGridEnabledHeaderText" xml:space="preserve">
+    <value>有効</value>
+  </data>
+  <data name="CreateTranslationDataGridKeyHeaderText" xml:space="preserve">
+    <value>キー</value>
+  </data>
+  <data name="CreateTranslationDataGridOriginalHeaderText" xml:space="preserve">
+    <value>原文</value>
+  </data>
+  <data name="CreateTranslationDataGridTranslatedHeaderText" xml:space="preserve">
+    <value>翻訳</value>
+  </data>
+  <data name="CreateTranslationDictionaryDetailsWrapCheckBoxContent" xml:space="preserve">
+    <value>右端で折り返す</value>
+  </data>
+  <data name="CreateTranslationCopyButtonContent" xml:space="preserve">
+    <value>コピー</value>
+  </data>
+  <data name="CreateTranslationExportButtonContent" xml:space="preserve">
+    <value>書き出し</value>
+  </data>
+  <data name="CreateTranslationImportPoSplitButtonContent" xml:space="preserve">
+    <value>POから読み込み</value>
+  </data>
+  <data name="CreateTranslationImportDictionaryButtonContent" xml:space="preserve">
+    <value>dictionaryから読み込み</value>
+  </data>
+  <data name="CreateTranslationExportPoSplitButtonContent" xml:space="preserve">
+    <value>POに書き出し</value>
+  </data>
+  <data name="CreateTranslationImportCsvButtonContent" xml:space="preserve">
+    <value>CSVから読み込み</value>
+  </data>
+  <data name="CreateTranslationExportCsvButtonContent" xml:space="preserve">
+    <value>CSVに書き出し</value>
+  </data>
+  <data name="CreateTranslationImportPoButtonContent" xml:space="preserve">
+    <value>POファイルから読み込み</value>
+  </data>
+  <data name="CreateTranslationExportPoButtonContent" xml:space="preserve">
+    <value>POファイルに書き出し</value>
+  </data>
+  <data name="CreateTranslationHidePossibleNonTranslationTargetsFilterText" xml:space="preserve">
+    <value>対象外を非表示</value>
+  </data>
+  <data name="CreateTranslationHidePossibleNonTranslationTargetsFilterToolTip" xml:space="preserve">
+    <value>翻訳対象外であると思われる以下の項目を非表示にします
+- キーが DictKey_ から始まらない
+- キーが DictKey_WptName_* に当てはまる
+- キーが DictKey_ActionComment_* に当てはまる
+- キーが DictKey_GroupName_* に当てはまる
+- キーが DictKey_UnitName_* に当てはまる
+- 原文がluaコードとして解釈できる</value>
+  </data>
+  <data name="CreateTranslationHideEmptyOriginalFilterText" xml:space="preserve">
+    <value>空欄を非表示</value>
+  </data>
+  <data name="CreateTranslationHideEmptyOriginalFilterToolTip" xml:space="preserve">
+    <value>原文が空の文字列である項目を非表示にします</value>
+  </data>
+  <data name="CreateTranslationDataGridMoveSelectionShortcutToolTip" xml:space="preserve">
+    <value>Ctrl+↑ / Ctrl+↓ で項目を移動できます</value>
+  </data>
+  <data name="CreateTranslationOriginalLabelText" xml:space="preserve">
+    <value>原文</value>
+  </data>
+  <data name="CreateTranslationCsvExportFailedMessage" xml:space="preserve">
+    <value>CSV ファイルの書き出しに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationCsvExportSucceededMessage" xml:space="preserve">
+    <value>CSV ファイルを書き出しました: {0}</value>
+  </data>
+  <data name="CreateTranslationCsvExportingMessage" xml:space="preserve">
+    <value>CSV ファイルを書き出しています。</value>
+  </data>
+  <data name="CreateTranslationCsvImportFailedMessage" xml:space="preserve">
+    <value>CSV ファイルの読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationCsvImportingMessage" xml:space="preserve">
+    <value>CSV ファイルを読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationCsvImportOverwriteConfirmationMessage" xml:space="preserve">
+    <value>翻訳テキストが存在します。CSV ファイルの内容で上書きしますか？</value>
+  </data>
+  <data name="CreateTranslationCsvImportOverwriteConfirmationTitle" xml:space="preserve">
+    <value>上書き確認</value>
+  </data>
+  <data name="CreateTranslationCsvImportPartialConfirmationMessage" xml:space="preserve">
+    <value>CSV ファイルの行が現在の dictionary と完全一致しませんでした。一致した (Key, Original) は {0} 件です。一致した行のみ取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationCsvImportPartialConfirmationTitle" xml:space="preserve">
+    <value>部分取り込み確認</value>
+  </data>
+  <data name="CreateTranslationCsvImportPartialSucceededMessage" xml:space="preserve">
+    <value>CSV ファイルから {0} 件を取り込みました: {1}</value>
+  </data>
+  <data name="CreateTranslationCsvImportSucceededMessage" xml:space="preserve">
+    <value>CSV ファイルを読み込みました: {0}</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportFailedMessage" xml:space="preserve">
+    <value>dictionary ファイルの読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportingMessage" xml:space="preserve">
+    <value>dictionary ファイルを読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportOverwriteConfirmationMessage" xml:space="preserve">
+    <value>翻訳テキストが存在します。dictionary ファイルの内容で上書きしますか？</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportOverwriteConfirmationTitle" xml:space="preserve">
+    <value>上書き確認</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportPartialConfirmationMessage" xml:space="preserve">
+    <value>読み込んだdictionaryファイルが古くなっています。注意して適用してください。一致した key は {0} 件です。一致した項目のみ取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportPartialConfirmationTitle" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportPartialSucceededMessage" xml:space="preserve">
+    <value>dictionary ファイルから {0} 件を取り込みました: {1}</value>
+  </data>
+  <data name="CreateTranslationDictionaryImportSucceededMessage" xml:space="preserve">
+    <value>dictionary ファイルを読み込みました: {0}</value>
+  </data>
+  <data name="CreateTranslationPoExportFailedMessage" xml:space="preserve">
+    <value>PO ファイルの書き出しに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationPoExportSucceededMessage" xml:space="preserve">
+    <value>PO ファイルを書き出しました: {0}</value>
+  </data>
+  <data name="CreateTranslationPoExportingMessage" xml:space="preserve">
+    <value>PO ファイルを書き出しています。</value>
+  </data>
+  <data name="CreateTranslationPoImportFailedMessage" xml:space="preserve">
+    <value>PO ファイルの読み込みに失敗しました。</value>
+  </data>
+  <data name="CreateTranslationPoImportingMessage" xml:space="preserve">
+    <value>PO ファイルを読み込んでいます。</value>
+  </data>
+  <data name="CreateTranslationPoImportOverwriteConfirmationMessage" xml:space="preserve">
+    <value>翻訳テキストが存在します。PO ファイルの内容で上書きしますか？</value>
+  </data>
+  <data name="CreateTranslationPoImportOverwriteConfirmationTitle" xml:space="preserve">
+    <value>上書き確認</value>
+  </data>
+  <data name="CreateTranslationPoImportPartialConfirmationMessage" xml:space="preserve">
+    <value>PO ファイルのエントリーが現在の dictionary と完全一致しませんでした。一致した (msgctxt, msgid) は {0} 件です。一致したエントリーのみ取り込みますか？</value>
+  </data>
+  <data name="CreateTranslationPoImportPartialConfirmationTitle" xml:space="preserve">
+    <value>部分取り込み確認</value>
+  </data>
+  <data name="CreateTranslationPoImportPartialSucceededMessage" xml:space="preserve">
+    <value>PO ファイルから {0} 件を取り込みました: {1}</value>
+  </data>
+  <data name="CreateTranslationPoImportSucceededMessage" xml:space="preserve">
+    <value>PO ファイルを読み込みました: {0}</value>
+  </data>
+  <data name="CreateTranslationOriginalCopiedMessage" xml:space="preserve">
+    <value>原文をコピーしました</value>
+  </data>
+  <data name="CreateTranslationTranslatedLabelText" xml:space="preserve">
+    <value>Translated</value>
+  </data>
+</root>

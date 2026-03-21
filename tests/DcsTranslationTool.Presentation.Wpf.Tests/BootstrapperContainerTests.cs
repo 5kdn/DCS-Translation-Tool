@@ -5,6 +5,7 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
+using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.IO;
 using DcsTranslationTool.Infrastructure.Providers;
 using DcsTranslationTool.Infrastructure.Services;
@@ -12,6 +13,8 @@ using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Features.Download;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
+using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Features.Upload;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
@@ -77,6 +80,7 @@ public sealed class BootstrapperContainerTests {
                 }
             }
 
+            Container.Singleton<IDialogService, DialogService>();
             Container.Singleton<IDialogProvider, DialogProvider>();
             Container.Singleton<IDispatcherService, DispatcherService>();
             Container.Singleton<IEntryApplyService, EntryApplyService>();
@@ -85,8 +89,21 @@ public sealed class BootstrapperContainerTests {
             Container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
             Container.Singleton<IFileEntryWatcherLifecycle, FileEntryWatcherLifecycle>();
             Container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
+            Container.Singleton<ITranslationArchiveTreeService, TranslationArchiveTreeService>();
+            Container.Singleton<ITranslationFileSelectionWorkflowService, TranslationFileSelectionWorkflowService>();
+            Container.Singleton<ITranslationFileSelectionActionService, TranslationFileSelectionActionService>();
+            Container.Singleton<ITranslationFileSelectionWorkflowUiAdapter, TranslationFileSelectionWorkflowUiAdapter>();
             Container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
             Container.Singleton<ISnackbarService, SnackbarService>();
+            Container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();
+            Container.Singleton<ITranslationCreationFilterService, TranslationCreationFilterService>();
+            Container.Singleton<ITranslationCreationLayoutStateService, TranslationCreationLayoutStateService>();
+            Container.Singleton<ITranslationCreationDialogService, TranslationCreationDialogService>();
+            Container.Singleton<ITranslationCreationImportExportService, TranslationCreationImportExportService>();
+            Container.Singleton<TranslationCreationDictionaryLoader>();
+            Container.Singleton<ITranslationCreationNotificationService, TranslationCreationNotificationService>();
+            Container.Singleton<ITranslationCreationWorkflowService, TranslationCreationWorkflowService>();
+            Container.Singleton<ITranslationCreationViewModelFactory, TranslationCreationViewModelFactory>();
 
             var navigationServiceMock = new Mock<INavigationService>();
             Container.Instance( navigationServiceMock.Object );
@@ -96,6 +113,7 @@ public sealed class BootstrapperContainerTests {
             Container.PerRequest<SettingsViewModel>();
             Container.PerRequest<DownloadViewModel>();
             Container.PerRequest<UploadViewModel>();
+            Container.PerRequest<TranslationFileSelectionViewModel>();
             Container.PerRequest<CreatePullRequestViewModel>();
         }
 
@@ -111,6 +129,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<FileEntryService>( Get<IFileEntryService>() );
             Assert.IsType<FileService>( Get<IFileService>() );
             Assert.IsType<FileContentInspector>( Get<IFileContentInspector>() );
+            Assert.IsType<TranslationArchiveDiscoveryService>( Get<ITranslationArchiveDiscoveryService>() );
             Assert.IsType<ApplicationInfoService>( Get<IApplicationInfoService>() );
             Assert.IsType<EnvironmentProvider>( Get<IEnvironmentProvider>() );
             Assert.IsType<ProcessLauncher>( Get<IProcessLauncher>() );
@@ -118,6 +137,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<UpdateCheckService>( Get<IUpdateCheckService>() );
             Assert.IsType<ZipService>( Get<IZipService>() );
             Assert.IsType<DialogProvider>( Get<IDialogProvider>() );
+            Assert.IsType<DialogService>( Get<IDialogService>() );
             Assert.IsType<DispatcherService>( Get<IDispatcherService>() );
             Assert.IsType<EntryApplyService>( Get<IEntryApplyService>() );
             Assert.IsType<RepoOnlySyncService>( Get<IRepoOnlySyncService>() );
@@ -125,8 +145,21 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<DownloadWorkflowService>( Get<IDownloadWorkflowService>() );
             Assert.IsType<FileEntryWatcherLifecycle>( Get<IFileEntryWatcherLifecycle>() );
             Assert.IsType<FileEntryTreeService>( Get<IFileEntryTreeService>() );
+            Assert.IsType<TranslationArchiveTreeService>( Get<ITranslationArchiveTreeService>() );
+            Assert.IsType<TranslationFileSelectionWorkflowService>( Get<ITranslationFileSelectionWorkflowService>() );
+            Assert.IsType<TranslationFileSelectionActionService>( Get<ITranslationFileSelectionActionService>() );
+            Assert.IsType<TranslationFileSelectionWorkflowUiAdapter>( Get<ITranslationFileSelectionWorkflowUiAdapter>() );
             Assert.IsType<PathSafetyGuard>( Get<IPathSafetyGuard>() );
             Assert.IsType<SnackbarService>( Get<ISnackbarService>() );
+            Assert.IsType<TranslationCreationPathService>( Get<ITranslationCreationPathService>() );
+            Assert.IsType<TranslationCreationFilterService>( Get<ITranslationCreationFilterService>() );
+            Assert.IsType<TranslationCreationLayoutStateService>( Get<ITranslationCreationLayoutStateService>() );
+            Assert.IsType<TranslationCreationDialogService>( Get<ITranslationCreationDialogService>() );
+            Assert.IsType<TranslationCreationImportExportService>( Get<ITranslationCreationImportExportService>() );
+            Assert.IsType<TranslationCreationDictionaryLoader>( Get<TranslationCreationDictionaryLoader>() );
+            Assert.IsType<TranslationCreationNotificationService>( Get<ITranslationCreationNotificationService>() );
+            Assert.IsType<TranslationCreationWorkflowService>( Get<ITranslationCreationWorkflowService>() );
+            Assert.IsType<TranslationCreationViewModelFactory>( Get<ITranslationCreationViewModelFactory>() );
             Assert.IsType<WindowManager>( Get<IWindowManager>() );
             Assert.IsType<EventAggregator>( Get<IEventAggregator>() );
 
@@ -135,6 +168,7 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<SettingsViewModel>( Get<SettingsViewModel>() );
             Assert.IsType<DownloadViewModel>( Get<DownloadViewModel>() );
             Assert.IsType<UploadViewModel>( Get<UploadViewModel>() );
+            Assert.IsType<TranslationFileSelectionViewModel>( Get<TranslationFileSelectionViewModel>() );
         }
 
         private T Get<T>() where T : class {

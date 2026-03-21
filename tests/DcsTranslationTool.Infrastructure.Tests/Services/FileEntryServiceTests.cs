@@ -1,6 +1,5 @@
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Results;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 using DcsTranslationTool.Shared.Models;
 

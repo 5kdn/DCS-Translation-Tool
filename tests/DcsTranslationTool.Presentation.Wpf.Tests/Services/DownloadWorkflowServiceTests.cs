@@ -522,8 +522,10 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
         var entry = new FileEntryViewModel(
             new LocalFileEntry( Path.GetFileName( entryPath ), entryPath, false, "local" ) { RepoSha = "repo" },
             ChangeTypeMode.Download,
-            loggerMock.Object );
-        entry.CheckState = true;
+            loggerMock.Object )
+        {
+            CheckState = true
+        };
         return entry;
     }
 
@@ -531,8 +533,10 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
         var root = new FileEntryViewModel(
             new LocalFileEntry( "root", "root", true, "local" ),
             ChangeTypeMode.Download,
-            logger );
-        root.Children = [entry];
+            logger )
+        {
+            Children = [entry]
+        };
         return new TabItemViewModel( categoryType, logger, root );
     }
 

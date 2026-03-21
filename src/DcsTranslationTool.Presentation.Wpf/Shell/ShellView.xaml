@@ -21,8 +21,8 @@
             UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
-    <md:DialogHost Identifier="RootDialogHost">
-        <Grid>
+        <md:DialogHost Identifier="RootDialogHost">
+        <Grid x:Name="RootLayout">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -80,7 +80,8 @@
                    Grid.Row="1"
                    Margin="{StaticResource MediumMargin}"
                    NavigationUIVisibility="Hidden"
-                   Focusable="False" />
+                   Focusable="False"
+                   Navigated="RootFrame_Navigated" />
 
             <!-- Snackbar -->
             <md:Snackbar Grid.RowSpan="2"

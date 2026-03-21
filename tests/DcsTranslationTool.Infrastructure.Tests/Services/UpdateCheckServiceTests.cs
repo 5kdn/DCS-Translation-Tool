@@ -2,7 +2,6 @@ using System.Net;
 using System.Text;
 
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
 using Moq;

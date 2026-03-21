@@ -3,6 +3,52 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes">
 
+    <DataTemplate x:Key="MainPageSelectButtonContentTemplate">
+        <Grid Margin="{StaticResource MediumMargin}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="4*" />
+                <RowDefinition Height="1*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Padding="{StaticResource SmallMargin}"
+                    VerticalAlignment="Stretch"
+                    Background="Transparent">
+                <Viewbox Stretch="Uniform"
+                         StretchDirection="Both">
+                    <md:PackIcon Width="100"
+                                 Height="100"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Kind="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Tag}" />
+                </Viewbox>
+            </Border>
+
+            <Border Grid.Row="1"
+                    Padding="{StaticResource SmallXMargin}"
+                    VerticalAlignment="Center"
+                    Background="Transparent">
+                <Viewbox Stretch="Uniform"
+                         StretchDirection="Both"
+                         HorizontalAlignment="Stretch"
+                         VerticalAlignment="Center">
+                    <Grid Width="160"
+                          Height="48"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="24"
+                                   FontWeight="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=FontWeight}"
+                                   Text="{Binding}"
+                                   TextAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                </Viewbox>
+            </Border>
+        </Grid>
+    </DataTemplate>
+
     <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatDarkBgButton}">
         <Setter Property="Background" Value="{StaticResource MaterialDesign.Brush.ValidationError}"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -13,13 +59,27 @@
         <Setter Property="Foreground" Value="{StaticResource MaterialDesign.Brush.Background}" />
     </Style>
 
+    <Style x:Key="MaterialDesignRaisedAffirmativeButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}" />
+
+    <Style x:Key="MaterialDesignRaisedNeutralButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedAffirmativeButton}" />
+
+    <Style x:Key="MaterialDesignRaisedWarnButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedAffirmativeButton}">
+        <Setter Property="Background" Value="#F44336" />
+        <Setter Property="BorderBrush" Value="#F44336" />
+        <Setter Property="Foreground" Value="{StaticResource MaterialDesign.Brush.Background}" />
+    </Style>
+
     <!-- MainPageSelectButtonStyle -->
     <Style x:Key="MainPageSelectButtonStyle" TargetType="{x:Type Button}"  BasedOn="{StaticResource MaterialDesignFlatMidBgButton}">
         <Setter Property="MinHeight" Value="100" />
         <Setter Property="MaxHeight" Value="600" />
+        <Setter Property="MinWidth" Value="120" />
+        <Setter Property="MaxWidth" Value="600" />
+        <Setter Property="Margin" Value="{StaticResource SmallMargin}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="ContentTemplate" Value="{StaticResource MainPageSelectButtonContentTemplate}" />
     </Style>
 
     <!-- HyperLink like button -->

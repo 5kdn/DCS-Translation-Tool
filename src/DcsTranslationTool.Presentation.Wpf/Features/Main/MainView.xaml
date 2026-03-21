@@ -13,45 +13,33 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Button Height="Auto"
-                MaxHeight="600" MaxWidth="600"
-                MinHeight="300" MinWidth="100"
-                Margin="{StaticResource SmallMargin}"
+        <Button Style="{StaticResource MainPageSelectButtonStyle}"
+                Height="Auto"
+                MinHeight="300"
+                Tag="{x:Static md:PackIconKind.Download}"
+                Content="{x:Static resx:Strings_Download.Title}"
                 cal:Message.Attach="NavToDownload()">
-            <Grid Margin="{StaticResource MediumMargin}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Viewbox>
-                    <md:PackIcon Kind="Download"/>
-                </Viewbox>
-                <Viewbox Grid.Row="1">
-                    <TextBlock Text="{x:Static resx:Strings_Download.Title}"/>
-                </Viewbox>
-            </Grid>
         </Button>
 
         <Button Grid.Column="1"
+                Style="{StaticResource MainPageSelectButtonStyle}"
                 Height="Auto"
-                MaxHeight="600" MaxWidth="600"
-                MinHeight="300" MinWidth="100"
-                Margin="{StaticResource SmallMargin}"
+                MinHeight="300"
+                Tag="{x:Static md:PackIconKind.Upload}"
+                Content="{x:Static resx:Strings_Upload.Title}"
                 cal:Message.Attach="NavToUpload()">
-            <Grid Margin="{StaticResource MediumMargin}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Viewbox>
-                    <md:PackIcon Kind="Upload"/>
-                </Viewbox>
-                <Viewbox Grid.Row="1">
-                    <TextBlock Text="{x:Static resx:Strings_Upload.Title}"/>
-                </Viewbox>
-            </Grid>
+        </Button>
+
+        <Button Grid.Column="2"
+                Style="{StaticResource MainPageSelectButtonStyle}"
+                Height="Auto"
+                MinHeight="300"
+                Tag="{x:Static md:PackIconKind.Translate}"
+                Content="{x:Static resx:Strings_Translation.Title}"
+                cal:Message.Attach="NavToTranslationFileSelection()">
         </Button>
     </Grid>
 

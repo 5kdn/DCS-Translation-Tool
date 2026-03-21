@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;

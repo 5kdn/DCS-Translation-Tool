@@ -12,6 +12,31 @@ namespace DcsTranslationTool.Infrastructure.Services;
 /// <param name="processLauncher">プロセス起動サービス。</param>
 public sealed class SystemService( ILoggingService logger, IProcessLauncher processLauncher ) : ISystemService {
     /// <inheritdoc/>
+    public void SetClipboardText( string text ) {
+        ArgumentException.ThrowIfNullOrWhiteSpace( text );
+
+        try {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c clip",
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                CreateNoWindow = true
+            };
+            using var process = processLauncher.Start( psi ) ?? throw new InvalidOperationException( "clip.exe を起動できなかった。" );
+            process.StandardInput.Write( text );
+            process.StandardInput.Close();
+            process.WaitForExit();
+            logger.Info( "クリップボードへテキストを設定した。" );
+        }
+        catch(Exception ex) {
+            logger.Error( "クリップボードへのテキスト設定に失敗した。", ex );
+            throw;
+        }
+    }
+
+    /// <inheritdoc/>
     public void OpenInWebBrowser( string url ) {
         ArgumentException.ThrowIfNullOrWhiteSpace( url );
 
@@ -57,4 +82,6 @@ public sealed class SystemService( ILoggingService logger, IProcessLauncher proc
         }
     }
 
+    /// <inheritdoc/>
+    public DateTimeOffset GetCurrentDateTimeOffset() => DateTimeOffset.Now;
 }

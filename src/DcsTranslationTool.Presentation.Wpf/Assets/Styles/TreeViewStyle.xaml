@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+    <Style x:Key="CommonFileTreeViewStyle"
+           TargetType="TreeView"
+           BasedOn="{StaticResource MaterialDesignTreeView}" />
+
+    <Style x:Key="CommonFileTreeViewItemStyle"
+           TargetType="TreeViewItem"
+           BasedOn="{StaticResource MaterialDesignTreeViewItem}">
+        <Setter Property="md:TreeViewAssist.ShowSelection" Value="True" />
+        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+        <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+    </Style>
+
+    <Style x:Key="CompactFileTreeViewItemStyle"
+           TargetType="TreeViewItem"
+           BasedOn="{StaticResource CommonFileTreeViewItemStyle}">
+        <Setter Property="Padding" Value="0,2,0,2" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+
+    <Style x:Key="CompactTreeCheckBoxStyle"
+           TargetType="CheckBox"
+           BasedOn="{StaticResource MaterialDesignCheckBox}">
+        <Setter Property="md:RippleAssist.IsDisabled" Value="True" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+</ResourceDictionary>
