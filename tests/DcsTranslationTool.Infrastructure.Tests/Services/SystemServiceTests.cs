@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 

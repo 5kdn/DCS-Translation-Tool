@@ -4,6 +4,7 @@ using System.ComponentModel;
 
 using Caliburn.Micro;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;

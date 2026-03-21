@@ -1,5 +1,4 @@
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Infrastructure.Interfaces;
 
 namespace DcsTranslationTool.Infrastructure.Providers;
 

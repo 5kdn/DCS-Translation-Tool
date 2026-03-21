@@ -4,7 +4,6 @@ using System.Text;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Application.Results;
-using DcsTranslationTool.Infrastructure.Interfaces;
 
 using FluentResults;
 

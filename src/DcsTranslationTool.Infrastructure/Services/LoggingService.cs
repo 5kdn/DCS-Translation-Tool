@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Application.Interfaces;
 
 using NLog;
 using NLog.Config;

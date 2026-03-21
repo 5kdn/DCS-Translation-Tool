@@ -1,5 +1,5 @@
 using DcsTranslationTool.Application.Enums;
-using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
 using Moq;

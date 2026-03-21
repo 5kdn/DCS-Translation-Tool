@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Infrastructure.Services;

@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Shared.Constants;
 
 namespace DcsTranslationTool.Infrastructure.Services;

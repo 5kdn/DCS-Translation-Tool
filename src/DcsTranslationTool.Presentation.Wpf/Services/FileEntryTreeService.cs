@@ -1,3 +1,4 @@
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
@@ -47,10 +48,12 @@ public sealed class FileEntryTreeService( ILoggingService logger ) : IFileEntryT
     /// <param name="rootVm">全体ルート。</param>
     /// <param name="mode">差分判定モード。</param>
     /// <returns>構築済みタブ。</returns>
-    private TabItemViewModel BuildTabItem( CategoryType tabType, IFileEntryViewModel rootVm, ChangeTypeMode mode ) {
-        IFileEntryViewModel? target = rootVm;
+    private TabItemViewModel BuildTabItem( CategoryType tabType, FileEntryViewModel rootVm, ChangeTypeMode mode ) {
+        FileEntryViewModel? target = rootVm;
         foreach(var name in tabType.GetRepoDirRoot()) {
-            target = target?.Children.FirstOrDefault( child => child is { Name: var childName, IsDirectory: true } && childName == name );
+            target = target?.Children
+                .OfType<FileEntryViewModel>()
+                .FirstOrDefault( child => child is { Name: var childName, IsDirectory: true } && childName == name );
             if(target is null) {
                 break;
             }
@@ -130,12 +133,12 @@ public sealed class FileEntryTreeService( ILoggingService logger ) : IFileEntryT
     }
 
     /// <summary>
-    /// 内部ノードツリーから <see cref="IFileEntryViewModel"/> ツリーを構築する。
+    /// 内部ノードツリーから <see cref="FileEntryViewModel"/> ツリーを構築する。
     /// </summary>
     /// <param name="node">変換対象ノード。</param>
     /// <param name="mode">差分判定モード。</param>
     /// <returns>構築済みノード。</returns>
-    private IFileEntryViewModel BuildViewModelTree( TreeNode node, ChangeTypeMode mode ) {
+    private FileEntryViewModel BuildViewModelTree( TreeNode node, ChangeTypeMode mode ) {
         var viewModel = new FileEntryViewModel(
             new FileEntry( node.Name, node.Path, node.IsDirectory, node.LocalSha, node.RepoSha ),
             mode,

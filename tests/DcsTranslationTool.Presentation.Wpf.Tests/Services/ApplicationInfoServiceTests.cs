@@ -1,3 +1,4 @@
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Services;
 
 using Moq;

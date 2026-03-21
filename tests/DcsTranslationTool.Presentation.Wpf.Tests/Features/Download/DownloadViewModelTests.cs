@@ -235,7 +235,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var fileEntryServiceMock = new Mock<IFileEntryService>();
         fileEntryServiceMock
             .Setup( service => service.GetEntriesAsync() )
-            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( Array.Empty<FileEntry>() ) );
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( [] ) );
         var loggingServiceMock = new Mock<ILoggingService>();
         var snackbarMessages = new List<string>();
         var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
@@ -644,7 +644,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
 
         var downloadResult = Result.Ok(
-            new ApiDownloadFilePathsResult( Array.Empty<ApiDownloadFilePathsItem>(), "\"etag-value\"" )
+            new ApiDownloadFilePathsResult( [], "\"etag-value\"" )
         );
 
         var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
@@ -780,7 +780,7 @@ public sealed class DownloadViewModelTests : IDisposable {
         var fileEntryServiceMock = new Mock<IFileEntryService>();
         fileEntryServiceMock
             .Setup( service => service.GetEntriesAsync() )
-            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( Array.Empty<FileEntry>() ) );
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( [] ) );
 
         var loggingServiceMock = new Mock<ILoggingService>();
         var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();

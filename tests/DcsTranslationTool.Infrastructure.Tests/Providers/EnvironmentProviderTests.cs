@@ -1,4 +1,4 @@
-using DcsTranslationTool.Infrastructure.Interfaces;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Providers;
 
 using Moq;

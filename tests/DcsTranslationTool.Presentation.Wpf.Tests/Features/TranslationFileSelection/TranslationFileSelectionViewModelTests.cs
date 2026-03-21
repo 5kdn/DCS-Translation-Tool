@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;

@@ -2,7 +2,6 @@ using System.IO.Compression;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Results;
-using DcsTranslationTool.Infrastructure.Interfaces;
 
 using FluentResults;
 

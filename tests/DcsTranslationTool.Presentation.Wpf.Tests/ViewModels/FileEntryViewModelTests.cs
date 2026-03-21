@@ -1,3 +1,4 @@
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
 using DcsTranslationTool.Shared.Models;

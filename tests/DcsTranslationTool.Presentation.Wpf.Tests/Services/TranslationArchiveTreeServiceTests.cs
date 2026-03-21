@@ -1,4 +1,5 @@
 using DcsTranslationTool.Application.Enums;
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Presentation.Wpf.Services;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;

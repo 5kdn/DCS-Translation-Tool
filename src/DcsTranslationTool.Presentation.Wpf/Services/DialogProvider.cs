@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 
 using Microsoft.Win32;

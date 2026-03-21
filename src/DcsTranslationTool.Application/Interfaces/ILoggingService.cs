@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace DcsTranslationTool.Infrastructure.Interfaces;
+namespace DcsTranslationTool.Application.Interfaces;
 
 /// <summary>
 /// アプリケーション全体で利用可能なログ出力サービスの契約。

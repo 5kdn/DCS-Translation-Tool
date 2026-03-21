@@ -1,7 +1,7 @@
 using System.IO.Compression;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
 using Moq;

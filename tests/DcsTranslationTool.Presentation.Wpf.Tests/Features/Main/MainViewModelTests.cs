@@ -1,5 +1,6 @@
 using Caliburn.Micro;
 
+using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 

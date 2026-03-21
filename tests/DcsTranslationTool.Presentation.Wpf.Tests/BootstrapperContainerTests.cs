@@ -5,6 +5,7 @@ using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Composition;
+using DcsTranslationTool.Infrastructure.Interfaces;
 using DcsTranslationTool.Infrastructure.IO;
 using DcsTranslationTool.Infrastructure.Providers;
 using DcsTranslationTool.Infrastructure.Services;

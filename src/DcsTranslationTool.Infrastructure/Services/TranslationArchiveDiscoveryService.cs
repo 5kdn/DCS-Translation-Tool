@@ -1,7 +1,6 @@
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Infrastructure.Interfaces;
 
 namespace DcsTranslationTool.Infrastructure.Services;
 
@@ -100,7 +99,7 @@ public class TranslationArchiveDiscoveryService(
 
         IEnumerable<string> files;
         try {
-            files = EnumerateFiles( currentDirectory ).ToArray();
+            files = [.. EnumerateFiles( currentDirectory )];
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
             logger.Warn( $"探索対象ディレクトリのファイル列挙に失敗したため対象ディレクトリをスキップする。Category={category}, Path={currentDirectory}", ex );
@@ -128,7 +127,7 @@ public class TranslationArchiveDiscoveryService(
 
         IEnumerable<string> directories;
         try {
-            directories = EnumerateDirectories( currentDirectory ).ToArray();
+            directories = [.. EnumerateDirectories( currentDirectory )];
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
             logger.Warn( $"探索対象ディレクトリの子ディレクトリ列挙に失敗したため対象ディレクトリをスキップする。Category={category}, Path={currentDirectory}", ex );
