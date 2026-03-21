@@ -7,7 +7,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <summary>
 /// TranslationCreation 画面の編集状態を管理する。
 /// </summary>
-internal sealed class TranslationCreationSession : PropertyChangedBase, ITranslationCreationSession {
+public sealed class TranslationCreationSession : PropertyChangedBase, ITranslationCreationSession {
     private IReadOnlyList<TranslationCreationRowState> _rows = [];
     private TranslationCreationRowState? _selectedRow;
     private string _selectedTranslatedDraft = string.Empty;

@@ -10,7 +10,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <summary>
 /// TranslationCreation 画面専用の通知表示を担う。
 /// </summary>
-internal sealed class TranslationCreationNotificationService(
+public sealed class TranslationCreationNotificationService(
     ISystemService systemService,
     ILoggingService logger ) : ITranslationCreationNotificationService {
     private SnackbarMessageQueue? _messageQueue;

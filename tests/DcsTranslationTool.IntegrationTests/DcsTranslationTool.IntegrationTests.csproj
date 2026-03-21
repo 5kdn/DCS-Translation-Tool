@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="coverlet.collector" Version="8.0.1">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+        <PackageReference Include="Moq" Version="4.20.72" />
+        <PackageReference Include="WireMock.Net" Version="2.0.0" />
+        <PackageReference Include="Xunit.StaFact" Version="3.0.13" />
+        <PackageReference Include="xunit.v3" Version="3.2.2" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\DcsTranslationTool.Composition\DcsTranslationTool.Composition.csproj" />
+        <ProjectReference Include="..\..\src\DcsTranslationTool.Infrastructure\DcsTranslationTool.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\src\DcsTranslationTool.Presentation.Wpf\DcsTranslationTool.Presentation.Wpf.csproj" />
+        <ProjectReference Include="..\..\src\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj" />
+        <ProjectReference Include="..\DcsTranslationTool.TestCommon\DcsTranslationTool.TestCommon.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit" />
+    </ItemGroup>
+
+</Project>

@@ -17,13 +17,33 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Resource
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Shared", "src\DcsTranslationTool.Shared\DcsTranslationTool.Shared.csproj", "{FC7C8490-9740-4611-8EA8-CAD8218FC3CE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Presentation.Wpf.Tests", "tests\DcsTranslationTool.Presentation.Wpf.Tests\DcsTranslationTool.Presentation.Wpf.Tests.csproj", "{B962F370-6827-478E-946E-A680E38FF70E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Presentation.Wpf.UnitTests", "tests\DcsTranslationTool.Presentation.Wpf.UnitTests\DcsTranslationTool.Presentation.Wpf.UnitTests.csproj", "{B962F370-6827-478E-946E-A680E38FF70E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C} = {59D9AF71-236B-4E29-93B7-ACB209EF724C}
+	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Infrastructure.Tests", "tests\DcsTranslationTool.Infrastructure.Tests\DcsTranslationTool.Infrastructure.Tests.csproj", "{1F7B7A6F-6798-70A1-6D91-9288794855E7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Infrastructure.UnitTests", "tests\DcsTranslationTool.Infrastructure.UnitTests\DcsTranslationTool.Infrastructure.UnitTests.csproj", "{1F7B7A6F-6798-70A1-6D91-9288794855E7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C} = {59D9AF71-236B-4E29-93B7-ACB209EF724C}
+	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Shared.Tests", "tests\DcsTranslationTool.Shared.Tests\DcsTranslationTool.Shared.Tests.csproj", "{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Shared.UnitTests", "tests\DcsTranslationTool.Shared.UnitTests\DcsTranslationTool.Shared.UnitTests.csproj", "{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C} = {59D9AF71-236B-4E29-93B7-ACB209EF724C}
+	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Composition.Tests", "tests\DcsTranslationTool.Composition.Tests\DcsTranslationTool.Composition.Tests.csproj", "{102E7AC2-0EB5-4FA2-85DE-2D37E1515CA3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.IntegrationTests", "tests\DcsTranslationTool.IntegrationTests\DcsTranslationTool.IntegrationTests.csproj", "{CC821163-E456-4BE0-A988-DA2EFFFA093A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C} = {59D9AF71-236B-4E29-93B7-ACB209EF724C}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.TestCommon", "tests\DcsTranslationTool.TestCommon\DcsTranslationTool.TestCommon.csproj", "{59D9AF71-236B-4E29-93B7-ACB209EF724C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "UnitTests", "UnitTests", "{DDB4EF12-CC4E-5E88-E6FC-71A802F4DE97}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A36DAE93-45D5-4B5F-BFF2-419C2D56F99A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DcsTranslationTool.Application.UnitTests", "tests\DcsTranslationTool.Application.UnitTests\DcsTranslationTool.Application.UnitTests.csproj", "{4831BD99-28E7-476F-B04F-61E9289457F0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +51,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Release|Any CPU.Build.0 = Release|Any CPU
 		{598AF28C-5122-475B-9C20-1BBEE1D58C0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{598AF28C-5122-475B-9C20-1BBEE1D58C0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{598AF28C-5122-475B-9C20-1BBEE1D58C0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -47,10 +71,6 @@ Global
 		{FDDB5E0E-ABA1-4D34-90BA-88C95F633641}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FDDB5E0E-ABA1-4D34-90BA-88C95F633641}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FDDB5E0E-ABA1-4D34-90BA-88C95F633641}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7DCDDC84-D824-44DD-A7A2-8876F445BA04}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A14EF9C7-13B5-4A31-8D59-26F96A190692}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A14EF9C7-13B5-4A31-8D59-26F96A190692}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A14EF9C7-13B5-4A31-8D59-26F96A190692}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -71,13 +91,30 @@ Global
 		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{102E7AC2-0EB5-4FA2-85DE-2D37E1515CA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{102E7AC2-0EB5-4FA2-85DE-2D37E1515CA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{102E7AC2-0EB5-4FA2-85DE-2D37E1515CA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{102E7AC2-0EB5-4FA2-85DE-2D37E1515CA3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC821163-E456-4BE0-A988-DA2EFFFA093A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC821163-E456-4BE0-A988-DA2EFFFA093A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC821163-E456-4BE0-A988-DA2EFFFA093A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC821163-E456-4BE0-A988-DA2EFFFA093A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4831BD99-28E7-476F-B04F-61E9289457F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4831BD99-28E7-476F-B04F-61E9289457F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4831BD99-28E7-476F-B04F-61E9289457F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4831BD99-28E7-476F-B04F-61E9289457F0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B962F370-6827-478E-946E-A680E38FF70E} = {DDB4EF12-CC4E-5E88-E6FC-71A802F4DE97}
+		{1F7B7A6F-6798-70A1-6D91-9288794855E7} = {DDB4EF12-CC4E-5E88-E6FC-71A802F4DE97}
+		{BA6F80EF-51FB-4CEB-B7F1-8EA93B7A366F} = {DDB4EF12-CC4E-5E88-E6FC-71A802F4DE97}
+		{CC821163-E456-4BE0-A988-DA2EFFFA093A} = {A36DAE93-45D5-4B5F-BFF2-419C2D56F99A}
+		{59D9AF71-236B-4E29-93B7-ACB209EF724C} = {A36DAE93-45D5-4B5F-BFF2-419C2D56F99A}
+		{DDB4EF12-CC4E-5E88-E6FC-71A802F4DE97} = {A36DAE93-45D5-4B5F-BFF2-419C2D56F99A}
+		{4831BD99-28E7-476F-B04F-61E9289457F0} = {DDB4EF12-CC4E-5E88-E6FC-71A802F4DE97}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AB21E8E6-E1FF-47BB-9135-728A836E8CBE}

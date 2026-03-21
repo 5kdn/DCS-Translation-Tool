@@ -152,7 +152,7 @@ public class ApiService(
             return CreateRouteClient( preference );
         }
 
-        if(retryAfter.HasValue && retryAfter.Value > now) {
+        if(retryAfter > now) {
             _logger.Info( $"経路検証の再試行猶予中のため default を利用する。RetryAfter={retryAfter.Value:O}" );
             return CreateRouteClient( ApiRoutePreference.Default );
         }
