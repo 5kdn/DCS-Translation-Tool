@@ -88,6 +88,10 @@ public sealed class BootstrapperContainerTests {
             Container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
             Container.Singleton<IFileEntryWatcherLifecycle, FileEntryWatcherLifecycle>();
             Container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
+            Container.Singleton<ITranslationArchiveTreeService, TranslationArchiveTreeService>();
+            Container.Singleton<ITranslationFileSelectionWorkflowService, TranslationFileSelectionWorkflowService>();
+            Container.Singleton<ITranslationFileSelectionActionService, TranslationFileSelectionActionService>();
+            Container.Singleton<ITranslationFileSelectionWorkflowUiAdapter, TranslationFileSelectionWorkflowUiAdapter>();
             Container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
             Container.Singleton<ISnackbarService, SnackbarService>();
             Container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();
@@ -140,6 +144,10 @@ public sealed class BootstrapperContainerTests {
             Assert.IsType<DownloadWorkflowService>( Get<IDownloadWorkflowService>() );
             Assert.IsType<FileEntryWatcherLifecycle>( Get<IFileEntryWatcherLifecycle>() );
             Assert.IsType<FileEntryTreeService>( Get<IFileEntryTreeService>() );
+            Assert.IsType<TranslationArchiveTreeService>( Get<ITranslationArchiveTreeService>() );
+            Assert.IsType<TranslationFileSelectionWorkflowService>( Get<ITranslationFileSelectionWorkflowService>() );
+            Assert.IsType<TranslationFileSelectionActionService>( Get<ITranslationFileSelectionActionService>() );
+            Assert.IsType<TranslationFileSelectionWorkflowUiAdapter>( Get<ITranslationFileSelectionWorkflowUiAdapter>() );
             Assert.IsType<PathSafetyGuard>( Get<IPathSafetyGuard>() );
             Assert.IsType<SnackbarService>( Get<ISnackbarService>() );
             Assert.IsType<TranslationCreationPathService>( Get<ITranslationCreationPathService>() );

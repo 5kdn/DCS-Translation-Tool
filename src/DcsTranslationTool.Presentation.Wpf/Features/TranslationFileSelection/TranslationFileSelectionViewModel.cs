@@ -4,17 +4,11 @@ using System.IO;
 
 using Caliburn.Micro;
 
-using DcsTranslationTool.Application.Enums;
-using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
-using DcsTranslationTool.Presentation.Wpf.UI.Extensions;
 using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
 using DcsTranslationTool.Resources;
-using DcsTranslationTool.Shared.Models;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 
@@ -22,19 +16,16 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 /// Translation File Selection ページの状態を管理する ViewModel である。
 /// </summary>
 public sealed class TranslationFileSelectionViewModel(
-    IAppSettingsService appSettingsService,
-    IDispatcherService dispatcherService,
     ILoggingService logger,
-    ISnackbarService snackbarService,
-    ISystemService systemService,
-    ITranslationCreationViewModelFactory translationCreationViewModelFactory,
-    IWindowManager windowManager,
-    ITranslationArchiveDiscoveryService translationArchiveDiscoveryService
+    ITranslationFileSelectionActionService translationFileSelectionActionService,
+    ITranslationFileSelectionWorkflowService translationFileSelectionWorkflowService,
+    ITranslationFileSelectionWorkflowUiAdapter workflowUiAdapter
 ) : Screen, IActivate {
     private ObservableCollection<TabItemViewModel> _tabs = [];
     private int _selectedTabIndex;
     private bool _isLoading;
     private string _stateMessage = string.Empty;
+    private TranslationFileSelectionSelectionState _selectionState = new( false, false, false, null, null );
     private readonly Dictionary<CategoryType, IFileEntryViewModel?> _selectedNodes = [];
     private readonly Dictionary<IFileEntryViewModel, CategoryType> _nodeCategories = [];
     private readonly List<INotifyPropertyChanged> _selectionSubscriptions = [];
@@ -57,7 +48,7 @@ public sealed class TranslationFileSelectionViewModel(
                 return;
             }
 
-            NotifySelectionState();
+            UpdateSelectionState();
         }
     }
 
@@ -72,6 +63,8 @@ public sealed class TranslationFileSelectionViewModel(
             }
 
             NotifyOfPropertyChange( nameof( CanRefresh ) );
+            NotifyOfPropertyChange( nameof( CanOpenDirectory ) );
+            NotifyOfPropertyChange( nameof( CanCreateTranslation ) );
         }
     }
 
@@ -83,17 +76,17 @@ public sealed class TranslationFileSelectionViewModel(
     /// <summary>
     /// 現在タブに選択済みノードがあるかどうかを取得する。
     /// </summary>
-    public bool HasSelectedEntry => GetSelectedNode() is not null;
+    public bool HasSelectedEntry => _selectionState.HasSelectedEntry;
 
     /// <summary>
     /// フォルダーを開く操作が可能かどうかを取得する。
     /// </summary>
-    public bool CanOpenDirectory => !IsLoading && GetSelectedNode() is not null;
+    public bool CanOpenDirectory => !IsLoading && _selectionState.CanOpenDirectory;
 
     /// <summary>
     /// 翻訳作成ウィンドウを表示可能かどうかを取得する。
     /// </summary>
-    public bool CanCreateTranslation => !IsLoading && GetSelectedArchiveFullPath() is not null;
+    public bool CanCreateTranslation => !IsLoading && _selectionState.CanCreateTranslation;
 
     /// <summary>
     /// 現在表示すべき状態メッセージを取得する。
@@ -137,7 +130,7 @@ public sealed class TranslationFileSelectionViewModel(
     protected override async Task OnDeactivateAsync( bool close, CancellationToken cancellationToken ) {
         logger.Info( $"TranslationFileSelectionViewModel を非アクティブ化する。Close={close}" );
         UnsubscribeSelectionStateChanged();
-        snackbarService.Clear();
+        translationFileSelectionActionService.ClearNotifications();
         await base.OnDeactivateAsync( close, cancellationToken );
     }
 
@@ -151,20 +144,12 @@ public sealed class TranslationFileSelectionViewModel(
     /// 選択中ノードの存在するディレクトリを開く。
     /// </summary>
     public void OpenDirectory() {
-        var selectedNode = GetSelectedNode();
-        if(selectedNode?.Model.LocalSha is not { Length: > 0 } path) {
+        if(_selectionState.SelectedEntryPath is not { Length: > 0 } path) {
             logger.Warn( "選択ノードが存在しないためフォルダーを開く処理を中断する。" );
             return;
         }
 
-        try {
-            logger.Info( $"選択ノードのディレクトリを開く。Path={path}" );
-            systemService.OpenDirectory( path );
-        }
-        catch(Exception ex) {
-            logger.Error( "選択ノードのディレクトリを開く処理に失敗した。", ex );
-            snackbarService.Show( Strings_Translation.OpenDirectoryFailedMessage );
-        }
+        translationFileSelectionActionService.OpenDirectory( path );
     }
 
     /// <summary>
@@ -172,32 +157,13 @@ public sealed class TranslationFileSelectionViewModel(
     /// </summary>
     /// <returns>非同期タスク。</returns>
     public async Task CreateTranslation() {
-        var archiveFullPath = GetSelectedArchiveFullPath();
+        var archiveFullPath = _selectionState.SelectedArchiveFullPath;
         if(archiveFullPath is null) {
             logger.Warn( "選択ノードが存在しないため翻訳作成ウィンドウ表示を中断する。" );
             return;
         }
 
-        ITranslationCreationViewModel translationCreationViewModel;
-
-        try {
-            logger.Info( $"翻訳作成 ViewModel を生成する。Archive={archiveFullPath}" );
-            translationCreationViewModel = translationCreationViewModelFactory.Create( archiveFullPath );
-        }
-        catch(Exception ex) {
-            logger.Error( $"翻訳作成 ViewModel の生成に失敗した。Archive={archiveFullPath}", ex );
-            snackbarService.Show( Strings_Translation.CreateTranslationWindowOpenFailedMessage );
-            return;
-        }
-
-        try {
-            logger.Info( $"翻訳作成ウィンドウを表示する。Archive={archiveFullPath}" );
-            await windowManager.ShowWindowAsync( translationCreationViewModel );
-        }
-        catch(Exception ex) {
-            logger.Error( $"翻訳作成ウィンドウの表示に失敗した。Archive={archiveFullPath}", ex );
-            snackbarService.Show( Strings_Translation.CreateTranslationWindowOpenFailedMessage );
-        }
+        await translationFileSelectionActionService.OpenTranslationCreationAsync( archiveFullPath );
     }
 
     /// <summary>
@@ -215,42 +181,12 @@ public sealed class TranslationFileSelectionViewModel(
         IsLoading = true;
 
         try {
-            if(IsSourceDirectoryNotConfigured()) {
-                logger.Warn( "探索元ディレクトリが未設定のため読み込みを中断する。" );
-                _stateMessage = Strings_Translation.SettingsNotConfiguredMessage;
-                await dispatcherService.InvokeAsync( () => {
-                    BuildTabs( [] );
-                    NotifySelectionState();
-                    return Task.CompletedTask;
-                } );
-                return;
-            }
-
-            var entries = await translationArchiveDiscoveryService.DiscoverAsync(
-                appSettingsService.Settings.DcsWorldInstallDir,
-                appSettingsService.Settings.SourceUserMissionDir,
-                cancellationToken );
-
-            await dispatcherService.InvokeAsync( () => {
-                _stateMessage = string.Empty;
-                BuildTabs( entries );
-                NotifySelectionState();
-                return Task.CompletedTask;
-            } );
+            var loadResult = await translationFileSelectionWorkflowService.LoadAsync( cancellationToken );
+            await workflowUiAdapter.ApplyLoadResultAsync( loadResult, ApplyLoadResult );
         }
         catch(OperationCanceledException) {
             logger.Warn( "翻訳対象アーカイブ一覧の読み込みがキャンセルされた。" );
             throw;
-        }
-        catch(Exception ex) {
-            logger.Error( "翻訳対象アーカイブ一覧の読み込みに失敗した。", ex );
-            _stateMessage = Strings_Translation.LoadFailedMessage;
-            await dispatcherService.InvokeAsync( () => {
-                BuildTabs( [] );
-                NotifySelectionState();
-                snackbarService.Show( Strings_Translation.LoadFailedMessage );
-                return Task.CompletedTask;
-            } );
         }
         finally {
             IsLoading = false;
@@ -259,91 +195,70 @@ public sealed class TranslationFileSelectionViewModel(
     }
 
     /// <summary>
-    /// 一覧からカテゴリ別タブを構築する。
+    /// 読み込み結果を画面状態へ反映する。
     /// </summary>
-    /// <param name="entries">構築元の一覧。</param>
-    private void BuildTabs( IReadOnlyList<TranslationArchiveEntry> entries ) {
+    /// <param name="loadResult">反映対象の読み込み結果。</param>
+    private void ApplyLoadResult( TranslationFileSelectionLoadResult loadResult ) {
+        _stateMessage = loadResult.StatusMessage;
         UnsubscribeSelectionStateChanged();
-
-        var entriesByCategory = entries
-            .GroupBy( entry => MapCategory( entry.Category ) )
-            .ToDictionary( group => group.Key, group => (IReadOnlyList<TranslationArchiveEntry>)[.. group] );
-
-        var tabs = Enum
-            .GetValues<CategoryType>()
-            .Select( categoryType => BuildTab(
-                categoryType,
-                entriesByCategory.GetValueOrDefault( categoryType, [] ) ) )
-            .ToList();
-
-        Tabs = [.. tabs];
+        Tabs = [.. loadResult.Tabs];
+        RegisterSelectionSubscriptions( Tabs );
         SelectedTabIndex = Tabs.Count == 0 ? 0 : Math.Clamp( SelectedTabIndex, 0, Tabs.Count - 1 );
+        UpdateSelectionState();
     }
 
     /// <summary>
-    /// 単一カテゴリのタブを構築する。
+    /// 現在の選択状態を更新する。
     /// </summary>
-    /// <param name="categoryType">対象カテゴリ。</param>
-    /// <param name="entries">探索結果一覧。</param>
-    /// <returns>構築済みタブ。</returns>
-    private TabItemViewModel BuildTab( CategoryType categoryType, IReadOnlyList<TranslationArchiveEntry> entries ) {
-        IFileEntryViewModel root = new FileEntryViewModel(
-            new LocalFileEntry( categoryType.GetTabTitle(), string.Empty, true ),
-            UI.Enums.ChangeTypeMode.Upload,
-            logger );
-        RegisterSelectionSubscription( categoryType, root );
-        _selectedNodes[categoryType] = null;
-
-        var nodesByPath = new Dictionary<string, IFileEntryViewModel>( StringComparer.OrdinalIgnoreCase )
-        {
-            [string.Empty] = root
-        };
-
-        foreach(var entry in entries) {
-            var parts = entry.RelativePath.Split( '/', StringSplitOptions.RemoveEmptyEntries );
-            var currentPath = string.Empty;
-            var currentAbsolutePath = string.Empty;
-            var parent = root;
-
-            for(var index = 0; index < parts.Length; index++) {
-                var part = parts[index];
-                currentPath = string.IsNullOrEmpty( currentPath ) ? part : $"{currentPath}/{part}";
-                currentAbsolutePath = string.IsNullOrEmpty( currentAbsolutePath ) ? part : Path.Combine( currentAbsolutePath, part );
-                if(nodesByPath.TryGetValue( currentPath, out var existingNode )) {
-                    parent = existingNode;
-                    continue;
-                }
-
-                var isDirectory = index < parts.Length - 1;
-                var absolutePath = isDirectory
-                    ? Path.Combine( GetCategoryRootPath( categoryType ), currentAbsolutePath )
-                    : entry.FullPath;
-                var node = new FileEntryViewModel(
-                    isDirectory
-                        ? new LocalFileEntry( part, currentPath, true, absolutePath )
-                        : new LocalFileEntry( part, currentPath, false, absolutePath ),
-                    UI.Enums.ChangeTypeMode.Upload,
-                    logger );
-                parent.Children.Add( node );
-                RegisterSelectionSubscription( categoryType, node );
-                nodesByPath[currentPath] = node;
-                parent = node;
-            }
-        }
-
-        return new TabItemViewModel( categoryType, logger, root );
+    private void UpdateSelectionState() {
+        _selectionState = GetSelectionState( GetSelectedCategoryType() );
+        logger.Info( $"TranslationFileSelection の選択状態を更新する。SelectedIndex={SelectedTabIndex}" );
+        NotifySelectionState();
     }
 
     /// <summary>
-    /// ノード選択状態の購読を解除する。
+    /// タブ配下ノードの選択状態購読を登録する。
+    /// </summary>
+    /// <param name="tabs">購読対象タブ一覧。</param>
+    private void RegisterSelectionSubscriptions( IEnumerable<TabItemViewModel> tabs ) {
+        foreach(var tab in tabs) {
+            _selectedNodes[tab.TabType] = null;
+            RegisterSelectionSubscription( tab.TabType, tab.Root );
+        }
+    }
+
+    /// <summary>
+    /// タブ配下ノードの選択状態購読を解除する。
     /// </summary>
     private void UnsubscribeSelectionStateChanged() {
         foreach(var subscription in _selectionSubscriptions) {
             subscription.PropertyChanged -= OnNodePropertyChanged;
         }
+
         _selectionSubscriptions.Clear();
         _selectedNodes.Clear();
         _nodeCategories.Clear();
+    }
+
+    /// <summary>
+    /// ノード選択状態の購読を登録する。
+    /// </summary>
+    /// <param name="categoryType">所属カテゴリ。</param>
+    /// <param name="node">購読対象ノード。</param>
+    private void RegisterSelectionSubscription( CategoryType categoryType, IFileEntryViewModel node ) {
+        if(node is INotifyPropertyChanged notifyPropertyChanged) {
+            notifyPropertyChanged.PropertyChanged += OnNodePropertyChanged;
+            _selectionSubscriptions.Add( notifyPropertyChanged );
+        }
+
+        _nodeCategories[node] = categoryType;
+        if(node.IsSelected) {
+            _selectedNodes[categoryType] = node;
+        }
+
+        foreach(var child in node.Children) {
+            RegisterSelectionSubscription( categoryType, child );
+        }
     }
 
     /// <summary>
@@ -376,8 +291,33 @@ public sealed class TranslationFileSelectionViewModel(
                 : null;
         }
 
-        logger.Info( $"TranslationFileSelection の選択状態が変化した。SelectedIndex={SelectedTabIndex}" );
-        NotifySelectionState();
+        logger.Info( $"TranslationFileSelection のノード選択状態が変化した。Category={categoryType}" );
+        if(categoryType == GetSelectedCategoryType()) {
+            UpdateSelectionState();
+        }
+    }
+
+    /// <summary>
+    /// 指定カテゴリの現在選択状態を取得する。
+    /// </summary>
+    /// <param name="categoryType">取得対象カテゴリ。</param>
+    /// <returns>現在選択状態。</returns>
+    private TranslationFileSelectionSelectionState GetSelectionState( CategoryType? categoryType ) {
+        if(categoryType is null || !_selectedNodes.TryGetValue( categoryType.Value, out var selectedNode )) {
+            return new TranslationFileSelectionSelectionState( false, false, false, null, null );
+        }
+
+        var selectedEntryPath = string.IsNullOrWhiteSpace( selectedNode?.Model.LocalSha )
+            ? null
+            : selectedNode.Model.LocalSha;
+        var selectedArchiveFullPath = GetSelectedArchiveFullPath( selectedNode );
+
+        return new TranslationFileSelectionSelectionState(
+            selectedNode is not null,
+            selectedEntryPath is not null,
+            selectedArchiveFullPath is not null,
+            selectedEntryPath,
+            selectedArchiveFullPath );
     }
 
     /// <summary>
@@ -402,13 +342,10 @@ public sealed class TranslationFileSelectionViewModel(
             : null;
 
     /// <summary>
-    /// 現在タブで選択されているファイルノードを取得する。
+    /// 現在選択中のカテゴリを取得する。
     /// </summary>
-    /// <returns>選択済みファイルノード。未選択時は <see langword="null"/>。</returns>
-    private IFileEntryViewModel? GetSelectedNode() =>
-        GetSelectedTab() is { TabType: var tabType } && _selectedNodes.TryGetValue( tabType, out var node )
-            ? node
-            : null;
+    /// <returns>選択中カテゴリ。未選択時は <see langword="null"/>。</returns>
+    private CategoryType? GetSelectedCategoryType() => GetSelectedTab()?.TabType;
 
     /// <summary>
     /// 指定ディレクトリ配下で選択状態のファイルを探索する。
@@ -433,9 +370,9 @@ public sealed class TranslationFileSelectionViewModel(
     /// <summary>
     /// 翻訳作成対象のアーカイブ絶対パスを取得する。
     /// </summary>
+    /// <param name="selectedNode">選択中ノード。</param>
     /// <returns>対象絶対パス。対象外または未選択時は <see langword="null"/>。</returns>
-    private string? GetSelectedArchiveFullPath() {
-        var selectedNode = GetSelectedNode();
+    private static string? GetSelectedArchiveFullPath( IFileEntryViewModel? selectedNode ) {
         if(selectedNode?.IsDirectory != false || string.IsNullOrWhiteSpace( selectedNode.Model.LocalSha )) {
             return null;
         }
@@ -446,56 +383,4 @@ public sealed class TranslationFileSelectionViewModel(
             ? selectedNode.Model.LocalSha
             : null;
     }
-
-    /// <summary>
-    /// ノード選択状態の購読を登録する。
-    /// </summary>
-    /// <param name="categoryType">所属カテゴリ。</param>
-    /// <param name="node">購読対象ノード。</param>
-    private void RegisterSelectionSubscription( CategoryType categoryType, IFileEntryViewModel node ) {
-        if(node is not INotifyPropertyChanged notifyPropertyChanged) {
-            return;
-        }
-
-        notifyPropertyChanged.PropertyChanged += OnNodePropertyChanged;
-        _selectionSubscriptions.Add( notifyPropertyChanged );
-        _nodeCategories[node] = categoryType;
-        if(node.IsSelected) {
-            _selectedNodes[categoryType] = node;
-        }
-    }
-
-    /// <summary>
-    /// カテゴリに対応する探索ルートの絶対パスを取得する。
-    /// </summary>
-    /// <param name="categoryType">対象カテゴリ。</param>
-    /// <returns>探索ルートの絶対パス。</returns>
-    private string GetCategoryRootPath( CategoryType categoryType ) => categoryType switch
-    {
-        CategoryType.Aircraft => Path.Combine( appSettingsService.Settings.DcsWorldInstallDir, "Mods", "aircraft" ),
-        CategoryType.DlcCampaigns => Path.Combine( appSettingsService.Settings.DcsWorldInstallDir, "Mods", "campaigns" ),
-        CategoryType.UserMissions => appSettingsService.Settings.SourceUserMissionDir,
-        _ => throw new ArgumentOutOfRangeException( nameof( categoryType ), categoryType, "未対応のカテゴリである。" ),
-    };
-
-    /// <summary>
-    /// 探索元ディレクトリが未設定かどうかを判定する。
-    /// </summary>
-    /// <returns>両方未設定の場合は <see langword="true"/>。</returns>
-    private bool IsSourceDirectoryNotConfigured() =>
-        string.IsNullOrWhiteSpace( appSettingsService.Settings.DcsWorldInstallDir )
-        && string.IsNullOrWhiteSpace( appSettingsService.Settings.SourceUserMissionDir );
-
-    /// <summary>
-    /// アプリケーション層のカテゴリを UI カテゴリへ変換する。
-    /// </summary>
-    /// <param name="category">変換元カテゴリ。</param>
-    /// <returns>対応する UI カテゴリ。</returns>
-    private static CategoryType MapCategory( TranslationArchiveCategory category ) => category switch
-    {
-        TranslationArchiveCategory.Aircraft => CategoryType.Aircraft,
-        TranslationArchiveCategory.DlcCampaigns => CategoryType.DlcCampaigns,
-        TranslationArchiveCategory.UserMissions => CategoryType.UserMissions,
-        _ => throw new ArgumentOutOfRangeException( nameof( category ), category, "未対応のカテゴリである。" ),
-    };
 }

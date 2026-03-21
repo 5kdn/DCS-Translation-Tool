@@ -49,6 +49,10 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IDownloadWorkflowService, DownloadWorkflowService>();
         container.Singleton<IFileEntryWatcherLifecycle, FileEntryWatcherLifecycle>();
         container.Singleton<IFileEntryTreeService, FileEntryTreeService>();
+        container.Singleton<ITranslationArchiveTreeService, TranslationArchiveTreeService>();
+        container.Singleton<ITranslationFileSelectionWorkflowService, TranslationFileSelectionWorkflowService>();
+        container.Singleton<ITranslationFileSelectionActionService, TranslationFileSelectionActionService>();
+        container.Singleton<ITranslationFileSelectionWorkflowUiAdapter, TranslationFileSelectionWorkflowUiAdapter>();
         container.Singleton<IPathSafetyGuard, PathSafetyGuard>();
         container.Singleton<ISnackbarService, SnackbarService>();
         container.Singleton<ITranslationCreationPathService, TranslationCreationPathService>();

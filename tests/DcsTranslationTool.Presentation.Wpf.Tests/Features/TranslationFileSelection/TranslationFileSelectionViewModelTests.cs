@@ -1,18 +1,13 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Reflection;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 
-using Caliburn.Micro;
-
-using DcsTranslationTool.Application.Enums;
-using DcsTranslationTool.Application.Interfaces;
-using DcsTranslationTool.Application.Models;
-using DcsTranslationTool.Domain.Models;
-using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationFileSelection;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
-using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
+using DcsTranslationTool.Presentation.Wpf.ViewModels;
 using DcsTranslationTool.Resources;
 using DcsTranslationTool.Shared.Models;
 
@@ -21,654 +16,460 @@ using Moq;
 namespace DcsTranslationTool.Presentation.Wpf.Tests.Features.TranslationFileSelection;
 
 /// <summary>
-/// TranslationFileSelectionViewModel の動作を検証する。
+/// <see cref="TranslationFileSelectionViewModel"/> の動作を検証する。
 /// </summary>
 public sealed class TranslationFileSelectionViewModelTests {
     [StaFact]
-    public async Task ActivateAsyncは初期読込でカテゴリ別タブを構築する() {
+    public async Task ActivateAsyncは読み込み結果を画面状態へ反映する() {
         var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz ),
-                    new TranslationArchiveEntry(
-                        "Campaign1.trk",
-                        @"C:\DCSWorld\Mods\campaigns\RedFlag\Campaign1.trk",
-                        "RedFlag/Campaign1.trk",
-                        TranslationArchiveCategory.DlcCampaigns,
-                        TranslationArchiveType.Trk )
-                ] );
-
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
         var viewModel = context.CreateViewModel();
 
         await viewModel.ActivateAsync( CancellationToken.None );
 
         Assert.Equal( 3, viewModel.Tabs.Count );
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var aircraftNode = Assert.Single( aircraftTab.Root.Children );
-        Assert.Equal( "A10C", aircraftNode.Name );
-        Assert.Single( aircraftNode.Children );
-    }
-
-    [StaFact]
-    public async Task Refreshは一覧を再読込する() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .SetupSequence( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "First.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\First.miz",
-                        "A10C/First.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Second.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Second.miz",
-                        "A10C/Second.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        await viewModel.Refresh();
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-        Assert.Equal( "Second.miz", fileNode.Name );
-        context.DiscoveryServiceMock.Verify(
-            service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ),
-            Times.Exactly( 2 ) );
-    }
-
-    [StaFact]
-    public async Task Refresh後は旧ツリーの選択状態を引き継がない() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .SetupSequence( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "First.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\First.miz",
-                        "A10C/First.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Second.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Second.miz",
-                        "A10C/Second.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var initialTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var initialModuleNode = Assert.Single( initialTab.Root.Children );
-        var initialFileNode = Assert.Single( initialModuleNode.Children );
-        initialFileNode.IsSelected = true;
-
-        Assert.True( viewModel.HasSelectedEntry );
-
-        await viewModel.Refresh();
-
-        var refreshedTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var refreshedModuleNode = Assert.Single( refreshedTab.Root.Children );
-        var refreshedFileNode = Assert.Single( refreshedModuleNode.Children );
-
-        Assert.False( viewModel.HasSelectedEntry );
-        Assert.False( refreshedFileNode.IsSelected );
-        Assert.Equal( "Second.miz", refreshedFileNode.Name );
-    }
-
-    [StaFact]
-    public async Task 選択状態変更時にHasSelectedEntryが更新される() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-
-        Assert.False( viewModel.HasSelectedEntry );
-
-        fileNode.IsSelected = true;
-
-        Assert.True( viewModel.HasSelectedEntry );
-        Assert.True( viewModel.CanOpenDirectory );
-        Assert.True( viewModel.CanCreateTranslation );
-    }
-
-    [StaFact]
-    public async Task ファイルノード選択時にOpenDirectoryはファイルパスで開く() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-        fileNode.IsSelected = true;
-
-        viewModel.OpenDirectory();
-
-        context.SystemServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ), Times.Once );
-    }
-
-    [StaFact]
-    public async Task ディレクトリノード選択時にOpenDirectoryはディレクトリパスで開く() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        moduleNode.IsSelected = true;
-
-        viewModel.OpenDirectory();
-
-        context.SystemServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C" ), Times.Once );
-    }
-
-    [StaFact]
-    public async Task ディレクトリノード選択時に子ファイルは自動選択されない() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-
-        moduleNode.IsSelected = true;
-
-        Assert.True( moduleNode.IsSelected );
-        Assert.False( fileNode.IsSelected );
-        Assert.True( viewModel.CanOpenDirectory );
-        Assert.False( viewModel.CanCreateTranslation );
-    }
-
-    [StaFact]
-    public async Task ディレクトリノード選択時はCanCreateTranslationがfalseになる() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        moduleNode.IsSelected = true;
-
-        Assert.False( viewModel.CanCreateTranslation );
-    }
-
-    [StaFact]
-    public async Task 未選択時はCanOpenDirectoryがfalseになる() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        Assert.False( viewModel.CanOpenDirectory );
-        Assert.False( viewModel.CanCreateTranslation );
-    }
-
-    [StaFact]
-    public async Task ノード選択時にCreateTranslationはウィンドウを表示する() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-        context.WindowManagerMock
-            .Setup( manager => manager.ShowWindowAsync(
-                It.IsAny<object>(),
-                It.IsAny<object?>(),
-                It.IsAny<IDictionary<string, object>?>() ) )
-            .Returns( Task.CompletedTask );
-        var translationCreationViewModel = CreateTranslationCreationViewModel();
-        context.TranslationCreationViewModelFactoryMock
-            .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Returns( translationCreationViewModel );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-        fileNode.IsSelected = true;
-
-        await viewModel.CreateTranslation();
-
-        context.TranslationCreationViewModelFactoryMock.Verify(
-            factory => factory.Create( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ),
-            Times.Once );
-        context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
-            translationCreationViewModel,
-            It.IsAny<object?>(),
-            It.IsAny<IDictionary<string, object>?>() ), Times.Once );
-    }
-
-    [StaFact]
-    public async Task CreateTranslationはファクトリ失敗時にsnackbarと詳細ログを出す() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-        context.TranslationCreationViewModelFactoryMock
-            .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Throws( new InvalidOperationException( "factory failed" ) );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-        fileNode.IsSelected = true;
-
-        await viewModel.CreateTranslation();
-
-        context.SnackbarServiceMock.Verify( service => service.Show(
-            Strings_Translation.CreateTranslationWindowOpenFailedMessage,
-            It.IsAny<string?>(),
-            It.IsAny<System.Action?>(),
-            It.IsAny<object?>(),
-            It.IsAny<TimeSpan?>() ), Times.Once );
-        context.LoggerMock.Verify(
-            service => service.Error(
-                It.Is<string>( message => message.Contains( "ViewModel の生成に失敗", StringComparison.Ordinal ) && message.Contains( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz", StringComparison.Ordinal ) ),
-                It.IsAny<Exception>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<int>() ),
+        Assert.Equal( 0, viewModel.SelectedTabIndex );
+        context.WorkflowUiAdapterMock.Verify(
+            adapter => adapter.ApplyLoadResultAsync(
+                It.Is<TranslationFileSelectionLoadResult>( result => result.Tabs.Count == 3 ),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ),
             Times.Once );
     }
 
     [StaFact]
-    public async Task CreateTranslationはウィンドウ表示失敗時にsnackbarと詳細ログを出す() {
+    public async Task 設定案内メッセージを反映する() {
         var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Mission1.miz",
-                        @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz",
-                        "A10C/Mission1.miz",
-                        TranslationArchiveCategory.Aircraft,
-                        TranslationArchiveType.Miz )
-                ] );
-        var translationCreationViewModel = CreateTranslationCreationViewModel();
-        context.TranslationCreationViewModelFactoryMock
-            .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Returns( translationCreationViewModel );
-        context.WindowManagerMock
-            .Setup( manager => manager.ShowWindowAsync(
-                It.IsAny<object>(),
-                It.IsAny<object?>(),
-                It.IsAny<IDictionary<string, object>?>() ) )
-            .ThrowsAsync( new InvalidOperationException( "window failed" ) );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var aircraftTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.Aircraft );
-        var moduleNode = Assert.Single( aircraftTab.Root.Children );
-        var fileNode = Assert.Single( moduleNode.Children );
-        fileNode.IsSelected = true;
-
-        await viewModel.CreateTranslation();
-
-        context.SnackbarServiceMock.Verify( service => service.Show(
-            Strings_Translation.CreateTranslationWindowOpenFailedMessage,
-            It.IsAny<string?>(),
-            It.IsAny<System.Action?>(),
-            It.IsAny<object?>(),
-            It.IsAny<TimeSpan?>() ), Times.Once );
-        context.LoggerMock.Verify(
-            service => service.Error(
-                It.Is<string>( message => message.Contains( "ウィンドウの表示に失敗", StringComparison.Ordinal ) && message.Contains( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz", StringComparison.Ordinal ) ),
-                It.IsAny<Exception>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<int>() ),
-            Times.Once );
-    }
-
-    [StaFact]
-    public async Task Trkファイル選択時にCanCreateTranslationがtrueになる() {
-        var context = new TranslationFileSelectionViewModelTestContext();
-        context.DiscoveryServiceMock
-            .Setup( service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync(
-                [
-                    new TranslationArchiveEntry(
-                        "Campaign1.trk",
-                        @"C:\DCSWorld\Mods\campaigns\RedFlag\Campaign1.trk",
-                        "RedFlag/Campaign1.trk",
-                        TranslationArchiveCategory.DlcCampaigns,
-                        TranslationArchiveType.Trk )
-                ] );
-
-        var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
-
-        var campaignTab = viewModel.Tabs.Single( tab => tab.TabType == CategoryType.DlcCampaigns );
-        viewModel.SelectedTabIndex = viewModel.Tabs.IndexOf( campaignTab );
-        var campaignNode = Assert.Single( campaignTab.Root.Children );
-        var fileNode = Assert.Single( campaignNode.Children );
-        fileNode.IsSelected = true;
-
-        Assert.True( viewModel.CanCreateTranslation );
-    }
-
-    [StaFact]
-    public async Task 設定未指定時は設定案内メッセージを表示する() {
-        var context = new TranslationFileSelectionViewModelTestContext( new AppSettings
-        {
-            DcsWorldInstallDir = string.Empty,
-            SourceUserMissionDir = string.Empty,
-        } );
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( CreateTabs( context.LoggerMock.Object ), Strings_Translation.SettingsNotConfiguredMessage ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
         var viewModel = context.CreateViewModel();
 
         await viewModel.ActivateAsync( CancellationToken.None );
 
         Assert.Equal( Strings_Translation.SettingsNotConfiguredMessage, viewModel.CurrentStatusMessage );
-        context.DiscoveryServiceMock.Verify(
-            service => service.DiscoverAsync( It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>() ),
-            Times.Never );
     }
 
     [StaFact]
-    public async Task ディレクトリ解除時に選択済み子ファイルへ昇格してCanCreateTranslationがtrueになる() {
+    public async Task Refreshは通知メッセージ表示をUIアダプタへ委譲する() {
         var context = new TranslationFileSelectionViewModelTestContext();
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult(
+                CreateTabs( context.LoggerMock.Object ),
+                Strings_Translation.LoadFailedMessage,
+                Strings_Translation.LoadFailedMessage ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
         var viewModel = context.CreateViewModel();
-        await viewModel.ActivateAsync( CancellationToken.None );
 
-        var scenario = CreateManualSelectionScenario( viewModel );
-        SimulateDirectoryToFileSelectionTransition( viewModel, scenario );
+        await viewModel.Refresh();
+
+        context.WorkflowUiAdapterMock.Verify(
+            adapter => adapter.ApplyLoadResultAsync(
+                It.Is<TranslationFileSelectionLoadResult>( result => result.NotificationMessage == Strings_Translation.LoadFailedMessage ),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ),
+            Times.Once );
+    }
+
+    [StaFact]
+    public async Task 選択状態変化時にガードプロパティが更新される() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        var fileNode = (FileEntryViewModel)tabs[0].Root.Children[0].Children[0];
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
+        var viewModel = context.CreateViewModel();
+
+        await viewModel.ActivateAsync( CancellationToken.None );
+        fileNode.IsSelected = true;
 
         Assert.True( viewModel.HasSelectedEntry );
+        Assert.True( viewModel.CanOpenDirectory );
         Assert.True( viewModel.CanCreateTranslation );
     }
 
     [StaFact]
-    public async Task ディレクトリ解除時に選択済み子ファイルへ昇格してOpenDirectoryはファイルパスで開く() {
+    public async Task ディレクトリ解除時に選択済み子ファイルへフォールバックする() {
         var context = new TranslationFileSelectionViewModelTestContext();
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        var directoryNode = (FileEntryViewModel)tabs[0].Root.Children[0];
+        var fileNode = (FileEntryViewModel)directoryNode.Children[0];
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
         var viewModel = context.CreateViewModel();
+
         await viewModel.ActivateAsync( CancellationToken.None );
+        directoryNode.IsSelected = true;
+        fileNode.IsSelected = true;
+        directoryNode.IsSelected = false;
 
-        var scenario = CreateManualSelectionScenario( viewModel );
-        SimulateDirectoryToFileSelectionTransition( viewModel, scenario );
-
+        Assert.True( viewModel.CanCreateTranslation );
         viewModel.OpenDirectory();
 
-        context.SystemServiceMock.Verify( service => service.OpenDirectory( scenario.FilePath ), Times.Once );
+        context.ActionServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ), Times.Once );
     }
 
     [StaFact]
-    public async Task ディレクトリ解除時に選択済み子ファイルへ昇格してCreateTranslationはファイルパスを使う() {
+    public async Task TreeView選択バインディング経由でもディレクトリ解除時に子ファイルへフォールバックする() {
+        EnsureApplicationResources();
+
         var context = new TranslationFileSelectionViewModelTestContext();
-        context.WindowManagerMock
-            .Setup( manager => manager.ShowWindowAsync(
-                It.IsAny<object>(),
-                It.IsAny<object?>(),
-                It.IsAny<IDictionary<string, object>?>() ) )
-            .Returns( Task.CompletedTask );
-        var translationCreationViewModel = CreateTranslationCreationViewModel();
-        context.TranslationCreationViewModelFactoryMock
-            .Setup( factory => factory.Create( It.IsAny<string>() ) )
-            .Returns( translationCreationViewModel );
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
+
+        var viewModel = context.CreateViewModel();
+        var view = new TranslationFileSelectionView
+        {
+            DataContext = viewModel
+        };
+        var hostWindow = new Window
+        {
+            Content = view,
+            Width = 1024,
+            Height = 768,
+            WindowStyle = WindowStyle.None,
+            ShowInTaskbar = false
+        };
+
+        try {
+            hostWindow.Show();
+            await viewModel.ActivateAsync( CancellationToken.None );
+            PumpDispatcher();
+
+            var treeView = GetTreeView( view );
+            var directoryItem = GetTreeViewItemAt( treeView, 0 );
+            directoryItem.IsSelected = true;
+            PumpDispatcher();
+
+            Assert.True( viewModel.HasSelectedEntry );
+            Assert.True( viewModel.CanOpenDirectory );
+            Assert.False( viewModel.CanCreateTranslation );
+
+            directoryItem.IsExpanded = true;
+            PumpDispatcher();
+
+            var fileItem = GetTreeViewItemAt( directoryItem, 0 );
+            fileItem.IsSelected = true;
+            PumpDispatcher();
+
+            Assert.True( viewModel.CanCreateTranslation );
+
+            directoryItem.IsSelected = false;
+            PumpDispatcher();
+
+            Assert.True( viewModel.CanCreateTranslation );
+
+            viewModel.OpenDirectory();
+
+            context.ActionServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ), Times.Once );
+        }
+        finally {
+            hostWindow.Close();
+        }
+    }
+
+    [StaFact]
+    public async Task OpenDirectoryはaction_serviceへ委譲する() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        var fileNode = (FileEntryViewModel)tabs[0].Root.Children[0].Children[0];
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
         var viewModel = context.CreateViewModel();
         await viewModel.ActivateAsync( CancellationToken.None );
+        fileNode.IsSelected = true;
 
-        var scenario = CreateManualSelectionScenario( viewModel );
-        SimulateDirectoryToFileSelectionTransition( viewModel, scenario );
+        viewModel.OpenDirectory();
+
+        context.ActionServiceMock.Verify( service => service.OpenDirectory( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ), Times.Once );
+    }
+
+    [StaFact]
+    public async Task CreateTranslationはaction_serviceへ委譲する() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        var fileNode = (FileEntryViewModel)tabs[0].Root.Children[0].Children[0];
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
+        fileNode.IsSelected = true;
 
         await viewModel.CreateTranslation();
 
-        context.TranslationCreationViewModelFactoryMock.Verify( factory => factory.Create( scenario.FilePath ), Times.Once );
-        context.WindowManagerMock.Verify( manager => manager.ShowWindowAsync(
-            translationCreationViewModel,
-            It.IsAny<object?>(),
-            It.IsAny<IDictionary<string, object>?>() ), Times.Once );
+        context.ActionServiceMock.Verify( service => service.OpenTranslationCreationAsync( @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ), Times.Once );
     }
 
-    private static ITranslationCreationViewModel CreateTranslationCreationViewModel() =>
-        new Mock<ITranslationCreationViewModel>().Object;
+    [StaFact]
+    public async Task OnDeactivateAsyncは通知クリアと選択購読解除を行う() {
+        var context = new TranslationFileSelectionViewModelTestContext();
+        var tabs = CreateTabs( context.LoggerMock.Object );
+        var fileNode = (FileEntryViewModel)tabs[0].Root.Children[0].Children[0];
+        context.WorkflowServiceMock
+            .Setup( service => service.LoadAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( new TranslationFileSelectionLoadResult( tabs, string.Empty ) );
+        context.WorkflowUiAdapterMock
+            .Setup( adapter => adapter.ApplyLoadResultAsync(
+                It.IsAny<TranslationFileSelectionLoadResult>(),
+                It.IsAny<Action<TranslationFileSelectionLoadResult>>() ) )
+            .Returns<TranslationFileSelectionLoadResult, Action<TranslationFileSelectionLoadResult>>( ( result, apply ) => {
+                apply( result );
+                return Task.CompletedTask;
+            } );
+        var viewModel = context.CreateViewModel();
+        await viewModel.ActivateAsync( CancellationToken.None );
 
-    private static ManualSelectionScenario CreateManualSelectionScenario( TranslationFileSelectionViewModel viewModel ) {
-        const string directoryPath = @"C:\DCSWorld\Mods\aircraft\A10C";
-        const string filePath = @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz";
-        var directoryNode = new ManualFileEntryViewModel( "A10C", "A10C", true, directoryPath );
-        var fileNode = new ManualFileEntryViewModel( "Mission1.miz", "A10C/Mission1.miz", false, filePath );
+        await InvokeOnDeactivateAsync( viewModel, true );
+        fileNode.IsSelected = true;
+
+        Assert.False( viewModel.HasSelectedEntry );
+        context.ActionServiceMock.Verify( service => service.ClearNotifications(), Times.Once );
+    }
+
+    /// <summary>
+    /// テスト用タブ一覧を生成する。
+    /// </summary>
+    /// <param name="logger">ロギングサービス。</param>
+    /// <returns>生成したタブ一覧。</returns>
+    private static IReadOnlyList<TabItemViewModel> CreateTabs( ILoggingService logger ) =>
+    [
+        new( CategoryType.Aircraft, logger, CreateRootNode( logger, "Aircraft", @"C:\DCSWorld\Mods\aircraft\A10C\Mission1.miz" ) ),
+        new( CategoryType.DlcCampaigns, logger, CreateRootNode( logger, "Campaigns", @"C:\DCSWorld\Mods\campaigns\Campaign1.trk" ) ),
+        new( CategoryType.UserMissions, logger, CreateRootNode( logger, "UserMissions", @"C:\Users\User\Saved Games\DCS\Missions\UserMission.lua" ) )
+    ];
+
+    /// <summary>
+    /// テスト用ルートノードを生成する。
+    /// </summary>
+    /// <param name="logger">ロギングサービス。</param>
+    /// <param name="directoryName">ディレクトリ名。</param>
+    /// <param name="filePath">ファイル絶対パス。</param>
+    /// <returns>生成したルートノード。</returns>
+    private static FileEntryViewModel CreateRootNode( ILoggingService logger, string directoryName, string filePath ) {
+        var fileNode = new FileEntryViewModel(
+            new LocalFileEntry( Path.GetFileName( filePath ), $"{directoryName}/{Path.GetFileName( filePath )}", false, filePath ),
+            ChangeTypeMode.Upload,
+            logger );
+        var directoryNode = new FileEntryViewModel(
+            new LocalFileEntry( directoryName, directoryName, true, Path.GetDirectoryName( filePath ) ),
+            ChangeTypeMode.Upload,
+            logger );
         directoryNode.Children.Add( fileNode );
 
-        RegisterSelectionSubscription( viewModel, CategoryType.Aircraft, directoryNode );
-        RegisterSelectionSubscription( viewModel, CategoryType.Aircraft, fileNode );
-        return new ManualSelectionScenario( directoryNode, fileNode, filePath );
+        var rootNode = new FileEntryViewModel(
+            new LocalFileEntry( "Root", string.Empty, true ),
+            ChangeTypeMode.Upload,
+            logger );
+        rootNode.Children.Add( directoryNode );
+        return rootNode;
     }
 
-    private static void SimulateDirectoryToFileSelectionTransition( TranslationFileSelectionViewModel viewModel, ManualSelectionScenario scenario ) {
-        scenario.DirectoryNode.SetSelected( true );
-        InvokeNodePropertyChanged( viewModel, scenario.DirectoryNode );
-
-        scenario.FileNode.SetSelected( true );
-        InvokeNodePropertyChanged( viewModel, scenario.FileNode );
-
-        scenario.DirectoryNode.SetSelected( false );
-        InvokeNodePropertyChanged( viewModel, scenario.DirectoryNode );
-    }
-
-    private static void RegisterSelectionSubscription( TranslationFileSelectionViewModel viewModel, CategoryType categoryType, IFileEntryViewModel node ) {
-        var method = typeof( TranslationFileSelectionViewModel ).GetMethod( "RegisterSelectionSubscription", BindingFlags.Instance | BindingFlags.NonPublic )
-            ?? throw new MissingMethodException( typeof( TranslationFileSelectionViewModel ).FullName, "RegisterSelectionSubscription" );
-        method.Invoke( viewModel, [categoryType, node] );
-    }
-
-    private static void InvokeNodePropertyChanged( TranslationFileSelectionViewModel viewModel, IFileEntryViewModel node ) {
-        var method = typeof( TranslationFileSelectionViewModel ).GetMethod( "OnNodePropertyChanged", BindingFlags.Instance | BindingFlags.NonPublic )
-            ?? throw new MissingMethodException( typeof( TranslationFileSelectionViewModel ).FullName, "OnNodePropertyChanged" );
-        method.Invoke( viewModel, [node, new PropertyChangedEventArgs( nameof( IFileEntryViewModel.IsSelected ) )] );
-    }
-
-    private sealed record ManualSelectionScenario(
-        ManualFileEntryViewModel DirectoryNode,
-        ManualFileEntryViewModel FileNode,
-        string FilePath );
-
-    private sealed class ManualFileEntryViewModel( string name, string path, bool isDirectory, string localSha ) : PropertyChangedBase, IFileEntryViewModel {
-        public event EventHandler<bool?>? CheckStateChanged {
-            add {
-            }
-            remove {
-            }
-        }
-
-        public string Name { get; } = name;
-
-        public string Path { get; } = path;
-
-        public bool IsDirectory { get; } = isDirectory;
-
-        public FileEntry Model { get; } = new LocalFileEntry( name, path, isDirectory, localSha );
-
-        public FileChangeType? ChangeType => FileChangeType.Modified;
-
-        public bool CanCheck => true;
-
-        public bool? CheckState { get; set; }
-
-        public bool IsSelected { get; set; }
-
-        public bool IsExpanded { get; set; }
-
-        public bool IsVisible { get; set; } = true;
-
-        public ObservableCollection<IFileEntryViewModel> Children { get; set; } = [];
-
-        public void SetSelectRecursive( bool value ) => IsSelected = value;
-
-        public List<FileEntry> GetCheckedModelRecursive( bool fileOnly = false ) => [];
-
-        public List<IFileEntryViewModel> GetCheckedViewModelRecursive() => [];
-
-        public void Dispose() {
-        }
-
-        internal void SetSelected( bool value ) {
-            IsSelected = value;
-            NotifyOfPropertyChange( nameof( IsSelected ) );
-        }
-    }
-
+    /// <summary>
+    /// テストコンテキストを表す。
+    /// </summary>
     private sealed class TranslationFileSelectionViewModelTestContext {
-        private readonly AppSettings _settings;
-
-        internal TranslationFileSelectionViewModelTestContext( AppSettings? settings = null ) {
-            _settings = settings ?? new AppSettings
-            {
-                DcsWorldInstallDir = @"C:\DCSWorld",
-                SourceUserMissionDir = @"C:\UserMissions",
-            };
-
-            AppSettingsServiceMock
-                .Setup( service => service.Settings )
-                .Returns( _settings );
-
-            DispatcherServiceMock
-                .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
-                .Returns<Func<Task>>( func => func() );
-        }
-
-        internal Mock<IAppSettingsService> AppSettingsServiceMock { get; } = new();
-        internal Mock<IApplicationInfoService> ApplicationInfoServiceMock { get; } = new();
-        internal Mock<IDialogService> DialogServiceMock { get; } = new();
-        internal Mock<IDialogProvider> DialogProviderMock { get; } = new();
-        internal Mock<IDispatcherService> DispatcherServiceMock { get; } = new();
         internal Mock<ILoggingService> LoggerMock { get; } = new();
-        internal Mock<ISnackbarService> SnackbarServiceMock { get; } = new();
-        internal Mock<ISystemService> SystemServiceMock { get; } = new();
-        internal Mock<ITranslationCreationViewModelFactory> TranslationCreationViewModelFactoryMock { get; } = new();
-        internal Mock<ITranslationDictionaryService> TranslationDictionaryServiceMock { get; } = new();
-        internal Mock<IWindowManager> WindowManagerMock { get; } = new();
-        internal Mock<ITranslationArchiveDiscoveryService> DiscoveryServiceMock { get; } = new();
+        internal Mock<ITranslationFileSelectionActionService> ActionServiceMock { get; } = new();
+        internal Mock<ITranslationFileSelectionWorkflowService> WorkflowServiceMock { get; } = new();
+        internal Mock<ITranslationFileSelectionWorkflowUiAdapter> WorkflowUiAdapterMock { get; } = new();
 
         internal TranslationFileSelectionViewModel CreateViewModel() =>
             new(
-                AppSettingsServiceMock.Object,
-                DispatcherServiceMock.Object,
                 LoggerMock.Object,
-                SnackbarServiceMock.Object,
-                SystemServiceMock.Object,
-                TranslationCreationViewModelFactoryMock.Object,
-                WindowManagerMock.Object,
-                DiscoveryServiceMock.Object );
+                ActionServiceMock.Object,
+                WorkflowServiceMock.Object,
+                WorkflowUiAdapterMock.Object );
     }
+
+    /// <summary>
+    /// OnDeactivateAsync をリフレクション経由で実行する。
+    /// </summary>
+    /// <param name="viewModel">対象 ViewModel。</param>
+    /// <param name="close">画面を閉じるかどうか。</param>
+    /// <returns>非同期タスク。</returns>
+    private static Task InvokeOnDeactivateAsync( TranslationFileSelectionViewModel viewModel, bool close ) {
+        var method = typeof( TranslationFileSelectionViewModel ).GetMethod( "OnDeactivateAsync", BindingFlags.Instance | BindingFlags.NonPublic )
+            ?? throw new InvalidOperationException( "OnDeactivateAsync が見つからない。" );
+        return (Task)(method.Invoke( viewModel, [close, CancellationToken.None] ) ?? Task.CompletedTask);
+    }
+
+    /// <summary>
+    /// WPF テスト実行に必要なアプリケーションリソースを初期化する。
+    /// </summary>
+    private static void EnsureApplicationResources() {
+        if(System.Windows.Application.Current is null) {
+            _ = new System.Windows.Application();
+        }
+
+        var resources = System.Windows.Application.Current!.Resources.MergedDictionaries;
+        if(resources.Any( dictionary => dictionary.Source?.OriginalString.Contains( "TreeViewStyle.xaml", StringComparison.OrdinalIgnoreCase ) == true )) {
+            return;
+        }
+
+        AddMergedDictionary( resources, "pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Button.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.PopupBox.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.SplitButton.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/DcsTranslationTool.Presentation.Wpf;component/Assets/Styles/CustomBrushes.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/DcsTranslationTool.Presentation.Wpf;component/Assets/Styles/_Thickness.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/DcsTranslationTool.Presentation.Wpf;component/Assets/Styles/WindowStyle.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/DcsTranslationTool.Presentation.Wpf;component/Assets/Styles/ButtonStyle.xaml" );
+        AddMergedDictionary( resources, "pack://application:,,,/DcsTranslationTool.Presentation.Wpf;component/Assets/Styles/TreeViewStyle.xaml" );
+    }
+
+    /// <summary>
+    /// マージ辞書を追加する。
+    /// </summary>
+    /// <param name="dictionaries">追加先辞書一覧。</param>
+    /// <param name="source">辞書ソース URI。</param>
+    private static void AddMergedDictionary( ICollection<ResourceDictionary> dictionaries, string source ) {
+        dictionaries.Add( new ResourceDictionary
+        {
+            Source = new Uri( source, UriKind.Absolute )
+        } );
+    }
+
+    /// <summary>
+    /// TranslationFileSelectionView 配下の TreeView を取得する。
+    /// </summary>
+    /// <param name="view">対象ビュー。</param>
+    /// <returns>取得した TreeView。</returns>
+    private static TreeView GetTreeView( TranslationFileSelectionView view ) {
+        view.ApplyTemplate();
+        view.UpdateLayout();
+        PumpDispatcher();
+
+        return FindDescendant<TreeView>( view )
+            ?? throw new InvalidOperationException( "TreeView が見つからない。" );
+    }
+
+    /// <summary>
+    /// 指定インデックスの TreeViewItem を取得する。
+    /// </summary>
+    /// <param name="itemsControl">取得元 ItemsControl。</param>
+    /// <param name="index">対象インデックス。</param>
+    /// <returns>取得した TreeViewItem。</returns>
+    private static TreeViewItem GetTreeViewItemAt( ItemsControl itemsControl, int index ) {
+        EnsureContainersGenerated( itemsControl );
+
+        return itemsControl.ItemContainerGenerator.ContainerFromIndex( index ) as TreeViewItem
+            ?? throw new InvalidOperationException( $"TreeViewItem の生成に失敗した。Index={index}" );
+    }
+
+    /// <summary>
+    /// ItemsControl 配下のコンテナ生成を保証する。
+    /// </summary>
+    /// <param name="itemsControl">対象 ItemsControl。</param>
+    private static void EnsureContainersGenerated( ItemsControl itemsControl ) {
+        itemsControl.ApplyTemplate();
+        itemsControl.UpdateLayout();
+        PumpDispatcher();
+
+        if(itemsControl is TreeViewItem treeViewItem) {
+            treeViewItem.IsExpanded = true;
+            treeViewItem.UpdateLayout();
+            PumpDispatcher();
+        }
+    }
+
+    /// <summary>
+    /// VisualTree から指定型の子要素を探索する。
+    /// </summary>
+    /// <typeparam name="T">探索対象型。</typeparam>
+    /// <param name="root">探索起点。</param>
+    /// <returns>最初に見つかった要素。存在しない場合は <see langword="null"/>。</returns>
+    private static T? FindDescendant<T>( DependencyObject root )
+        where T : DependencyObject {
+        var childrenCount = VisualTreeHelper.GetChildrenCount( root );
+        for(var index = 0; index < childrenCount; index++) {
+            var child = VisualTreeHelper.GetChild( root, index );
+            if(child is T target) {
+                return target;
+            }
+
+            var descendant = FindDescendant<T>( child );
+            if(descendant is not null) {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Dispatcher キューを処理する。
+    /// </summary>
+    private static void PumpDispatcher() =>
+        Dispatcher.CurrentDispatcher.Invoke( () => { }, DispatcherPriority.Background );
 }
