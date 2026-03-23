@@ -3,7 +3,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <summary>
 /// TranslationCreation 一覧のフィルター判定を担う。
 /// </summary>
-internal sealed class TranslationCreationFilterService : ITranslationCreationFilterService {
+public sealed class TranslationCreationFilterService : ITranslationCreationFilterService {
     /// <inheritdoc />
     public bool ShouldInclude( TranslationDictionaryItemRowViewModel row, TranslationCreationFilterOptions options ) {
         if(row.IsEnabled && !options.ShowEnabledItems) {

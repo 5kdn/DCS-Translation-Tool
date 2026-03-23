@@ -69,6 +69,7 @@ updates:
         - "coverlet.collector"
         - "Microsoft.NET.Test.Sdk"
         - "Moq"
+        - "WireMock.Net"
         - "xunit.runner.visualstudio"
         - "Xunit.StaFact"
         - "xunit.v3"

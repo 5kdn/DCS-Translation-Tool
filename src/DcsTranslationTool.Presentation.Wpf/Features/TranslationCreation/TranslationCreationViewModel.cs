@@ -409,7 +409,7 @@ public sealed class TranslationCreationViewModel(
     /// </summary>
     /// <param name="cancellationToken">キャンセルトークン。</param>
     /// <returns>非同期タスクを返す。</returns>
-    internal Task InitializeAfterShownAsync( CancellationToken cancellationToken = default ) =>
+    public Task InitializeAfterShownAsync( CancellationToken cancellationToken = default ) =>
         _initializeAfterShownTask ??= LoadDictionaryAsync( cancellationToken );
 
     /// <summary>
@@ -467,7 +467,7 @@ public sealed class TranslationCreationViewModel(
     /// <summary>
     /// 閉じる確認が必要な未反映変更が存在するかどうかを判定する。
     /// </summary>
-    internal bool HasPendingChangesForClose() => session.HasPendingChangesForClose();
+    public bool HasPendingChangesForClose() => session.HasPendingChangesForClose();
     #endregion
 
     #region Actions
@@ -706,7 +706,7 @@ public sealed class TranslationCreationViewModel(
     /// <summary>
     /// 選択中翻訳文の保留中編集を現在の行へ反映する。
     /// </summary>
-    internal void FlushPendingSelectedTranslatedEdit() {
+    public void FlushPendingSelectedTranslatedEdit() {
         CancelSelectedTranslatedCommit();
         session.FlushPendingSelectedTranslatedEdit();
     }

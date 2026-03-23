@@ -11,7 +11,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <summary>
 /// TranslationCreation の import/export 処理を担う。
 /// </summary>
-internal sealed class TranslationCreationImportExportService(
+public sealed class TranslationCreationImportExportService(
     IAppSettingsService appSettingsService,
     IApplicationInfoService applicationInfoService,
     ITranslationDictionaryService translationDictionaryService,

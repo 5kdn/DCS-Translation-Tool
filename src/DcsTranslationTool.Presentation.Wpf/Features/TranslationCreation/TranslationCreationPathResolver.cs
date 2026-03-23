@@ -9,7 +9,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// </summary>
 /// <param name="settings">アプリケーション設定。</param>
 /// <param name="archiveFullPath">対象アーカイブの絶対パス。</param>
-internal sealed class TranslationCreationPathResolver(
+public sealed class TranslationCreationPathResolver(
     AppSettings settings,
     string archiveFullPath ) {
     #region PublicMethods
@@ -19,46 +19,46 @@ internal sealed class TranslationCreationPathResolver(
     /// </summary>
     /// <returns>書き出し先パスを返す。</returns>
     /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
-    internal string GetDictionaryExportPath() => Path.Combine( GetExportDirectoryPath(), "dictionary" );
+    public string GetDictionaryExportPath() => Path.Combine( GetExportDirectoryPath(), "dictionary" );
 
     /// <summary>
     /// PO の既定書き出し先を取得する。
     /// </summary>
     /// <returns>書き出し先パスを返す。</returns>
     /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
-    internal string GetPoExportPath() => Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
+    public string GetPoExportPath() => Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
 
     /// <summary>
     /// CSV の既定書き出し先を取得する。
     /// </summary>
     /// <returns>書き出し先パスを返す。</returns>
     /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
-    internal string GetCsvExportPath() => Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
+    public string GetCsvExportPath() => Path.Combine( GetExportDirectoryPath(), $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
 
     /// <summary>
     /// PO 読み込みダイアログの初期パスを取得する。
     /// </summary>
     /// <returns>初期パスを返す。</returns>
-    internal string GetPoImportInitialPath() => TryResolve( GetPoExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
+    public string GetPoImportInitialPath() => TryResolve( GetPoExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.po" );
 
     /// <summary>
     /// dictionary 読み込みダイアログの初期パスを取得する。
     /// </summary>
     /// <returns>初期パスを返す。</returns>
-    internal string GetDictionaryImportInitialPath() => TryResolve( GetDictionaryExportPath, "dictionary" );
+    public string GetDictionaryImportInitialPath() => TryResolve( GetDictionaryExportPath, "dictionary" );
 
     /// <summary>
     /// CSV 読み込みダイアログの初期パスを取得する。
     /// </summary>
     /// <returns>初期パスを返す。</returns>
-    internal string GetCsvImportInitialPath() => TryResolve( GetCsvExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
+    public string GetCsvImportInitialPath() => TryResolve( GetCsvExportPath, $"{Path.GetFileNameWithoutExtension( archiveFullPath )}.csv" );
 
     /// <summary>
     /// 既定出力ディレクトリを取得する。
     /// </summary>
     /// <returns>出力ディレクトリパスを返す。</returns>
     /// <exception cref="InvalidOperationException">翻訳ファイル出力先ディレクトリが未設定、またはアーカイブが既知のルート配下に存在しない場合に送出する。</exception>
-    internal string GetExportDirectoryPath() {
+    public string GetExportDirectoryPath() {
         var translateFileDir = settings.TranslateFileDir;
         if(string.IsNullOrWhiteSpace( translateFileDir )) {
             throw new InvalidOperationException( "翻訳ファイル出力先ディレクトリが未設定である。" );

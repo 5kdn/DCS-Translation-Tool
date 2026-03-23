@@ -19,7 +19,6 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     private const string DictionaryEntryPath = "l10n/default/dictionary";
     private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string CsvHeaderLine = "Enabled,Key,Original,Translated";
-    private const string LegacyCsvHeaderLine = "Key,Original,Translated";
     private const string ObsoletePoPrefix = "#~ ";
 
     /// <inheritdoc />

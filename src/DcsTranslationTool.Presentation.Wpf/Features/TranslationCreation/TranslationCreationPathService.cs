@@ -5,7 +5,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <summary>
 /// TranslationCreation のパス解決を担う。
 /// </summary>
-internal sealed class TranslationCreationPathService : ITranslationCreationPathService {
+public sealed class TranslationCreationPathService : ITranslationCreationPathService {
     /// <inheritdoc />
     public string GetDictionaryExportPath( AppSettings settings, string archiveFullPath ) =>
         new TranslationCreationPathResolver( settings, archiveFullPath ).GetDictionaryExportPath();

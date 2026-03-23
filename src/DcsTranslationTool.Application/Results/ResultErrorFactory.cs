@@ -35,7 +35,7 @@ public static class ResultErrorFactory {
     /// </summary>
     public static IError Unexpected( Exception exception, string? code = null ) {
         var error = new ExceptionalError( exception );
-        error.Metadata["kind"] = ResultErrorKind.Unexpected.ToString();
+        error.Metadata["kind"] = nameof( ResultErrorKind.Unexpected );
         if(!string.IsNullOrWhiteSpace( code )) {
             error.Metadata["code"] = code;
         }

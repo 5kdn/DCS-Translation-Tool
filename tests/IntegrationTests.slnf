@@ -1,0 +1,8 @@
+{
+  "solution": {
+    "path": "..\\DCS-Translation-Tool.sln",
+    "projects": [
+      "tests\\DcsTranslationTool.IntegrationTests\\DcsTranslationTool.IntegrationTests.csproj",
+    ]
+  }
+}

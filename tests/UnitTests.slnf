@@ -1,0 +1,10 @@
+{
+  "solution": {
+    "path": "..\\DCS-Translation-Tool.sln",
+    "projects": [
+      "tests\\DcsTranslationTool.Infrastructure.UnitTests\\DcsTranslationTool.Infrastructure.UnitTests.csproj",
+      "tests\\DcsTranslationTool.Presentation.Wpf.UnitTests\\DcsTranslationTool.Presentation.Wpf.UnitTests.csproj",
+      "tests\\DcsTranslationTool.Shared.UnitTests\\DcsTranslationTool.Shared.UnitTests.csproj"
+    ]
+  }
+}

@@ -11,7 +11,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 /// <summary>
 /// TranslationCreation 機能のダイアログ操作を担う。
 /// </summary>
-internal sealed class TranslationCreationDialogService(
+public sealed class TranslationCreationDialogService(
     IDialogService dialogService,
     IDialogProvider dialogProvider,
     ILoggingService logger ) : ITranslationCreationDialogService {

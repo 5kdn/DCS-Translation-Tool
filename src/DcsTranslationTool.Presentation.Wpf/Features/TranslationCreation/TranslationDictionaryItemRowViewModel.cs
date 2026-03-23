@@ -75,13 +75,13 @@ public sealed class TranslationDictionaryItemRowViewModel(
     /// <summary>
     /// 初期読込時点から未反映変更が存在するかどうかを取得する。
     /// </summary>
-    internal bool HasPendingChanges => _hasPendingChanges;
+    public bool HasPendingChanges => _hasPendingChanges;
 
     /// <summary>
     /// 現在値を基準値と比較して dirty 状態を更新する。
     /// </summary>
     /// <returns>dirty 状態が変化した場合は <see langword="true"/> を返す。</returns>
-    internal bool UpdatePendingChanges() {
+    public bool UpdatePendingChanges() {
         var hasPendingChanges =
             !string.Equals( model.Translated, _initialTranslated, StringComparison.Ordinal )
             || model.IsEnabled != _initialIsEnabled;
@@ -98,14 +98,14 @@ public sealed class TranslationDictionaryItemRowViewModel(
     /// </summary>
     /// <param name="translatedOverride">比較に利用する翻訳文。</param>
     /// <returns>保留値を加味して未反映変更が存在する場合は <see langword="true"/> を返す。</returns>
-    internal bool HasPendingChangesWithTranslatedOverride( string translatedOverride ) =>
+    public bool HasPendingChangesWithTranslatedOverride( string translatedOverride ) =>
         !string.Equals( translatedOverride, _initialTranslated, StringComparison.Ordinal )
         || model.IsEnabled != _initialIsEnabled;
 
     /// <summary>
     /// 現在値を dirty 判定の基準値として再設定する。
     /// </summary>
-    internal void ResetPendingChangesBaseline() {
+    public void ResetPendingChangesBaseline() {
         _initialTranslated = model.Translated;
         _initialIsEnabled = model.IsEnabled;
         _hasPendingChanges = false;
