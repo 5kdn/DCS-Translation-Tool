@@ -10,6 +10,7 @@ using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Enums;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Items;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
@@ -31,6 +32,8 @@ public class CreatePullRequestViewModel(
     CreatePullRequestDialogParameters dialogParameters,
     IApiService apiService,
     IFileContentInspector fileContentInspector,
+    ILuaSyntaxValidationService luaSyntaxValidationService,
+    IDialogService dialogService,
     ILoggingService logger,
     ISystemService systemService
 ) : Conductor<IScreen>.Collection.OneActive, IActivate {
@@ -171,6 +174,8 @@ public class CreatePullRequestViewModel(
         CreatePullRequestDialogParameters parameters,
         IApiService apiService,
         IFileContentInspector fileContentInspector,
+        ILuaSyntaxValidationService luaSyntaxValidationService,
+        IDialogService dialogService,
         ILoggingService logger,
         ISystemService systemService,
         IWindowManager windowManager,
@@ -182,7 +187,7 @@ public class CreatePullRequestViewModel(
 
         logger.Info( "Pull Request ダイアログを表示する準備を開始する。" );
 
-        var vm = new CreatePullRequestViewModel(parameters, apiService, fileContentInspector, logger, systemService);
+        var vm = new CreatePullRequestViewModel(parameters, apiService, fileContentInspector, luaSyntaxValidationService, dialogService, logger, systemService);
         _ = windowManager.ShowDialogAsync( vm );
         await using var reg = cancellationToken.Register(() => vm._tcs.TrySetCanceled(cancellationToken));
         var result = await vm._tcs.Task.ConfigureAwait( false );
@@ -285,14 +290,46 @@ public class CreatePullRequestViewModel(
 
         var msgFromKinds = string.Join("\n", PullRequestChangeKinds.Where(x => x.IsChecked).Select(x => x.DisplayName));
         var branchName = CreateBranchName();
-        //var bodyCandidate = string.IsNullOrWhiteSpace( PRComment ) ? msgFromKinds : PRComment;
         var bodyCandidate = string.IsNullOrWhiteSpace( PRComment ) ? msgFromKinds : PRComment;
         var body = string.IsNullOrWhiteSpace( bodyCandidate ) ? "(no summary)" : bodyCandidate;
         var commitMessage = PRTitle;
 
         CreatePullRequestResult? result = null;
         try {
-            var files = await BuildPullRequestFilesAsync();
+            List<ApiPullRequestFile> files;
+            while(true) {
+                var buildResult = await BuildPullRequestFilesAsync();
+                if(buildResult.SyntaxValidationResult.IsSuccess) {
+                    files = buildResult.Files;
+                    break;
+                }
+
+                logger.Warn( $"Lua 構文検証に失敗したため PR 作成を保留する。Count={buildResult.SyntaxValidationResult.Failures.Count}" );
+                var dialogResult = await dialogService.LuaSyntaxValidationFailureDialogShowAsync(
+                    new LuaSyntaxValidationFailureDialogParameters
+                    {
+                        Title = Strings_CreatePullRequest.LuaSyntaxValidationFailureDialogTitle,
+                        Message = Strings_CreatePullRequest.LuaSyntaxValidationFailureDialogMessage,
+                        FailedFilesHeader = Strings_CreatePullRequest.LuaSyntaxValidationFailureDialogFileListHeader,
+                        FailedFilePaths = [.. buildResult.SyntaxValidationResult.Failures.Select( failure => failure.FilePath )],
+                        RetryButtonText = Strings_CreatePullRequest.LuaSyntaxValidationFailureDialogRetryButtonText,
+                        CancelButtonText = Strings_CreatePullRequest.LuaSyntaxValidationFailureDialogCancelButtonText,
+                        DialogIdentifier = CreatePullRequestDialogHostIdentifiers.Validation,
+                    } );
+
+                if(dialogResult == LuaSyntaxValidationFailureDialogResult.Retry) {
+                    logger.Info( "Lua 構文検証失敗ダイアログでリトライが選択された。" );
+                    continue;
+                }
+
+                logger.Info( "Lua 構文検証失敗ダイアログで中止が選択された。" );
+                result = new CreatePullRequestResult
+                {
+                    IsOk = false,
+                    Errors = [new InvalidOperationException( Strings_CreatePullRequest.LuaSyntaxValidationFailureDialogMessage )],
+                };
+                return;
+            }
             if(files.Count == 0) {
                 logger.Warn( $"コミット対象ファイルが存在しないため PR 作成を中断する。Branch={branchName}" );
                 result = new CreatePullRequestResult
@@ -395,8 +432,9 @@ public class CreatePullRequestViewModel(
     #region Helper
 
     /// <summary>Pull Request 用のファイル一覧を構築する。</summary>
-    private async Task<List<ApiPullRequestFile>> BuildPullRequestFilesAsync() {
+    private async Task<PullRequestFileBuildResult> BuildPullRequestFilesAsync() {
         List<ApiPullRequestFile> files = [];
+        List<LuaSyntaxValidationTarget> validationTargets = [];
 
         foreach(var commitFile in UpsertFiles) {
             if(string.IsNullOrWhiteSpace( commitFile.LocalPath )) throw new InvalidOperationException( $"ローカルパスが未指定のためファイルを読み込めない。RepoPath={commitFile.RepoPath}" );
@@ -410,6 +448,10 @@ public class CreatePullRequestViewModel(
             var text = inspection.Text ?? string.Empty;
             logger.Debug( $"PR へ追加するファイルを読み込んだ。RepoPath={commitFile.RepoPath}, Encoding={inspection.Encoding?.WebName ?? "unknown"}, Length={text.Length}" );
 
+            if(IsLuaSyntaxValidationTarget( commitFile )) {
+                validationTargets.Add( new LuaSyntaxValidationTarget( GetDisplayPath( commitFile ), text ) );
+            }
+
             files.Add( new ApiPullRequestFile( ApiPullRequestFileOperation.Upsert, commitFile.RepoPath, text ) );
         }
 
@@ -417,7 +459,8 @@ public class CreatePullRequestViewModel(
             files.Add( new ApiPullRequestFile( ApiPullRequestFileOperation.Delete, commitFile.RepoPath, null ) );
         }
 
-        return files;
+        var syntaxValidationResult = luaSyntaxValidationService.Validate( validationTargets );
+        return new PullRequestFileBuildResult( files, syntaxValidationResult );
     }
 
     /// <summary>FluentResults のエラーを例外に変換する。</summary>
@@ -428,6 +471,35 @@ public class CreatePullRequestViewModel(
             _ when !string.IsNullOrWhiteSpace( error.Message ) => new InvalidOperationException( error.Message ),
             _ => new InvalidOperationException( error.ToString() ),
         };
+
+    /// <summary>
+    /// 対象ファイルが Lua 構文検証対象かどうかを判定する。
+    /// </summary>
+    /// <param name="commitFile">判定対象ファイル。</param>
+    /// <returns>構文検証対象の場合は <see langword="true"/> を返す。</returns>
+    private static bool IsLuaSyntaxValidationTarget( CommitFile commitFile ) {
+        var localPath = commitFile.LocalPath;
+        if(string.IsNullOrWhiteSpace( localPath )) {
+            return false;
+        }
+
+        var fileName = Path.GetFileName( localPath );
+        if(string.Equals( fileName, "dictionary", StringComparison.OrdinalIgnoreCase )) {
+            return true;
+        }
+
+        var extension = Path.GetExtension( localPath );
+        return string.Equals( extension, ".lua", StringComparison.OrdinalIgnoreCase )
+            || string.Equals( extension, ".cmp", StringComparison.OrdinalIgnoreCase );
+    }
+
+    /// <summary>
+    /// ダイアログ表示用のファイルパスを取得する。
+    /// </summary>
+    /// <param name="commitFile">対象ファイル。</param>
+    /// <returns>表示用ファイルパスを返す。</returns>
+    private static string GetDisplayPath( CommitFile commitFile ) =>
+        string.IsNullOrWhiteSpace( commitFile.LocalPath ) ? commitFile.RepoPath : commitFile.LocalPath;
 
     /// <summary>PRタイトル用のブランチ名を生成する。</summary>
     private string CreateBranchName() {
@@ -552,5 +624,14 @@ public class CreatePullRequestViewModel(
     }
 
     #endregion
+
+    /// <summary>
+    /// PR 送信用ファイル構築結果を表す。
+    /// </summary>
+    /// <param name="Files">API 送信用ファイル一覧を示す。</param>
+    /// <param name="SyntaxValidationResult">Lua 構文検証結果を示す。</param>
+    private sealed record PullRequestFileBuildResult(
+        List<ApiPullRequestFile> Files,
+        LuaSyntaxValidationResult SyntaxValidationResult );
 
 }

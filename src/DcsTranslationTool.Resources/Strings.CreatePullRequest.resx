@@ -148,6 +148,21 @@ N/A</value>
   <data name="MainChangesLabel" xml:space="preserve">
     <value>主な変更点</value>
   </data>
+  <data name="LuaSyntaxValidationFailureDialogCancelButtonText" xml:space="preserve">
+    <value>中止</value>
+  </data>
+  <data name="LuaSyntaxValidationFailureDialogFileListHeader" xml:space="preserve">
+    <value>Lua 構文チェックに失敗したファイル</value>
+  </data>
+  <data name="LuaSyntaxValidationFailureDialogMessage" xml:space="preserve">
+    <value>Lua 構文チェックに失敗したファイルがあります。修正してから再度お試しください。</value>
+  </data>
+  <data name="LuaSyntaxValidationFailureDialogRetryButtonText" xml:space="preserve">
+    <value>リトライ</value>
+  </data>
+  <data name="LuaSyntaxValidationFailureDialogTitle" xml:space="preserve">
+    <value>Lua 構文チェックエラー</value>
+  </data>
   <data name="PRTitleLabel" xml:space="preserve">
     <value>PRタイトル：</value>
   </data>

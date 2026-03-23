@@ -137,6 +137,51 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   中止 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string LuaSyntaxValidationFailureDialogCancelButtonText {
+            get {
+                return ResourceManager.GetString("LuaSyntaxValidationFailureDialogCancelButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Lua 構文チェックに失敗したファイル に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string LuaSyntaxValidationFailureDialogFileListHeader {
+            get {
+                return ResourceManager.GetString("LuaSyntaxValidationFailureDialogFileListHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Lua 構文チェックに失敗したファイルがあります。修正してから再度お試しください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string LuaSyntaxValidationFailureDialogMessage {
+            get {
+                return ResourceManager.GetString("LuaSyntaxValidationFailureDialogMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   リトライ に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string LuaSyntaxValidationFailureDialogRetryButtonText {
+            get {
+                return ResourceManager.GetString("LuaSyntaxValidationFailureDialogRetryButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Lua 構文チェックエラー に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string LuaSyntaxValidationFailureDialogTitle {
+            get {
+                return ResourceManager.GetString("LuaSyntaxValidationFailureDialogTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   主な変更点 に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string MainChangesLabel {

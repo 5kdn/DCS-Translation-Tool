@@ -1,0 +1,62 @@
+<UserControl x:Class="DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Views.LuaSyntaxValidationFailureDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results"
+             mc:Ignorable="d"
+             d:DesignHeight="320"
+             d:DesignWidth="480">
+    <Border Background="{DynamicResource MaterialDesign.Brush.Background}"
+            Padding="{StaticResource MediumMargin}"
+            BorderBrush="{DynamicResource MaterialDesign.Brush.OutlineVariant}"
+            BorderThickness="1">
+        <StackPanel>
+            <TextBlock Text="{Binding Title}"
+                       Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}"
+                       Margin="{StaticResource XSmallBottomMargin}" />
+            <TextBlock Text="{Binding Message}"
+                       Style="{StaticResource MaterialDesignBodyMediumTextBlock}"
+                       TextWrapping="Wrap"
+                       Margin="{StaticResource XSmallBottomMargin}" />
+            <TextBlock Text="{Binding FailedFilesHeader}"
+                       Style="{StaticResource MaterialDesignTitleMediumTextBlock}"
+                       Margin="{StaticResource XSmallBottomMargin}" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto"
+                          MinHeight="120"
+                          MaxHeight="240"
+                          Margin="{StaticResource SmallBottomMargin}">
+                <Border BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Background="{DynamicResource MaterialDesign.Brush.Background}">
+                    <TextBox Text="{Binding FailedFilePathsText, Mode=OneWay}"
+                             Style="{StaticResource MaterialDesignFilledTextBox}"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                             BorderThickness="0"
+                             Background="{DynamicResource MaterialDesign.Brush.Background}"
+                             Padding="{StaticResource XSmallMargin}"
+                             HorizontalAlignment="Stretch" />
+                </Border>
+            </ScrollViewer>
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        CommandParameter="{x:Static local:LuaSyntaxValidationFailureDialogResult.Retry}"
+                        Content="{Binding RetryButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedAffirmativeButton}"
+                        Margin="{StaticResource XSmallRightMargin}" />
+                <Button Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        CommandParameter="{x:Static local:LuaSyntaxValidationFailureDialogResult.Cancel}"
+                        Content="{Binding CancelButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedWarnButton}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>
