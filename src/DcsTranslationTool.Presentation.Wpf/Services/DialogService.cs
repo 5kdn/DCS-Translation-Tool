@@ -23,6 +23,7 @@ public sealed class DialogService(
     ILoggingService logger,
     IApiService apiService,
     IFileContentInspector fileContentInspector,
+    ILuaSyntaxValidationService luaSyntaxValidationService,
     ISystemService systemService,
     IWindowManager windowManager
 ) : IDialogService {
@@ -63,6 +64,34 @@ public sealed class DialogService(
     }
 
     /// <inheritdoc/>
+    public async Task<LuaSyntaxValidationFailureDialogResult> LuaSyntaxValidationFailureDialogShowAsync( LuaSyntaxValidationFailureDialogParameters parameters ) {
+        ArgumentNullException.ThrowIfNull( parameters );
+        logger.Info( $"Lua 構文検証失敗ダイアログを表示する。Identifier={parameters.DialogIdentifier}, Count={parameters.FailedFilePaths.Count}" );
+        var dialog = new LuaSyntaxValidationFailureDialog
+        {
+            DataContext = parameters
+        };
+
+        object? result;
+        try {
+            result = await DialogHost.Show( dialog, parameters.DialogIdentifier );
+        }
+        catch(InvalidOperationException ex) {
+            logger.Error( $"Lua 構文検証失敗ダイアログ表示に失敗した。Identifier={parameters.DialogIdentifier}", ex );
+            throw;
+        }
+
+        var dialogResult = result switch
+        {
+            LuaSyntaxValidationFailureDialogResult validationDialogResult => validationDialogResult,
+            string value when Enum.TryParse<LuaSyntaxValidationFailureDialogResult>( value, true, out var parsed ) => parsed,
+            _ => LuaSyntaxValidationFailureDialogResult.Cancel
+        };
+        logger.Info( $"Lua 構文検証失敗ダイアログが閉じられた。Result={dialogResult}" );
+        return dialogResult;
+    }
+
+    /// <inheritdoc/>
     public async Task<CreatePullRequestResult> CreatePullRequestDialogShowAsync(
         CreatePullRequestDialogParameters parameters,
         CancellationToken cancellationToken = default
@@ -73,6 +102,8 @@ public sealed class DialogService(
             parameters,
             apiService,
             fileContentInspector,
+            luaSyntaxValidationService,
+            this,
             logger,
             systemService,
             windowManager,

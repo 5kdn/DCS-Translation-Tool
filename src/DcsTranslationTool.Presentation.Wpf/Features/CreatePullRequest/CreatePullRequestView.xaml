@@ -16,159 +16,161 @@
         FontWeight="Medium"
         Width="800" d:Height="800">
 
-    <ScrollViewer>
-        <StackPanel Margin="{StaticResource MediumMargin}">
+    <md:DialogHost Identifier="{x:Static local:CreatePullRequestDialogHostIdentifiers.Validation}">
+        <ScrollViewer>
+            <StackPanel Margin="{StaticResource MediumMargin}">
 
-            <!--アップロードするファイル一覧-->
-            <Expander Header="{x:Static resx:Strings_CreatePullRequest.UploadFileListHeader}"
-                      Style="{StaticResource MaterialDesignExpander}"
-                      Background="{StaticResource MaterialDesign.Brush.Primary}"
-                      Foreground="{StaticResource MaterialDesign.Brush.Background}"
-                      FontWeight="Bold"
-                      BorderBrush="{StaticResource MaterialDesign.Brush.Primary.Dark}"
-                      BorderThickness="1"
-                      Margin="{StaticResource MediumBottomMargin}"
-                      IsExpanded="True" >
-                <StackPanel Background="{StaticResource MaterialDesign.Brush.Background}">
-                    <ListView ItemsSource="{Binding UpsertFiles}">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding LocalPath}"
-                                           Foreground="{StaticResource MaterialDesign.Brush.Foreground}"
-                                           FontWeight="Normal" />
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </StackPanel>
-            </Expander>
+                <!--アップロードするファイル一覧-->
+                <Expander Header="{x:Static resx:Strings_CreatePullRequest.UploadFileListHeader}"
+                          Style="{StaticResource MaterialDesignExpander}"
+                          Background="{StaticResource MaterialDesign.Brush.Primary}"
+                          Foreground="{StaticResource MaterialDesign.Brush.Background}"
+                          FontWeight="Bold"
+                          BorderBrush="{StaticResource MaterialDesign.Brush.Primary.Dark}"
+                          BorderThickness="1"
+                          Margin="{StaticResource MediumBottomMargin}"
+                          IsExpanded="True" >
+                    <StackPanel Background="{StaticResource MaterialDesign.Brush.Background}">
+                        <ListView ItemsSource="{Binding UpsertFiles}">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding LocalPath}"
+                                               Foreground="{StaticResource MaterialDesign.Brush.Foreground}"
+                                               FontWeight="Normal" />
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Expander>
 
-            <!-- 削除するファイル一覧 -->
-            <Expander Header="{x:Static resx:Strings_CreatePullRequest.DeleteFileListHeader}"
-                      Style="{StaticResource MaterialDesignExpander}"
-                      Background="{StaticResource MaterialDesign.Brush.Primary}"
-                      Foreground="{StaticResource MaterialDesign.Brush.Background}"
-                      FontWeight="Bold"
-                      BorderBrush="{StaticResource MaterialDesign.Brush.Primary.Dark}"
-                      BorderThickness="1"
-                      IsExpanded="True">
-                <StackPanel Background="{StaticResource MaterialDesign.Brush.Background}">
-                    <ListView ItemsSource="{Binding DeleteFiles}">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding RepoPath}"
-                                           Foreground="{StaticResource MaterialDesign.Brush.Foreground}"
-                                           FontWeight="Normal" />
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </StackPanel>
-            </Expander>
+                <!-- 削除するファイル一覧 -->
+                <Expander Header="{x:Static resx:Strings_CreatePullRequest.DeleteFileListHeader}"
+                          Style="{StaticResource MaterialDesignExpander}"
+                          Background="{StaticResource MaterialDesign.Brush.Primary}"
+                          Foreground="{StaticResource MaterialDesign.Brush.Background}"
+                          FontWeight="Bold"
+                          BorderBrush="{StaticResource MaterialDesign.Brush.Primary.Dark}"
+                          BorderThickness="1"
+                          IsExpanded="True">
+                    <StackPanel Background="{StaticResource MaterialDesign.Brush.Background}">
+                        <ListView ItemsSource="{Binding DeleteFiles}">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding RepoPath}"
+                                               Foreground="{StaticResource MaterialDesign.Brush.Foreground}"
+                                               FontWeight="Normal" />
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Expander>
 
 
-            <!--PRの作成エリア-->
-            <StackPanel>
+                <!--PRの作成エリア-->
                 <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PRTitleLabel}"
-                                   Style="{StaticResource MaterialDesignHeadlineLargeTextBlock}"/>
-                        <TextBlock Grid.Column="1"
-                                Text="{Binding PRTitle}"
-                                TextWrapping="Wrap"
-                                Style="{StaticResource MaterialDesignHeadlineLargeTextBlock}"/>
-                    </Grid>
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PRTitleLabel}"
+                                       Style="{StaticResource MaterialDesignHeadlineLargeTextBlock}"/>
+                            <TextBlock Grid.Column="1"
+                                    Text="{Binding PRTitle}"
+                                    TextWrapping="Wrap"
+                                    Style="{StaticResource MaterialDesignHeadlineLargeTextBlock}"/>
+                        </Grid>
+
+                        <StackPanel Margin="{StaticResource SmallTopMargin}">
+                            <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.MainChangesLabel}"
+                                       Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}"/>
+                            <!-- 変更種別 -->
+                            <ItemsControl ItemsSource="{Binding PullRequestChangeKinds}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding DisplayName}"
+                                                Margin="{StaticResource SmallLeftMargin}"
+                                                IsChecked="{Binding IsChecked, Mode=TwoWay}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- リファクタリング -->
+                    <StackPanel Margin="{StaticResource SmallTopMargin}">
+                        <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PullRequestSummaryTitle}"
+                                   Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                        <TextBox Text="{Binding PRSummary, Mode=TwoWay}"
+                                 md:HintAssist.Hint="{x:Static resx:Strings_CreatePullRequest.PullRequestSummaryPlaceholder}"
+                                 BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                                 BorderThickness="1"
+                                 Style="{StaticResource MaterialDesignFilledTextBox}"
+                                 AcceptsReturn="False"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
 
                     <StackPanel Margin="{StaticResource SmallTopMargin}">
-                        <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.MainChangesLabel}"
-                                   Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}"/>
-                        <!-- 変更種別 -->
-                        <ItemsControl ItemsSource="{Binding PullRequestChangeKinds}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox Content="{Binding DisplayName}"
-                                            Margin="{StaticResource SmallLeftMargin}"
-                                            IsChecked="{Binding IsChecked, Mode=TwoWay}"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PullRequestDetailTitle}"
+                                    Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                        <TextBox Text="{Binding PRDetail, Mode=TwoWay}"
+                                 BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                                 BorderThickness="1"
+                                 Style="{StaticResource MaterialDesignFilledTextBox}"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+
+                    <StackPanel Margin="{StaticResource SmallTopMargin}">
+                        <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PullRequestNoteTitle}"
+                                   Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
+                        <TextBox Text="{Binding PRNotes, Mode=TwoWay}"
+                                 BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
+                                 BorderThickness="1"
+                                 Style="{StaticResource MaterialDesignFilledTextBox}"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
                 </StackPanel>
 
-                <!-- リファクタリング -->
+                <!-- 同意文 -->
                 <StackPanel Margin="{StaticResource SmallTopMargin}">
-                    <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PullRequestSummaryTitle}"
-                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
-                    <TextBox Text="{Binding PRSummary, Mode=TwoWay}"
-                             md:HintAssist.Hint="{x:Static resx:Strings_CreatePullRequest.PullRequestSummaryPlaceholder}"
-                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
-                             BorderThickness="1"
-                             Style="{StaticResource MaterialDesignFilledTextBox}"
-                             AcceptsReturn="False"
-                             VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.ConfirmationLabel}"
+                               Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}"/>
+                    <ItemsControl ItemsSource="{Binding AgreementItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Content="{Binding Message}"
+                                          IsChecked="{Binding IsAgreed, Mode=TwoWay}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button cal:Message.Attach="BrowseToDistributionControlPolicyPage()"
+                                Margin="{StaticResource XSmallTopMargin}"
+                                Style="{StaticResource HyperLinkButtonStyle}"
+                                AutomationProperties.Name="{x:Static resx:Strings_CreatePullRequest.DistributionControlPolicyText}">
+                        <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.DistributionControlPolicyText}" TextDecorations="Underline" />
+                    </Button>
+
                 </StackPanel>
 
-                <StackPanel Margin="{StaticResource SmallTopMargin}">
-                    <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PullRequestDetailTitle}"
-                                Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
-                    <TextBox Text="{Binding PRDetail, Mode=TwoWay}"
-                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
-                             BorderThickness="1"
-                             Style="{StaticResource MaterialDesignFilledTextBox}"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto" />
-                </StackPanel>
-
-                <StackPanel Margin="{StaticResource SmallTopMargin}">
-                    <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.PullRequestNoteTitle}"
-                               Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}" />
-                    <TextBox Text="{Binding PRNotes, Mode=TwoWay}"
-                             BorderBrush="{StaticResource MaterialDesign.Brush.Primary}"
-                             BorderThickness="1"
-                             Style="{StaticResource MaterialDesignFilledTextBox}"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto" />
-                </StackPanel>
+                <common:ActionButton IconKind="Upload"
+                                     Margin="{StaticResource MediumTopMargin}"
+                                     Text="{x:Static resx:Strings_CreatePullRequest.CreatePRButtonContent}"
+                                     IsIndicatorVisible="{Binding IsCreatingPullRequest}"
+                                     IsIndeterminate="True"
+                                     IsEnabled="{Binding CanCreatePullRequest}"
+                                     cal:Message.Attach="[Event Click] = [Action CreatePullRequest]" />
             </StackPanel>
-
-            <!-- 同意文 -->
-            <StackPanel Margin="{StaticResource SmallTopMargin}">
-                <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.ConfirmationLabel}"
-                           Style="{StaticResource MaterialDesignHeadlineMediumTextBlock}"/>
-                <ItemsControl ItemsSource="{Binding AgreementItems}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <CheckBox Content="{Binding Message}"
-                                      IsChecked="{Binding IsAgreed, Mode=TwoWay}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <Button cal:Message.Attach="BrowseToDistributionControlPolicyPage()"
-                            Margin="{StaticResource XSmallTopMargin}"
-                            Style="{StaticResource HyperLinkButtonStyle}"
-                            AutomationProperties.Name="{x:Static resx:Strings_CreatePullRequest.DistributionControlPolicyText}">
-                    <TextBlock Text="{x:Static resx:Strings_CreatePullRequest.DistributionControlPolicyText}" TextDecorations="Underline" />
-                </Button>
-
-            </StackPanel>
-
-            <common:ActionButton IconKind="Upload"
-                                 Margin="{StaticResource MediumTopMargin}"
-                                 Text="{x:Static resx:Strings_CreatePullRequest.CreatePRButtonContent}"
-                                 IsIndicatorVisible="{Binding IsCreatingPullRequest}"
-                                 IsIndeterminate="True"
-                                 IsEnabled="{Binding CanCreatePullRequest}"
-                                 cal:Message.Attach="[Event Click] = [Action CreatePullRequest]" />
-        </StackPanel>
-    </ScrollViewer>
+        </ScrollViewer>
+    </md:DialogHost>
 </Window>

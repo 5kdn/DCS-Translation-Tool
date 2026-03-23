@@ -22,6 +22,13 @@ public interface IDialogService {
     Task<bool> ContinueCancelDialogShowAsync( ConfirmationDialogParameters parameters );
 
     /// <summary>
+    /// Lua 構文検証失敗ダイアログを表示して結果を取得する。
+    /// </summary>
+    /// <param name="parameters">表示に利用する引数。</param>
+    /// <returns>ダイアログの結果を返す。</returns>
+    Task<LuaSyntaxValidationFailureDialogResult> LuaSyntaxValidationFailureDialogShowAsync( LuaSyntaxValidationFailureDialogParameters parameters );
+
+    /// <summary>
     /// CreatePullRequest ダイアログを表示して結果を取得する。
     /// </summary>
     /// <param name="parameters">表示に利用する引数。</param>
