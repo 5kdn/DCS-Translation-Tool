@@ -31,9 +31,13 @@ public partial class ShellView : Window {
         var desiredSize = MeasureMinimumContentSize( RootLayout );
         var windowChrome = WindowChrome.GetWindowChrome( this );
         var resizeBorderThickness = windowChrome?.ResizeBorderThickness ?? default;
+        var currentWindowSize = new Size(
+            Math.Max( ActualWidth, Width ),
+            Math.Max( ActualHeight, Height ) );
+        var minimumShellSize = CalculateMinimumShellSize( desiredSize, currentWindowSize, resizeBorderThickness );
 
-        MinWidth = desiredSize.Width + resizeBorderThickness.Left + resizeBorderThickness.Right;
-        MinHeight = desiredSize.Height + resizeBorderThickness.Top + resizeBorderThickness.Bottom;
+        MinWidth = minimumShellSize.Width;
+        MinHeight = minimumShellSize.Height;
     }
 
     /// <summary>
@@ -57,5 +61,30 @@ public partial class ShellView : Window {
         }
 
         return desiredSize;
+    }
+
+    /// <summary>
+    /// Shell の最小サイズを現在サイズを上限として算出する。
+    /// </summary>
+    /// <param name="desiredContentSize">コンテンツが要求するサイズ。</param>
+    /// <param name="currentWindowSize">現在のウィンドウサイズ。</param>
+    /// <param name="resizeBorderThickness">リサイズ枠の厚み。</param>
+    /// <returns>ウィンドウへ適用する最小サイズ。</returns>
+    internal static Size CalculateMinimumShellSize( Size desiredContentSize, Size currentWindowSize, Thickness resizeBorderThickness ) {
+        var desiredWindowWidth = Math.Max( 0, desiredContentSize.Width )
+            + resizeBorderThickness.Left
+            + resizeBorderThickness.Right;
+        var desiredWindowHeight = Math.Max( 0, desiredContentSize.Height )
+            + resizeBorderThickness.Top
+            + resizeBorderThickness.Bottom;
+
+        var boundedWindowWidth = currentWindowSize.Width > 0
+            ? Math.Min( desiredWindowWidth, currentWindowSize.Width )
+            : desiredWindowWidth;
+        var boundedWindowHeight = currentWindowSize.Height > 0
+            ? Math.Min( desiredWindowHeight, currentWindowSize.Height )
+            : desiredWindowHeight;
+
+        return new Size( boundedWindowWidth, boundedWindowHeight );
     }
 }
