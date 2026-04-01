@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.4.0...v2.0.0) (2026-03-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **settings:** SourceAircraftDir と SourceDlcCampaignDir を廃止し、DcsWorldInstallDir と外部注入先設定へ移行する
+
+### Features
+
+* **settings:** ゲームインストール基準の注入先設定に対応 ([#82](https://github.com/5kdn/DCS-Translation-Tool/issues/82)) ([6307af2](https://github.com/5kdn/DCS-Translation-Tool/commit/6307af2714b01c6e28d57d3d5f5474324578fabf))
+* **translation:** 翻訳作成画面を追加 ([#88](https://github.com/5kdn/DCS-Translation-Tool/issues/88)) ([ab269eb](https://github.com/5kdn/DCS-Translation-Tool/commit/ab269eb51914c12242fe876471abdc83ab343906))
+* **upload:** PR作成前のLua構文チェックとエラーダイアログを追加 ([#93](https://github.com/5kdn/DCS-Translation-Tool/issues/93)) ([709eca2](https://github.com/5kdn/DCS-Translation-Tool/commit/709eca2642798641617a28f34cc69566d16c8290))
+
+
+### Bug Fixes
+
+* Bump the app-core group with 3 updates ([#86](https://github.com/5kdn/DCS-Translation-Tool/issues/86)) ([f46537b](https://github.com/5kdn/DCS-Translation-Tool/commit/f46537b2e613d9f26dd4183e2bad6448f873cd31))
+* Bump the kiota group with 6 updates ([#89](https://github.com/5kdn/DCS-Translation-Tool/issues/89)) ([e95f455](https://github.com/5kdn/DCS-Translation-Tool/commit/e95f4555fae60e8c45fcb08f6fd0a48968d923cc))
+* Bump the testing group with 2 updates ([#87](https://github.com/5kdn/DCS-Translation-Tool/issues/87)) ([33fc3e9](https://github.com/5kdn/DCS-Translation-Tool/commit/33fc3e9365d0ca02313f76aa3573064a0318e6a1))
+* **shell:** Settings遷移時のウィンドウサイズ強制変更を防止 ([#95](https://github.com/5kdn/DCS-Translation-Tool/issues/95)) ([ee2e626](https://github.com/5kdn/DCS-Translation-Tool/commit/ee2e6264227125a7c81e2942fdbea669af9f2ac7))
+
 ## [1.4.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.3.1...v1.4.0) (2026-02-16)
 
 
