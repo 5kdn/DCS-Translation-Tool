@@ -12,7 +12,7 @@
 
 * Bump the testing group with 2 updates ([#101](https://github.com/5kdn/DCS-Translation-Tool/issues/101)) ([e1a69f4](https://github.com/5kdn/DCS-Translation-Tool/commit/e1a69f40d50e5a350098b6c1dfad8acd6dc0bdd6))
 * **translation:** 詳細テキストボックスでもCtrl+矢印で選択移動できるように修正 ([#108](https://github.com/5kdn/DCS-Translation-Tool/issues/108)) ([077c387](https://github.com/5kdn/DCS-Translation-Tool/commit/077c3874f695903771ce2017620166c1b289dedf))
-* **wpf:** WindowChromeBehaviorを共通化してCreatePullRequestViewの依存を解消 ([#110](https://github.com/5kdn/DCS-Translation-Tool/issues/110)) ([d308bd7](https://github.com/5kdn/DCS-Translation-Tool/commit/d308bd72e2f67f8b1d6a5851ef31c01c4e758159))
+* **wpf:** WindowChromeBehaviorを共通化 ([#110](https://github.com/5kdn/DCS-Translation-Tool/issues/110)) ([d308bd7](https://github.com/5kdn/DCS-Translation-Tool/commit/d308bd72e2f67f8b1d6a5851ef31c01c4e758159))
 * 翻訳ファイルの出力形式をUTF-8 BOM無しに変更 ([#105](https://github.com/5kdn/DCS-Translation-Tool/issues/105)) ([52a54ed](https://github.com/5kdn/DCS-Translation-Tool/commit/52a54edf52ce6e0417beb8e702a4acb8bd2e01b2))
 
 ## [2.0.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v1.4.0...v2.0.0) (2026-03-24)
