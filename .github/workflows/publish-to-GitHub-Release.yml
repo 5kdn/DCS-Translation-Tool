@@ -152,7 +152,7 @@ jobs:
           Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
 
       - name: Attach assets to the current Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip
