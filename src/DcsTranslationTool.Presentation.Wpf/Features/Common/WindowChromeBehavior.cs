@@ -4,12 +4,12 @@ using System.Windows.Input;
 
 using Microsoft.Xaml.Behaviors;
 
-namespace DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
+namespace DcsTranslationTool.Presentation.Wpf.Features.Common;
 
 /// <summary>
-/// TranslationCreationView のウィンドウ操作を仲介する。
+/// 共通ウィンドウタイトルバーの操作を仲介する。
 /// </summary>
-public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
+public sealed class WindowChromeBehavior : Behavior<Window> {
     /// <summary>
     /// タイトルバー要素を取得または設定する。
     /// </summary>
@@ -49,7 +49,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
         DependencyProperty.Register(
             nameof( TitleBar ),
             typeof( FrameworkElement ),
-            typeof( TranslationCreationWindowChromeBehavior ),
+            typeof( WindowChromeBehavior ),
             new PropertyMetadata( null, OnTitleBarChanged ) );
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
         DependencyProperty.Register(
             nameof( MinimizeButton ),
             typeof( ButtonBase ),
-            typeof( TranslationCreationWindowChromeBehavior ),
+            typeof( WindowChromeBehavior ),
             new PropertyMetadata( null, OnMinimizeButtonChanged ) );
 
     /// <summary>
@@ -69,7 +69,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
         DependencyProperty.Register(
             nameof( ToggleMaximizeButton ),
             typeof( ButtonBase ),
-            typeof( TranslationCreationWindowChromeBehavior ),
+            typeof( WindowChromeBehavior ),
             new PropertyMetadata( null, OnToggleMaximizeButtonChanged ) );
 
     /// <summary>
@@ -79,7 +79,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
         DependencyProperty.Register(
             nameof( CloseButton ),
             typeof( ButtonBase ),
-            typeof( TranslationCreationWindowChromeBehavior ),
+            typeof( WindowChromeBehavior ),
             new PropertyMetadata( null, OnCloseButtonChanged ) );
 
     /// <summary>
@@ -264,7 +264,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
     /// <param name="d">対象オブジェクト。</param>
     /// <param name="e">変更内容。</param>
     private static void OnTitleBarChanged( DependencyObject d, DependencyPropertyChangedEventArgs e ) {
-        var behavior = (TranslationCreationWindowChromeBehavior)d;
+        var behavior = (WindowChromeBehavior)d;
         behavior.DetachTitleBar( e.OldValue as FrameworkElement );
         behavior.AttachTitleBar( e.NewValue as FrameworkElement );
     }
@@ -275,7 +275,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
     /// <param name="d">対象オブジェクト。</param>
     /// <param name="e">変更内容。</param>
     private static void OnMinimizeButtonChanged( DependencyObject d, DependencyPropertyChangedEventArgs e ) {
-        var behavior = (TranslationCreationWindowChromeBehavior)d;
+        var behavior = (WindowChromeBehavior)d;
         behavior.DetachMinimizeButton( e.OldValue as ButtonBase );
         behavior.AttachMinimizeButton( e.NewValue as ButtonBase );
     }
@@ -286,7 +286,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
     /// <param name="d">対象オブジェクト。</param>
     /// <param name="e">変更内容。</param>
     private static void OnToggleMaximizeButtonChanged( DependencyObject d, DependencyPropertyChangedEventArgs e ) {
-        var behavior = (TranslationCreationWindowChromeBehavior)d;
+        var behavior = (WindowChromeBehavior)d;
         behavior.DetachToggleMaximizeButton( e.OldValue as ButtonBase );
         behavior.AttachToggleMaximizeButton( e.NewValue as ButtonBase );
     }
@@ -297,7 +297,7 @@ public sealed class TranslationCreationWindowChromeBehavior : Behavior<Window> {
     /// <param name="d">対象オブジェクト。</param>
     /// <param name="e">変更内容。</param>
     private static void OnCloseButtonChanged( DependencyObject d, DependencyPropertyChangedEventArgs e ) {
-        var behavior = (TranslationCreationWindowChromeBehavior)d;
+        var behavior = (WindowChromeBehavior)d;
         behavior.DetachCloseButton( e.OldValue as ButtonBase );
         behavior.AttachCloseButton( e.NewValue as ButtonBase );
     }
