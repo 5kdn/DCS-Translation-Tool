@@ -20,6 +20,7 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
     private const string JapaneseDictionaryEntryPath = "l10n/JP/dictionary";
     private const string CsvHeaderLine = "Enabled,Key,Original,Translated";
     private const string ObsoletePoPrefix = "#~ ";
+    private static readonly UTF8Encoding Utf8WithoutBom = new( encoderShouldEmitUTF8Identifier: false );
 
     /// <inheritdoc />
     public Result<TranslationArchiveDictionaries> LoadArchiveDictionaries( string archiveFullPath ) {
@@ -315,7 +316,7 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
             cancellationToken.ThrowIfCancellationRequested();
             var content = TranslationDictionaryLuaSerializer.Serialize( items );
             ValidateLuaChunk( content, path );
-            await File.WriteAllTextAsync( path, content, Encoding.UTF8, cancellationToken );
+            await File.WriteAllTextAsync( path, content, Utf8WithoutBom, cancellationToken );
             logger.Info( $"dictionary を保存した。Path={path}, Count={items.Count}" );
         }
         catch(OperationCanceledException) {
@@ -367,7 +368,7 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
                 AppendPoEntry( builder, item );
             }
 
-            await File.WriteAllTextAsync( path, builder.ToString(), Encoding.UTF8, cancellationToken );
+            await File.WriteAllTextAsync( path, builder.ToString(), Utf8WithoutBom, cancellationToken );
             logger.Info( $"PO を保存した。Path={path}, Count={items.Count}" );
         }
         catch(OperationCanceledException) {
@@ -407,7 +408,7 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
                 builder.Append( '\n' );
             }
 
-            await File.WriteAllTextAsync( path, builder.ToString(), Encoding.UTF8, cancellationToken );
+            await File.WriteAllTextAsync( path, builder.ToString(), Utf8WithoutBom, cancellationToken );
             logger.Info( $"CSV を保存した。Path={path}, Count={items.Count}" );
         }
         catch(OperationCanceledException) {
@@ -439,7 +440,7 @@ public sealed partial class TranslationDictionaryService( ILoggingService logger
             cancellationToken.ThrowIfCancellationRequested();
             var content = TranslationDictionaryLuaSerializer.Serialize( dictionary, translatedByKey );
             ValidateLuaChunk( content, path );
-            await File.WriteAllTextAsync( path, content, Encoding.UTF8, cancellationToken );
+            await File.WriteAllTextAsync( path, content, Utf8WithoutBom, cancellationToken );
             logger.Info( $"dictionary を保存した。Path={path}, Count={dictionary.Items.Count}" );
         }
         catch(OperationCanceledException) {

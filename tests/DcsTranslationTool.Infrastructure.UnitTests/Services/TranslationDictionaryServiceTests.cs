@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
@@ -223,6 +224,7 @@ dictionary = {
 """.ReplaceLineEndings( "\n" ) + "\n",
             content );
         Assert.DoesNotContain( "\r\n", content, StringComparison.Ordinal );
+        AssertFileIsUtf8WithoutBom( path );
     }
 
     [Fact]
@@ -557,6 +559,7 @@ true,key1,o1,t1
 """.ReplaceLineEndings( "\n" ) + "\n",
             content );
         Assert.DoesNotContain( "\r", content, StringComparison.Ordinal );
+        AssertFileIsUtf8WithoutBom( path );
     }
 
     [Fact]
@@ -728,6 +731,7 @@ msgstr "translated"
             content,
             StringComparison.Ordinal );
         Assert.DoesNotContain( "\r", content, StringComparison.Ordinal );
+        AssertFileIsUtf8WithoutBom( path );
     }
 
     [Fact]
@@ -860,6 +864,17 @@ msgstr ""
         var path = Path.Combine( _tempDirectory, $"{Guid.NewGuid():N}.csv" );
         File.WriteAllText( path, content.ReplaceLineEndings( "\n" ) );
         return path;
+    }
+
+    /// <summary>
+    /// 指定ファイルが UTF-8 BOM なしで保存されていることを検証する。
+    /// </summary>
+    /// <param name="path">検証対象のファイルパス。</param>
+    private static void AssertFileIsUtf8WithoutBom( string path ) {
+        var bytes = File.ReadAllBytes( path );
+        var utf8Bom = Encoding.UTF8.Preamble;
+
+        Assert.True( bytes.Length < utf8Bom.Length || !bytes.AsSpan( 0, utf8Bom.Length ).SequenceEqual( utf8Bom ) );
     }
 
     public void Dispose() {
