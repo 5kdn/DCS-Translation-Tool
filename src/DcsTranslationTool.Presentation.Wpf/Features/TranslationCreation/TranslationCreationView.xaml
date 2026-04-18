@@ -349,7 +349,16 @@
                              IsReadOnlyCaretVisible="True"
                              AcceptsReturn="True"
                              HorizontalScrollBarVisibility="Auto"
-                             VerticalScrollBarVisibility="Auto" />
+                             VerticalScrollBarVisibility="Auto">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Up"
+                                        Modifiers="Control"
+                                        Command="{Binding DataContext.MoveSelectionUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            <KeyBinding Key="Down"
+                                        Modifiers="Control"
+                                        Command="{Binding DataContext.MoveSelectionDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
                     <TextBox Grid.Row="2"
                              Grid.Column="1"
                              x:Name="SelectedTranslatedTextBox"
@@ -361,7 +370,16 @@
                              local:TextBoxNewlineMarker.IsEnabled="True"
                              AcceptsReturn="True"
                              HorizontalScrollBarVisibility="Auto"
-                             VerticalScrollBarVisibility="Auto" />
+                             VerticalScrollBarVisibility="Auto">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Up"
+                                        Modifiers="Control"
+                                        Command="{Binding DataContext.MoveSelectionUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            <KeyBinding Key="Down"
+                                        Modifiers="Control"
+                                        Command="{Binding DataContext.MoveSelectionDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
                 </Grid>
 
                 <StackPanel Grid.Row="6"
