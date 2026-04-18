@@ -94,7 +94,7 @@ public class DownloadViewModel(
     /// <summary>
     /// ダウンロード可能か
     /// </summary>
-    public bool CanDownload => !IsDownloading && HasCheckedEntries();
+    public bool CanDownload => !IsDownloading && GetDownloadableCheckedEntries().Count > 0;
 
     /// <summary>
     /// 適用可能か
@@ -255,6 +255,17 @@ public class DownloadViewModel(
         Tabs.Count > 0 && SelectedTabIndex >= 0 && SelectedTabIndex < Tabs.Count
             ? Tabs[SelectedTabIndex]
             : null;
+
+    /// <summary>
+    /// 選択中タブのうちダウンロード可能なチェック済みファイル一覧を取得する。
+    /// </summary>
+    /// <returns>ダウンロード可能なチェック済みファイル一覧。</returns>
+    private IReadOnlyList<IFileEntryViewModel> GetDownloadableCheckedEntries() =>
+        GetSelectedTab()?.GetCheckedViewModels()
+            .Where( entry => !entry.IsDirectory )
+            .Where( entry => entry.ChangeType is FileChangeType.Modified or FileChangeType.RepoOnly )
+            .ToArray()
+        ?? [];
 
     /// <summary>
     /// Modified 適用時にサーバー同期対象を解決する。

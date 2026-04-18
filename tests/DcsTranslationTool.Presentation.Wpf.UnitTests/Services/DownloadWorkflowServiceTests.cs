@@ -81,7 +81,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     ) {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( entryPath );
-        var selectedTab = CreateSelectedTab( categoryType, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( categoryType, loggerMock.Object, targetEntry );
         var dcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" );
         var translateDir = Path.Combine( _tempDir, "Translate" );
         var expectedRootPath = Path.Combine( _tempDir, expectedRootRelativePath );
@@ -139,7 +139,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     ) {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( entryPath );
-        var selectedTab = CreateSelectedTab( categoryType, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( categoryType, loggerMock.Object, targetEntry );
         var dcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" );
         var sourceArchivePath = Path.Combine( dcsWorldInstallDir, sourceArchiveRelativePath );
         Directory.CreateDirectory( Path.GetDirectoryName( sourceArchivePath )! );
@@ -203,7 +203,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     ) {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( entryPath );
-        var selectedTab = CreateSelectedTab( categoryType, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( categoryType, loggerMock.Object, targetEntry );
         var dcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" );
         var sourceArchivePath = Path.Combine( dcsWorldInstallDir, sourceArchiveRelativePath );
         Directory.CreateDirectory( Path.GetDirectoryName( sourceArchivePath )! );
@@ -253,7 +253,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     public async Task ExecuteApplyAsyncは必要設定不足時に失敗を返す() {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( "DCSWorld/Mods/aircraft/A10C/L10N/Example.lua" );
-        var selectedTab = CreateSelectedTab( CategoryType.Aircraft, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( CategoryType.Aircraft, loggerMock.Object, targetEntry );
         var translateDir = Path.Combine( _tempDir, "Translate" );
         var request = new ApplyExecutionRequest(
             selectedTab,
@@ -326,6 +326,58 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
         Assert.Equal( repositoryContent, await File.ReadAllTextAsync( modifiedFilePath, TestContext.Current.CancellationToken ) );
         var localOnlyFilePath = Path.Combine( translateDir, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "LocalOnly.lua" );
         Assert.False( File.Exists( localOnlyFilePath ) );
+        apiServiceMock.VerifyAll();
+    }
+
+    /// <summary>
+    /// Download では LocalOnly を API リクエストから除外することを検証する。
+    /// </summary>
+    [Fact]
+    public async Task ExecuteDownloadAsyncはLocalOnlyを除外してダウンロードする() {
+        var saveRootPath = Path.Combine( _tempDir, "Translate" );
+        const string repoOnlyPath = "DCSWorld/Mods/aircraft/A10C/L10N/RepoOnly.lua";
+        const string modifiedPath = "DCSWorld/Mods/aircraft/A10C/L10N/Modified.lua";
+        const string localOnlyPath = "DCSWorld/Mods/aircraft/A10C/L10N/LocalOnly.lua";
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        var loggerMock = new Mock<ILoggingService>();
+        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var sut = new DownloadWorkflowService( apiServiceMock.Object, loggerMock.Object, applyWorkflowServiceMock.Object );
+
+        using var repoOnlyServer = new TestHttpServer( "repo-only-content" );
+        using var modifiedServer = new TestHttpServer( "modified-content" );
+        apiServiceMock
+            .Setup( service => service.DownloadFilePathsAsync(
+                It.Is<ApiDownloadFilePathsRequest>( request =>
+                    request.Paths.Count == 2 &&
+                    request.Paths.Contains( repoOnlyPath ) &&
+                    request.Paths.Contains( modifiedPath ) &&
+                    !request.Paths.Contains( localOnlyPath ) ),
+                It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( FluentResults.Result.Ok(
+                new ApiDownloadFilePathsResult(
+                    [
+                        new ApiDownloadFilePathsItem( repoOnlyServer.Url, repoOnlyPath ),
+                        new ApiDownloadFilePathsItem( modifiedServer.Url, modifiedPath )
+                    ],
+                    "\"etag\"" ) ) );
+
+        var selectedTab = CreateSelectedTab(
+            CategoryType.Aircraft,
+            loggerMock.Object,
+            CreateRepoOnlyEntry( repoOnlyPath ),
+            CreateModifiedEntry( modifiedPath ),
+            CreateLocalOnlyEntry( localOnlyPath ) );
+
+        var result = await sut.ExecuteDownloadAsync(
+            new DownloadExecutionRequest( selectedTab, saveRootPath ),
+            _ => Task.CompletedTask,
+            TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsSuccess );
+        Assert.True( File.Exists( Path.Combine( saveRootPath, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "RepoOnly.lua" ) ) );
+        Assert.True( File.Exists( Path.Combine( saveRootPath, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "Modified.lua" ) ) );
+        Assert.False( File.Exists( Path.Combine( saveRootPath, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "LocalOnly.lua" ) ) );
         apiServiceMock.VerifyAll();
     }
 
@@ -569,6 +621,22 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// RepoOnly エントリーを生成する。
+    /// </summary>
+    /// <param name="entryPath">エントリーパス。</param>
+    /// <returns>生成したビューモデルを返す。</returns>
+    private static FileEntryViewModel CreateRepoOnlyEntry( string entryPath ) {
+        var loggerMock = new Mock<ILoggingService>();
+        return new FileEntryViewModel(
+            new RepoFileEntry( Path.GetFileName( entryPath ), entryPath, false, "repo" ),
+            ChangeTypeMode.Download,
+            loggerMock.Object )
+        {
+            CheckState = true
+        };
+    }
+
+    /// <summary>
     /// LocalOnly エントリーを生成する。
     /// </summary>
     /// <param name="entryPath">エントリーパス。</param>
@@ -591,13 +659,13 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     /// <param name="entry">対象エントリー。</param>
     /// <param name="logger">ロガー。</param>
     /// <returns>生成したタブを返す。</returns>
-    private static TabItemViewModel CreateSelectedTab( CategoryType categoryType, FileEntryViewModel entry, ILoggingService logger ) {
+    private static TabItemViewModel CreateSelectedTab( CategoryType categoryType, ILoggingService logger, params FileEntryViewModel[] entries ) {
         var root = new FileEntryViewModel(
             new LocalFileEntry( "root", "root", true, "local" ),
             ChangeTypeMode.Download,
             logger )
         {
-            Children = [entry]
+            Children = [.. entries]
         };
         return new TabItemViewModel( categoryType, logger, root );
     }

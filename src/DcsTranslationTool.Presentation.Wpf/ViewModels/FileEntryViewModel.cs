@@ -93,7 +93,6 @@ public class FileEntryViewModel(
     {
         (ChangeTypeMode.Upload, FileChangeType.Unchanged ) => false,
         (ChangeTypeMode.Download, FileChangeType.Unchanged ) => false,
-        (ChangeTypeMode.Download, FileChangeType.LocalOnly ) => false,
         _ => true,
     };
 

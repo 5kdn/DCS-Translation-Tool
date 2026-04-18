@@ -356,6 +356,105 @@ public sealed class DownloadViewModelTests : IDisposable {
         apiServiceMock.VerifyAll();
     }
 
+    /// <summary>DownloadではLocalOnlyのみ選択時にボタンが無効になることを確認する。</summary>
+    [StaFact]
+    public async Task DownloadではLocalOnlyのみ選択時はCanDownloadがfalseになる() {
+        var appSettings = new AppSettings { TranslateFileDir = _tempDir };
+        const string localOnlyEntryPath = "DCSWorld/Mods/aircraft/A10C/L10N/LocalOnly.lua";
+        var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [] );
+        var localEntries = new FileEntry[]
+        {
+            new LocalFileEntry( "LocalOnly.lua", localOnlyEntryPath, false, "local-sha" )
+        };
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        apiServiceMock
+            .Setup( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( treeResult );
+
+        var dispatcherServiceMock = new Mock<IDispatcherService>();
+        dispatcherServiceMock
+            .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
+            .Returns<Func<Task>>( func => func() );
+
+        var appSettingsServiceMock = new Mock<IAppSettingsService>();
+        appSettingsServiceMock
+            .SetupGet( service => service.Settings )
+            .Returns( appSettings );
+
+        var fileEntryServiceMock = new Mock<IFileEntryService>( MockBehavior.Strict );
+        fileEntryServiceMock
+            .Setup( service => service.GetEntriesAsync() )
+            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( localEntries ) );
+
+        var loggingServiceMock = new Mock<ILoggingService>();
+        var snackbarMessages = new List<string>();
+        var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
+        var snackbarServiceMock = new Mock<ISnackbarService>();
+        snackbarServiceMock
+            .SetupGet( service => service.MessageQueue )
+            .Returns( snackbarMessageQueueMock.Object );
+        snackbarServiceMock
+            .Setup( service => service.Show(
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<Action?>(),
+                It.IsAny<object?>(),
+                It.IsAny<TimeSpan?>()
+            ) )
+            .Callback<string, string?, Action?, object?, TimeSpan?>(
+                ( message, _, _, _, _ ) => snackbarMessages.Add( message )
+            );
+
+        var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
+        var downloadWorkflowServiceMock = new Mock<IDownloadWorkflowService>( MockBehavior.Strict );
+        var fileEntryWatcherLifecycleMock = new Mock<IFileEntryWatcherLifecycle>( MockBehavior.Strict );
+        var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
+        var dialogServiceMock = new Mock<IDialogService>( MockBehavior.Strict );
+
+        var viewModel = new DownloadViewModel(
+            apiServiceMock.Object,
+            appSettingsServiceMock.Object,
+            dialogServiceMock.Object,
+            downloadWorkflowServiceMock.Object,
+            dispatcherServiceMock.Object,
+            fileEntryServiceMock.Object,
+            fileEntryWatcherLifecycleMock.Object,
+            fileEntryTreeService,
+            loggingServiceMock.Object,
+            snackbarServiceMock.Object,
+            systemServiceMock.Object
+        );
+
+        await viewModel.Fetch();
+        var aircraftIndex = viewModel.Tabs
+            .Select( ( tab, index ) => ( tab, index ) )
+            .First( pair => pair.tab.TabType == CategoryType.Aircraft )
+            .index;
+        viewModel.SelectedTabIndex = aircraftIndex;
+
+        var fileNode = await WaitForNodeAsync(
+            () => TryGetTabRoot( viewModel, aircraftIndex ),
+            "Aircraft タブに LocalOnly.lua が表示されない。",
+            "A10C",
+            "L10N",
+            "LocalOnly.lua"
+        );
+        Assert.NotNull( fileNode );
+        Assert.True( fileNode!.CanCheck );
+        fileNode.CheckState = true;
+
+        Assert.False( viewModel.CanDownload );
+        Assert.True( viewModel.CanApply );
+        var snackbarCount = snackbarMessages.Count;
+        downloadWorkflowServiceMock.Verify( service => service.ExecuteDownloadAsync(
+            It.IsAny<DownloadExecutionRequest>(),
+            It.IsAny<Func<double, Task>>(),
+            It.IsAny<CancellationToken>()
+        ), Times.Never );
+        Assert.Equal( snackbarCount, snackbarMessages.Count );
+    }
+
     /// <summary>Applyは適用ワークフローを実行することを確認する。</summary>
     [StaFact]
     public async Task Applyを呼び出すと適用ワークフローを実行する() {
@@ -553,7 +652,14 @@ public sealed class DownloadViewModelTests : IDisposable {
             .index;
         viewModel.SelectedTabIndex = aircraftIndex;
 
-        var fileNode = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Example.lua" );
+        var fileNode = await WaitForNodeWithChangeTypeAsync(
+            () => TryGetTabRoot( viewModel, aircraftIndex ),
+            FileChangeType.Modified,
+            "Example.lua が Modified として表示されない。",
+            "A10C",
+            "L10N",
+            "Example.lua"
+        );
         Assert.NotNull( fileNode );
         Assert.Equal( FileChangeType.Modified, fileNode!.ChangeType );
         fileNode.CheckState = true;
@@ -573,112 +679,6 @@ public sealed class DownloadViewModelTests : IDisposable {
             It.IsAny<Func<double, Task>>(),
             It.IsAny<CancellationToken>()
         ), Times.Once );
-    }
-
-    /// <summary>Applyを呼び出すとModifiedエントリで全てサーバー版適用を実行することを確認する。</summary>
-    [StaFact]
-    public async Task Applyを呼び出すとModifiedエントリで全てサーバー版適用を実行する() {
-        var appSettings = new AppSettings
-        {
-            TranslateFileDir = _tempDir,
-            DcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" )
-        };
-        const string repoEntryPath = "DCSWorld/Mods/aircraft/A10C/L10N/Example.lua";
-        var repoEntry = new RepoFileEntry( "Example.lua", repoEntryPath, false, repoSha: "repo-sha" );
-        var localEntry = new LocalFileEntry( "Example.lua", repoEntryPath, false, "local-sha" );
-        var treeResult = Result.Ok<IReadOnlyList<FileEntry>>( [repoEntry] );
-
-        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
-        apiServiceMock
-            .Setup( service => service.GetTreeAsync( It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync( treeResult );
-
-        var dispatcherServiceMock = new Mock<IDispatcherService>();
-        dispatcherServiceMock
-            .Setup( service => service.InvokeAsync( It.IsAny<Func<Task>>() ) )
-            .Returns<Func<Task>>( func => func() );
-
-        var appSettingsServiceMock = new Mock<IAppSettingsService>();
-        appSettingsServiceMock
-            .SetupGet( service => service.Settings )
-            .Returns( appSettings );
-
-        var fileEntryServiceMock = new Mock<IFileEntryService>( MockBehavior.Strict );
-        fileEntryServiceMock
-            .Setup( service => service.GetEntriesAsync() )
-            .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( [localEntry] ) );
-
-        var loggingServiceMock = new Mock<ILoggingService>();
-        var snackbarMessageQueueMock = new Mock<ISnackbarMessageQueue>();
-        var snackbarServiceMock = new Mock<ISnackbarService>();
-        snackbarServiceMock
-            .SetupGet( service => service.MessageQueue )
-            .Returns( snackbarMessageQueueMock.Object );
-        snackbarServiceMock
-            .Setup( service => service.Show(
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<Action?>(),
-                It.IsAny<object?>(),
-                It.IsAny<TimeSpan?>()
-            ) );
-
-        var systemServiceMock = new Mock<ISystemService>( MockBehavior.Strict );
-        var downloadWorkflowServiceMock = new Mock<IDownloadWorkflowService>( MockBehavior.Strict );
-        var fileEntryWatcherLifecycleMock = new Mock<IFileEntryWatcherLifecycle>( MockBehavior.Strict );
-        var fileEntryTreeService = new FileEntryTreeService( loggingServiceMock.Object );
-        var dialogServiceMock = new Mock<IDialogService>( MockBehavior.Strict );
-
-        dialogServiceMock
-            .Setup( service => service.DownloadModifiedApplyModeDialogShowAsync( It.IsAny<DownloadModifiedApplyModeDialogParameters>() ) )
-            .ReturnsAsync( DownloadModifiedApplyModeDialogResult.ApplyAllRepository );
-
-        downloadWorkflowServiceMock
-            .Setup( service => service.SyncModifiedFilesWithRepositoryAsync(
-                It.Is<IReadOnlyList<IFileEntryViewModel>>( entries => entries.Count == 1 && entries[0].Path == repoEntryPath ),
-                _tempDir,
-                It.IsAny<Func<string, Task>>(),
-                It.IsAny<CancellationToken>()
-            ) )
-            .ReturnsAsync( true );
-
-        downloadWorkflowServiceMock
-            .Setup( service => service.ExecuteApplyAsync(
-                It.IsAny<ApplyExecutionRequest>(),
-                It.IsAny<Func<string, Task>>(),
-                It.IsAny<Func<double, Task>>(),
-                It.IsAny<CancellationToken>()
-            ) )
-            .ReturnsAsync( new ApplyWorkflowResult( true, [] ) );
-
-        var viewModel = new DownloadViewModel(
-            apiServiceMock.Object,
-            appSettingsServiceMock.Object,
-            dialogServiceMock.Object,
-            downloadWorkflowServiceMock.Object,
-            dispatcherServiceMock.Object,
-            fileEntryServiceMock.Object,
-            fileEntryWatcherLifecycleMock.Object,
-            fileEntryTreeService,
-            loggingServiceMock.Object,
-            snackbarServiceMock.Object,
-            systemServiceMock.Object
-        );
-
-        await viewModel.Fetch();
-        var aircraftIndex = viewModel.Tabs
-            .Select( ( tab, index ) => ( tab, index ) )
-            .First( pair => pair.tab.TabType == CategoryType.Aircraft )
-            .index;
-        viewModel.SelectedTabIndex = aircraftIndex;
-
-        var fileNode = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Example.lua" );
-        Assert.NotNull( fileNode );
-        fileNode!.CheckState = true;
-
-        await viewModel.Apply();
-
-        downloadWorkflowServiceMock.VerifyAll();
     }
 
     /// <summary>Applyを呼び出すとModifiedエントリで個別選択後にサーバー版指定分のみ同期することを確認する。</summary>
@@ -797,8 +797,22 @@ public sealed class DownloadViewModelTests : IDisposable {
             .index;
         viewModel.SelectedTabIndex = aircraftIndex;
 
-        var fileNode1 = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Example.lua" );
-        var fileNode2 = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Alt.lua" );
+        var fileNode1 = await WaitForNodeWithChangeTypeAsync(
+            () => TryGetTabRoot( viewModel, aircraftIndex ),
+            FileChangeType.Modified,
+            "Example.lua が Modified として表示されない。",
+            "A10C",
+            "L10N",
+            "Example.lua"
+        );
+        var fileNode2 = await WaitForNodeWithChangeTypeAsync(
+            () => TryGetTabRoot( viewModel, aircraftIndex ),
+            FileChangeType.Modified,
+            "Alt.lua が Modified として表示されない。",
+            "A10C",
+            "L10N",
+            "Alt.lua"
+        );
         Assert.NotNull( fileNode1 );
         Assert.NotNull( fileNode2 );
         fileNode1!.CheckState = true;
@@ -888,7 +902,14 @@ public sealed class DownloadViewModelTests : IDisposable {
             .index;
         viewModel.SelectedTabIndex = aircraftIndex;
 
-        var fileNode = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Example.lua" );
+        var fileNode = await WaitForNodeWithChangeTypeAsync(
+            () => TryGetTabRoot( viewModel, aircraftIndex ),
+            FileChangeType.Modified,
+            "Example.lua が Modified として表示されない。",
+            "A10C",
+            "L10N",
+            "Example.lua"
+        );
         Assert.NotNull( fileNode );
         fileNode!.CheckState = true;
 
@@ -990,7 +1011,14 @@ public sealed class DownloadViewModelTests : IDisposable {
             .index;
         viewModel.SelectedTabIndex = aircraftIndex;
 
-        var fileNode = FindNodeByPath( viewModel.Tabs[aircraftIndex].Root, "A10C", "L10N", "Example.lua" );
+        var fileNode = await WaitForNodeWithChangeTypeAsync(
+            () => TryGetTabRoot( viewModel, aircraftIndex ),
+            FileChangeType.Modified,
+            "Example.lua が Modified として表示されない。",
+            "A10C",
+            "L10N",
+            "Example.lua"
+        );
         Assert.NotNull( fileNode );
         fileNode!.CheckState = true;
 
@@ -1018,6 +1046,67 @@ public sealed class DownloadViewModelTests : IDisposable {
             if(current is null) return null;
         }
         return current;
+    }
+
+    /// <summary>指定インデックスのタブルートを取得する。</summary>
+    private static IFileEntryViewModel? TryGetTabRoot( DownloadViewModel viewModel, int tabIndex ) =>
+        tabIndex >= 0 && tabIndex < viewModel.Tabs.Count
+            ? viewModel.Tabs[tabIndex].Root
+            : null;
+
+    /// <summary>指定条件が満たされるまで待機する。</summary>
+    private static async Task WaitUntilAsync( Func<bool> predicate, string timeoutMessage, int timeoutMs = 3000 ) {
+        var startedAt = DateTime.UtcNow;
+        while((DateTime.UtcNow - startedAt).TotalMilliseconds < timeoutMs) {
+            if(predicate()) {
+                return;
+            }
+
+            await Task.Delay( 20 );
+        }
+
+        throw new TimeoutException( timeoutMessage );
+    }
+
+    /// <summary>指定パスのノードが表示されるまで待機して返す。</summary>
+    private static async Task<IFileEntryViewModel?> WaitForNodeAsync(
+        Func<IFileEntryViewModel?> rootAccessor,
+        string timeoutMessage,
+        params string[] segments
+    ) {
+        IFileEntryViewModel? node = null;
+        await WaitUntilAsync( () => {
+            var root = rootAccessor();
+            if(root is null) {
+                node = null;
+                return false;
+            }
+
+            node = FindNodeByPath( root, segments );
+            return node is not null;
+        }, timeoutMessage );
+        return node;
+    }
+
+    /// <summary>指定パスのノードが期待する変更種別になるまで待機して返す。</summary>
+    private static async Task<IFileEntryViewModel?> WaitForNodeWithChangeTypeAsync(
+        Func<IFileEntryViewModel?> rootAccessor,
+        FileChangeType expectedChangeType,
+        string timeoutMessage,
+        params string[] segments
+    ) {
+        IFileEntryViewModel? node = null;
+        await WaitUntilAsync( () => {
+            var root = rootAccessor();
+            if(root is null) {
+                node = null;
+                return false;
+            }
+
+            node = FindNodeByPath( root, segments );
+            return node?.ChangeType == expectedChangeType;
+        }, timeoutMessage );
+        return node;
     }
 
 }

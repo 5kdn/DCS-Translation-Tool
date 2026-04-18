@@ -41,7 +41,10 @@ public sealed class DownloadWorkflowService(
         }
 
         var checkedEntries = request.SelectedTab.GetCheckedEntries();
-        var targetEntries = checkedEntries.Where( entry => !entry.IsDirectory ).ToList();
+        var targetEntries = checkedEntries
+            .Where( entry => !entry.IsDirectory )
+            .Where( static entry => entry.RepoSha is not null )
+            .ToList();
         if(targetEntries.Count == 0) {
             logger.Warn( "ダウンロード対象のファイルが存在しない。" );
             return FailureDownloadResult( "ダウンロード対象が有りません" );
