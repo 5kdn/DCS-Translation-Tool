@@ -36,6 +36,21 @@ public interface IDownloadWorkflowService {
     );
 
     /// <summary>
+    /// Modified の翻訳ファイルをサーバー版で翻訳ディレクトリへ同期する。
+    /// </summary>
+    /// <param name="targetEntries">同期対象エントリ。</param>
+    /// <param name="translateRootPath">翻訳ファイルルート。</param>
+    /// <param name="showSnackbarAsync">通知コールバック。</param>
+    /// <param name="cancellationToken">キャンセルトークン。</param>
+    /// <returns>同期完了時は <see langword="true"/>。</returns>
+    Task<bool> SyncModifiedFilesWithRepositoryAsync(
+        IReadOnlyList<IFileEntryViewModel> targetEntries,
+        string translateRootPath,
+        Func<string, Task> showSnackbarAsync,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// ダウンロードURL一覧からファイルを保存する。
     /// </summary>
     /// <param name="items">ダウンロード対象一覧。</param>

@@ -1,0 +1,55 @@
+<UserControl x:Class="DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Views.DownloadModifiedApplyModeDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:local="clr-namespace:DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results"
+             mc:Ignorable="d"
+             d:DesignHeight="280"
+             d:DesignWidth="440">
+    <Border Background="{DynamicResource MaterialDesign.Brush.Background}"
+            Padding="{StaticResource MediumMargin}"
+            BorderBrush="{DynamicResource MaterialDesign.Brush.OutlineVariant}"
+            BorderThickness="1">
+        <StackPanel>
+            <TextBlock Text="{Binding Title}"
+                       Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}"
+                       Margin="{StaticResource XSmallBottomMargin}" />
+            <TextBlock Text="{Binding Message}"
+                       Style="{StaticResource MaterialDesignBodyMediumTextBlock}"
+                       TextWrapping="Wrap"
+                       Margin="{StaticResource SmallBottomMargin}" />
+
+            <StackPanel>
+                <Button x:Name="ApplyAllRepositoryButton"
+                        Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        CommandParameter="{x:Static local:DownloadModifiedApplyModeDialogResult.ApplyAllRepository}"
+                        Content="{Binding ApplyAllRepositoryButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        HorizontalAlignment="Stretch"
+                        Margin="{StaticResource XSmallBottomMargin}" />
+                <Button x:Name="ApplyAllLocalButton"
+                        Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        CommandParameter="{x:Static local:DownloadModifiedApplyModeDialogResult.ApplyAllLocal}"
+                        Content="{Binding ApplyAllLocalButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        HorizontalAlignment="Stretch"
+                        Margin="{StaticResource XSmallBottomMargin}" />
+                <Button x:Name="SelectIndividuallyButton"
+                        Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        CommandParameter="{x:Static local:DownloadModifiedApplyModeDialogResult.SelectIndividually}"
+                        Content="{Binding SelectIndividuallyButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        HorizontalAlignment="Stretch"
+                        Margin="{StaticResource XSmallBottomMargin}" />
+                <Button x:Name="CancelButton"
+                        Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        CommandParameter="{x:Static local:DownloadModifiedApplyModeDialogResult.Cancel}"
+                        Content="{Binding CancelButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        HorizontalAlignment="Stretch" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

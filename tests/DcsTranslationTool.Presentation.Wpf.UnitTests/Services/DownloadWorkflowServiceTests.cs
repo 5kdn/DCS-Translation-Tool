@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text;
+
 using DcsTranslationTool.Application.Contracts;
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.Services;
@@ -78,7 +81,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     ) {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( entryPath );
-        var selectedTab = CreateSelectedTab( categoryType, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( categoryType, loggerMock.Object, targetEntry );
         var dcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" );
         var translateDir = Path.Combine( _tempDir, "Translate" );
         var expectedRootPath = Path.Combine( _tempDir, expectedRootRelativePath );
@@ -136,7 +139,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     ) {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( entryPath );
-        var selectedTab = CreateSelectedTab( categoryType, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( categoryType, loggerMock.Object, targetEntry );
         var dcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" );
         var sourceArchivePath = Path.Combine( dcsWorldInstallDir, sourceArchiveRelativePath );
         Directory.CreateDirectory( Path.GetDirectoryName( sourceArchivePath )! );
@@ -200,7 +203,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     ) {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( entryPath );
-        var selectedTab = CreateSelectedTab( categoryType, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( categoryType, loggerMock.Object, targetEntry );
         var dcsWorldInstallDir = Path.Combine( _tempDir, "DcsWorld" );
         var sourceArchivePath = Path.Combine( dcsWorldInstallDir, sourceArchiveRelativePath );
         Directory.CreateDirectory( Path.GetDirectoryName( sourceArchivePath )! );
@@ -250,7 +253,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     public async Task ExecuteApplyAsyncは必要設定不足時に失敗を返す() {
         var sut = CreateSut( out var applyWorkflowServiceMock, out var loggerMock );
         var targetEntry = CreateCheckedEntry( "DCSWorld/Mods/aircraft/A10C/L10N/Example.lua" );
-        var selectedTab = CreateSelectedTab( CategoryType.Aircraft, targetEntry, loggerMock.Object );
+        var selectedTab = CreateSelectedTab( CategoryType.Aircraft, loggerMock.Object, targetEntry );
         var translateDir = Path.Combine( _tempDir, "Translate" );
         var request = new ApplyExecutionRequest(
             selectedTab,
@@ -282,6 +285,166 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
                 It.IsAny<Func<double, Task>>(),
                 It.IsAny<CancellationToken>() ),
             Times.Never );
+    }
+
+    /// <summary>
+    /// Modified 対象のみをサーバー版で翻訳ディレクトリへ同期することを検証する。
+    /// </summary>
+    [Fact]
+    public async Task SyncModifiedFilesWithRepositoryAsyncはModified対象のみを同期する() {
+        var translateDir = Path.Combine( _tempDir, "Translate" );
+        const string modifiedPath = "DCSWorld/Mods/aircraft/A10C/L10N/Modified.lua";
+        const string localOnlyPath = "DCSWorld/Mods/aircraft/A10C/L10N/LocalOnly.lua";
+        const string repositoryContent = "repository-content";
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        var loggerMock = new Mock<ILoggingService>();
+        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var sut = new DownloadWorkflowService( apiServiceMock.Object, loggerMock.Object, applyWorkflowServiceMock.Object );
+
+        using var server = new TestHttpServer( repositoryContent );
+        apiServiceMock
+            .Setup( service => service.DownloadFilePathsAsync(
+                It.Is<ApiDownloadFilePathsRequest>( request =>
+                    request.Paths.Count == 1 &&
+                    request.Paths[0] == modifiedPath ),
+                It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( FluentResults.Result.Ok(
+                new ApiDownloadFilePathsResult(
+                    [new ApiDownloadFilePathsItem( server.Url, modifiedPath )],
+                    "\"etag\"" ) ) );
+
+        var result = await sut.SyncModifiedFilesWithRepositoryAsync(
+            [CreateModifiedEntry( modifiedPath ), CreateLocalOnlyEntry( localOnlyPath )],
+            translateDir,
+            _ => Task.CompletedTask,
+            TestContext.Current.CancellationToken );
+
+        Assert.True( result );
+        var modifiedFilePath = Path.Combine( translateDir, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "Modified.lua" );
+        Assert.True( File.Exists( modifiedFilePath ) );
+        Assert.Equal( repositoryContent, await File.ReadAllTextAsync( modifiedFilePath, TestContext.Current.CancellationToken ) );
+        var localOnlyFilePath = Path.Combine( translateDir, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "LocalOnly.lua" );
+        Assert.False( File.Exists( localOnlyFilePath ) );
+        apiServiceMock.VerifyAll();
+    }
+
+    /// <summary>
+    /// Download では LocalOnly を API リクエストから除外することを検証する。
+    /// </summary>
+    [Fact]
+    public async Task ExecuteDownloadAsyncはLocalOnlyを除外してダウンロードする() {
+        var saveRootPath = Path.Combine( _tempDir, "Translate" );
+        const string repoOnlyPath = "DCSWorld/Mods/aircraft/A10C/L10N/RepoOnly.lua";
+        const string modifiedPath = "DCSWorld/Mods/aircraft/A10C/L10N/Modified.lua";
+        const string localOnlyPath = "DCSWorld/Mods/aircraft/A10C/L10N/LocalOnly.lua";
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        var loggerMock = new Mock<ILoggingService>();
+        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var sut = new DownloadWorkflowService( apiServiceMock.Object, loggerMock.Object, applyWorkflowServiceMock.Object );
+
+        using var repoOnlyServer = new TestHttpServer( "repo-only-content" );
+        using var modifiedServer = new TestHttpServer( "modified-content" );
+        apiServiceMock
+            .Setup( service => service.DownloadFilePathsAsync(
+                It.Is<ApiDownloadFilePathsRequest>( request =>
+                    request.Paths.Count == 2 &&
+                    request.Paths.Contains( repoOnlyPath ) &&
+                    request.Paths.Contains( modifiedPath ) &&
+                    !request.Paths.Contains( localOnlyPath ) ),
+                It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( FluentResults.Result.Ok(
+                new ApiDownloadFilePathsResult(
+                    [
+                        new ApiDownloadFilePathsItem( repoOnlyServer.Url, repoOnlyPath ),
+                        new ApiDownloadFilePathsItem( modifiedServer.Url, modifiedPath )
+                    ],
+                    "\"etag\"" ) ) );
+
+        var selectedTab = CreateSelectedTab(
+            CategoryType.Aircraft,
+            loggerMock.Object,
+            CreateRepoOnlyEntry( repoOnlyPath ),
+            CreateModifiedEntry( modifiedPath ),
+            CreateLocalOnlyEntry( localOnlyPath ) );
+
+        var result = await sut.ExecuteDownloadAsync(
+            new DownloadExecutionRequest( selectedTab, saveRootPath ),
+            _ => Task.CompletedTask,
+            TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsSuccess );
+        Assert.True( File.Exists( Path.Combine( saveRootPath, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "RepoOnly.lua" ) ) );
+        Assert.True( File.Exists( Path.Combine( saveRootPath, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "Modified.lua" ) ) );
+        Assert.False( File.Exists( Path.Combine( saveRootPath, "DCSWorld", "Mods", "aircraft", "A10C", "L10N", "LocalOnly.lua" ) ) );
+        apiServiceMock.VerifyAll();
+    }
+
+    /// <summary>
+    /// URL 取得失敗時に失敗を返すことを検証する。
+    /// </summary>
+    [Fact]
+    public async Task SyncModifiedFilesWithRepositoryAsyncはURL取得失敗時にfalseを返す() {
+        var translateDir = Path.Combine( _tempDir, "Translate" );
+        const string modifiedPath = "DCSWorld/Mods/aircraft/A10C/L10N/Modified.lua";
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        var loggerMock = new Mock<ILoggingService>();
+        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var sut = new DownloadWorkflowService( apiServiceMock.Object, loggerMock.Object, applyWorkflowServiceMock.Object );
+
+        apiServiceMock
+            .Setup( service => service.DownloadFilePathsAsync(
+                It.IsAny<ApiDownloadFilePathsRequest>(),
+                It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( FluentResults.Result.Fail<ApiDownloadFilePathsResult>( "failed" ) );
+
+        var messages = new List<string>();
+        var result = await sut.SyncModifiedFilesWithRepositoryAsync(
+            [CreateModifiedEntry( modifiedPath )],
+            translateDir,
+            message => {
+                messages.Add( message );
+                return Task.CompletedTask;
+            },
+            TestContext.Current.CancellationToken );
+
+        Assert.False( result );
+        Assert.Contains( messages, message => message.Contains( "ダウンロードURLの取得に失敗しました", StringComparison.Ordinal ) );
+        apiServiceMock.VerifyAll();
+    }
+
+    /// <summary>
+    /// 保存後に対象ファイルが存在しない場合に失敗を返すことを検証する。
+    /// </summary>
+    [Fact]
+    public async Task SyncModifiedFilesWithRepositoryAsyncは保存後に対象ファイルが存在しない場合falseを返す() {
+        var translateDir = Path.Combine( _tempDir, "Translate" );
+        const string modifiedPath = "DCSWorld/Mods/aircraft/A10C/L10N/Modified.lua";
+
+        var apiServiceMock = new Mock<IApiService>( MockBehavior.Strict );
+        var loggerMock = new Mock<ILoggingService>();
+        var applyWorkflowServiceMock = new Mock<IApplyWorkflowService>( MockBehavior.Strict );
+        var sut = new DownloadWorkflowService( apiServiceMock.Object, loggerMock.Object, applyWorkflowServiceMock.Object );
+
+        apiServiceMock
+            .Setup( service => service.DownloadFilePathsAsync(
+                It.IsAny<ApiDownloadFilePathsRequest>(),
+                It.IsAny<CancellationToken>() ) )
+            .ReturnsAsync( FluentResults.Result.Ok(
+                new ApiDownloadFilePathsResult(
+                    [],
+                    "\"etag\"" ) ) );
+
+        var result = await sut.SyncModifiedFilesWithRepositoryAsync(
+            [CreateModifiedEntry( modifiedPath )],
+            translateDir,
+            _ => Task.CompletedTask,
+            TestContext.Current.CancellationToken );
+
+        Assert.False( result );
+        apiServiceMock.VerifyAll();
     }
 
     /// <summary>
@@ -442,19 +605,67 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Modified エントリーを生成する。
+    /// </summary>
+    /// <param name="entryPath">エントリーパス。</param>
+    /// <returns>生成したビューモデルを返す。</returns>
+    private static FileEntryViewModel CreateModifiedEntry( string entryPath ) {
+        var loggerMock = new Mock<ILoggingService>();
+        return new FileEntryViewModel(
+            new LocalFileEntry( Path.GetFileName( entryPath ), entryPath, false, "local" ) { RepoSha = "repo" },
+            ChangeTypeMode.Download,
+            loggerMock.Object )
+        {
+            CheckState = true
+        };
+    }
+
+    /// <summary>
+    /// RepoOnly エントリーを生成する。
+    /// </summary>
+    /// <param name="entryPath">エントリーパス。</param>
+    /// <returns>生成したビューモデルを返す。</returns>
+    private static FileEntryViewModel CreateRepoOnlyEntry( string entryPath ) {
+        var loggerMock = new Mock<ILoggingService>();
+        return new FileEntryViewModel(
+            new RepoFileEntry( Path.GetFileName( entryPath ), entryPath, false, "repo" ),
+            ChangeTypeMode.Download,
+            loggerMock.Object )
+        {
+            CheckState = true
+        };
+    }
+
+    /// <summary>
+    /// LocalOnly エントリーを生成する。
+    /// </summary>
+    /// <param name="entryPath">エントリーパス。</param>
+    /// <returns>生成したビューモデルを返す。</returns>
+    private static FileEntryViewModel CreateLocalOnlyEntry( string entryPath ) {
+        var loggerMock = new Mock<ILoggingService>();
+        return new FileEntryViewModel(
+            new LocalFileEntry( Path.GetFileName( entryPath ), entryPath, false, "local" ),
+            ChangeTypeMode.Download,
+            loggerMock.Object )
+        {
+            CheckState = true
+        };
+    }
+
+    /// <summary>
     /// 選択中タブを生成する。
     /// </summary>
     /// <param name="categoryType">カテゴリ。</param>
     /// <param name="entry">対象エントリー。</param>
     /// <param name="logger">ロガー。</param>
     /// <returns>生成したタブを返す。</returns>
-    private static TabItemViewModel CreateSelectedTab( CategoryType categoryType, FileEntryViewModel entry, ILoggingService logger ) {
+    private static TabItemViewModel CreateSelectedTab( CategoryType categoryType, ILoggingService logger, params FileEntryViewModel[] entries ) {
         var root = new FileEntryViewModel(
             new LocalFileEntry( "root", "root", true, "local" ),
             ChangeTypeMode.Download,
             logger )
         {
-            Children = [entry]
+            Children = [.. entries]
         };
         return new TabItemViewModel( categoryType, logger, root );
     }
@@ -481,6 +692,77 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
     /// <returns>区切り付きパスを返す。</returns>
     private static string EnsureSeparator( string path ) =>
         path.EndsWith( Path.DirectorySeparatorChar ) ? path : path + Path.DirectorySeparatorChar;
+
+    /// <summary>
+    /// テスト用HTTPサーバーを表す。
+    /// </summary>
+    private sealed class TestHttpServer : IDisposable {
+        private readonly HttpListener _listener = new();
+        private readonly CancellationTokenSource _cts = new();
+        private readonly Task _serverTask;
+
+        /// <summary>
+        /// 応答URLを取得する。
+        /// </summary>
+        public string Url { get; }
+            = $"http://127.0.0.1:{GetFreePort()}/content/";
+
+        /// <summary>
+        /// 新しいテスト用HTTPサーバーを初期化する。
+        /// </summary>
+        /// <param name="content">返却内容。</param>
+        public TestHttpServer( string content ) {
+            _listener.Prefixes.Add( Url );
+            _listener.Start();
+            _serverTask = Task.Run( async () => {
+                while(!_cts.IsCancellationRequested) {
+                    try {
+                        var context = await _listener.GetContextAsync();
+                        var buffer = Encoding.UTF8.GetBytes( content );
+                        context.Response.ContentType = "text/plain; charset=utf-8";
+                        context.Response.ContentLength64 = buffer.Length;
+                        await context.Response.OutputStream.WriteAsync( buffer, 0, buffer.Length, _cts.Token );
+                        context.Response.Close();
+                    }
+                    catch(HttpListenerException) when(_cts.IsCancellationRequested) {
+                        break;
+                    }
+                    catch(ObjectDisposedException) when(_cts.IsCancellationRequested) {
+                        break;
+                    }
+                }
+            }, _cts.Token );
+        }
+
+        /// <summary>
+        /// サーバーを破棄する。
+        /// </summary>
+        public void Dispose() {
+            _cts.Cancel();
+            if(_listener.IsListening) {
+                _listener.Stop();
+            }
+            _listener.Close();
+            try {
+                _serverTask.GetAwaiter().GetResult();
+            }
+            catch(OperationCanceledException) {
+            }
+            GC.SuppressFinalize( this );
+        }
+
+        /// <summary>
+        /// 空きポートを取得する。
+        /// </summary>
+        /// <returns>空きポート番号を返す。</returns>
+        private static int GetFreePort() {
+            var listener = new System.Net.Sockets.TcpListener( IPAddress.Loopback, 0 );
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
+        }
+    }
 
     /// <summary>
     /// 使用した一時ディレクトリを破棄する。

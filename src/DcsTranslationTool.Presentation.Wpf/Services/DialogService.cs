@@ -58,6 +58,61 @@ public sealed class DialogService(
     }
 
     /// <inheritdoc/>
+    public async Task<DownloadModifiedApplyModeDialogResult> DownloadModifiedApplyModeDialogShowAsync( DownloadModifiedApplyModeDialogParameters parameters ) {
+        ArgumentNullException.ThrowIfNull( parameters );
+        logger.Info( $"差分適用モード選択ダイアログを表示する。Title={parameters.Title}, Identifier={parameters.DialogIdentifier}" );
+        var dialog = new DownloadModifiedApplyModeDialog
+        {
+            DataContext = parameters
+        };
+
+        object? result;
+        try {
+            result = await DialogHost.Show( dialog, parameters.DialogIdentifier );
+        }
+        catch(InvalidOperationException ex) {
+            logger.Error( $"差分適用モード選択ダイアログ表示に失敗した。Identifier={parameters.DialogIdentifier}", ex );
+            throw;
+        }
+
+        var dialogResult = result switch
+        {
+            DownloadModifiedApplyModeDialogResult modeDialogResult => modeDialogResult,
+            string value when Enum.TryParse<DownloadModifiedApplyModeDialogResult>( value, true, out var parsed ) => parsed,
+            _ => DownloadModifiedApplyModeDialogResult.Cancel
+        };
+        logger.Info( $"差分適用モード選択ダイアログが閉じられた。Result={dialogResult}" );
+        return dialogResult;
+    }
+
+    /// <inheritdoc/>
+    public async Task<DownloadModifiedApplySelectionDialogResult> DownloadModifiedApplySelectionDialogShowAsync( DownloadModifiedApplySelectionDialogParameters parameters ) {
+        ArgumentNullException.ThrowIfNull( parameters );
+        logger.Info( $"差分個別選択ダイアログを表示する。Title={parameters.Title}, Count={parameters.Items.Count}, Identifier={parameters.DialogIdentifier}" );
+        var dialog = new DownloadModifiedApplySelectionDialog
+        {
+            DataContext = parameters
+        };
+
+        object? result;
+        try {
+            result = await DialogHost.Show( dialog, parameters.DialogIdentifier );
+        }
+        catch(InvalidOperationException ex) {
+            logger.Error( $"差分個別選択ダイアログ表示に失敗した。Identifier={parameters.DialogIdentifier}", ex );
+            throw;
+        }
+
+        var dialogResult = result switch
+        {
+            DownloadModifiedApplySelectionDialogResult selectionDialogResult => selectionDialogResult,
+            _ => new DownloadModifiedApplySelectionDialogResult( false, new Dictionary<string, DownloadModifiedApplySource>( StringComparer.Ordinal ) )
+        };
+        logger.Info( $"差分個別選択ダイアログが閉じられた。IsConfirmed={dialogResult.IsConfirmed}, Count={dialogResult.SelectedSources.Count}" );
+        return dialogResult;
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> ContinueCancelDialogShowAsync( ConfirmationDialogParameters parameters ) {
         var result = await ConfirmationDialogShowAsync( parameters );
         return result == ConfirmationDialogResult.Confirm;

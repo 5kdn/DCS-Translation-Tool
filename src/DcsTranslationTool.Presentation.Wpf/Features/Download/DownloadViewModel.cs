@@ -1,8 +1,13 @@
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Domain.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.Common;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Presentation.Wpf.UI.Enums;
+using DcsTranslationTool.Presentation.Wpf.UI.Interfaces;
 using DcsTranslationTool.Presentation.Wpf.ViewModels;
+using DcsTranslationTool.Resources;
 
 namespace DcsTranslationTool.Presentation.Wpf.Features.Download;
 
@@ -12,6 +17,7 @@ namespace DcsTranslationTool.Presentation.Wpf.Features.Download;
 public class DownloadViewModel(
     IApiService apiService,
     IAppSettingsService appSettingsService,
+    IDialogService dialogService,
     IDownloadWorkflowService downloadWorkflowService,
     IDispatcherService dispatcherService,
     IFileEntryService fileEntryService,
@@ -88,7 +94,7 @@ public class DownloadViewModel(
     /// <summary>
     /// ダウンロード可能か
     /// </summary>
-    public bool CanDownload => !IsDownloading && HasCheckedEntries();
+    public bool CanDownload => !IsDownloading && GetDownloadableCheckedEntries().Count > 0;
 
     /// <summary>
     /// 適用可能か
@@ -142,8 +148,37 @@ public class DownloadViewModel(
         }
 
         await ExecuteWithEntriesChangedSuppressedAsync( isDownload: false, async () => {
+            var selectedTab = GetSelectedTab();
+            var checkedEntries = selectedTab?.GetCheckedViewModels()
+                .Where( entry => !entry.IsDirectory )
+                .ToList()
+                ?? [];
+            var modifiedEntries = checkedEntries
+                .Where( entry => entry.ChangeType == FileChangeType.Modified )
+                .ToList();
+
+            if(modifiedEntries.Count > 0) {
+                var repositoryTargets = await ResolveRepositorySyncTargetsAsync( modifiedEntries );
+                if(repositoryTargets is null) {
+                    Logger.Warn( "差分ファイル適用確認で中止が選択されたため処理を終了する。" );
+                    return;
+                }
+
+                if(repositoryTargets.Count > 0) {
+                    var synced = await downloadWorkflowService.SyncModifiedFilesWithRepositoryAsync(
+                        repositoryTargets,
+                        appSettingsService.Settings.TranslateFileDir,
+                        UiAdapter.ShowSnackbarAsync
+                    );
+                    if(!synced) {
+                        Logger.Warn( "サーバー版での差分同期に失敗したため適用処理を中断する。" );
+                        return;
+                    }
+                }
+            }
+
             var request = new ApplyExecutionRequest(
-                GetSelectedTab(),
+                selectedTab,
                 appSettingsService.Settings.DcsWorldInstallDir,
                 appSettingsService.Settings.SourceUserMissionDir,
                 appSettingsService.Settings.UseExternalAircraftInjectionDir,
@@ -220,6 +255,81 @@ public class DownloadViewModel(
         Tabs.Count > 0 && SelectedTabIndex >= 0 && SelectedTabIndex < Tabs.Count
             ? Tabs[SelectedTabIndex]
             : null;
+
+    /// <summary>
+    /// 選択中タブのうちダウンロード可能なチェック済みファイル一覧を取得する。
+    /// </summary>
+    /// <returns>ダウンロード可能なチェック済みファイル一覧。</returns>
+    private IReadOnlyList<IFileEntryViewModel> GetDownloadableCheckedEntries() =>
+        GetSelectedTab()?.GetCheckedViewModels()
+            .Where( entry => !entry.IsDirectory )
+            .Where( entry => entry.ChangeType is FileChangeType.Modified or FileChangeType.RepoOnly )
+            .ToArray()
+        ?? [];
+
+    /// <summary>
+    /// Modified 適用時にサーバー同期対象を解決する。
+    /// </summary>
+    /// <param name="modifiedEntries">差分エントリ一覧。</param>
+    /// <returns>サーバー同期対象。中止時は <see langword="null"/>。</returns>
+    private async Task<IReadOnlyList<IFileEntryViewModel>?> ResolveRepositorySyncTargetsAsync( IReadOnlyList<IFileEntryViewModel> modifiedEntries ) {
+        var modeResult = await dialogService.DownloadModifiedApplyModeDialogShowAsync(
+            new DownloadModifiedApplyModeDialogParameters
+            {
+                Title = Strings_Download.ModifiedApplyModeDialogTitle,
+                Message = string.Format( Strings_Download.ModifiedApplyModeDialogMessage, modifiedEntries.Count ),
+                ApplyAllRepositoryButtonText = Strings_Download.ModifiedApplyModeDialogApplyAllRepositoryButtonText,
+                ApplyAllLocalButtonText = Strings_Download.ModifiedApplyModeDialogApplyAllLocalButtonText,
+                SelectIndividuallyButtonText = Strings_Download.ModifiedApplyModeDialogSelectIndividuallyButtonText,
+                CancelButtonText = Strings_Download.ModifiedApplyModeDialogCancelButtonText,
+            } );
+
+        switch(modeResult) {
+            case DownloadModifiedApplyModeDialogResult.ApplyAllRepository:
+                return modifiedEntries.ToList();
+            case DownloadModifiedApplyModeDialogResult.ApplyAllLocal:
+                return [];
+            case DownloadModifiedApplyModeDialogResult.SelectIndividually:
+                return await ResolveRepositoryTargetsFromSelectionDialogAsync( modifiedEntries );
+            case DownloadModifiedApplyModeDialogResult.Cancel:
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// 個別選択ダイアログからサーバー同期対象を解決する。
+    /// </summary>
+    /// <param name="modifiedEntries">差分エントリ一覧。</param>
+    /// <returns>サーバー同期対象。中止時は <see langword="null"/>。</returns>
+    private async Task<IReadOnlyList<IFileEntryViewModel>?> ResolveRepositoryTargetsFromSelectionDialogAsync( IReadOnlyList<IFileEntryViewModel> modifiedEntries ) {
+        var items = modifiedEntries
+            .Select( entry => new DownloadModifiedApplySelectionItem( entry.Path ) )
+            .ToArray();
+
+        var selectionResult = await dialogService.DownloadModifiedApplySelectionDialogShowAsync(
+            new DownloadModifiedApplySelectionDialogParameters
+            {
+                Title = Strings_Download.ModifiedApplySelectionDialogTitle,
+                Message = string.Format( Strings_Download.ModifiedApplySelectionDialogMessage, modifiedEntries.Count ),
+                PathHeader = Strings_Download.ModifiedApplySelectionDialogPathHeader,
+                RepositoryHeader = Strings_Download.ModifiedApplySelectionDialogRepositoryHeader,
+                LocalHeader = Strings_Download.ModifiedApplySelectionDialogLocalHeader,
+                ConfirmButtonText = Strings_Download.ModifiedApplySelectionDialogConfirmButtonText,
+                CancelButtonText = Strings_Download.ModifiedApplySelectionDialogCancelButtonText,
+                Items = items,
+            } );
+
+        if(!selectionResult.IsConfirmed) {
+            return null;
+        }
+
+        return modifiedEntries
+            .Where( entry =>
+                selectionResult.SelectedSources.TryGetValue( entry.Path, out var source ) &&
+                source == DownloadModifiedApplySource.Repository )
+            .ToList();
+    }
 
     /// <summary>
     /// ワークフローイベントを UI へ反映する。

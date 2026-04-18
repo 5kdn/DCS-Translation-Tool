@@ -41,7 +41,10 @@ public sealed class DownloadWorkflowService(
         }
 
         var checkedEntries = request.SelectedTab.GetCheckedEntries();
-        var targetEntries = checkedEntries.Where( entry => !entry.IsDirectory ).ToList();
+        var targetEntries = checkedEntries
+            .Where( entry => !entry.IsDirectory )
+            .Where( static entry => entry.RepoSha is not null )
+            .ToList();
         if(targetEntries.Count == 0) {
             logger.Warn( "ダウンロード対象のファイルが存在しない。" );
             return FailureDownloadResult( "ダウンロード対象が有りません" );
@@ -168,6 +171,69 @@ public sealed class DownloadWorkflowService(
 
         await progressCallback( 100 );
         return SuccessApplyResult();
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> SyncModifiedFilesWithRepositoryAsync(
+        IReadOnlyList<IFileEntryViewModel> targetEntries,
+        string translateRootPath,
+        Func<string, Task> showSnackbarAsync,
+        CancellationToken cancellationToken = default
+    ) {
+        var modifiedEntries = targetEntries
+            .Where( entry => entry.ChangeType == FileChangeType.Modified )
+            .ToList();
+        if(modifiedEntries.Count == 0) {
+            return true;
+        }
+
+        if(string.IsNullOrWhiteSpace( translateRootPath )) {
+            logger.Warn( "翻訳ディレクトリが未設定のため Modified 同期を中断する。" );
+            await showSnackbarAsync( "翻訳ディレクトリを設定してください" );
+            return false;
+        }
+
+        var translateFullPath = Path.GetFullPath( translateRootPath );
+        Directory.CreateDirectory( translateFullPath );
+        var translateRootWithSeparator = translateFullPath.EndsWith( Path.DirectorySeparatorChar )
+            ? translateFullPath
+            : translateFullPath + Path.DirectorySeparatorChar;
+
+        var paths = modifiedEntries.Select( entry => entry.Path ).ToList();
+        var pathResult = await apiService.DownloadFilePathsAsync(
+            new ApiDownloadFilePathsRequest( paths, null ),
+            cancellationToken
+        );
+        if(pathResult.IsFailed) {
+            var reason = pathResult.Errors.Count > 0 ? pathResult.Errors[0].Message : null;
+            var message = ResultNotificationPolicy.GetDownloadPathFailureMessage( pathResult.GetFirstErrorKind() );
+            logger.Error( $"Modified 同期のダウンロードURL取得に失敗した。Reason={reason}" );
+            await showSnackbarAsync( message );
+            return false;
+        }
+
+        var downloadItems = pathResult.Value.Items.ToArray();
+        logger.Info( $"Modified 同期のダウンロードURLを取得した。Count={downloadItems.Length}" );
+        if(downloadItems.Length > 0) {
+            await this.DownloadFilesAsync(
+                downloadItems,
+                translateFullPath,
+                _ => Task.CompletedTask,
+                cancellationToken
+            );
+        }
+
+        var pathSafetyGuard = new PathSafetyGuard();
+        foreach(var modifiedEntry in modifiedEntries) {
+            if(!pathSafetyGuard.TryResolvePathWithinRoot( translateFullPath, translateRootWithSeparator, modifiedEntry.Path, out var filePath ) ||
+                !File.Exists( filePath )) {
+                logger.Warn( $"Modified 同期後も翻訳ファイルが存在しない。Path={modifiedEntry.Path}, Resolved={filePath}" );
+                await showSnackbarAsync( $"取得失敗: {modifiedEntry.Path}" );
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <inheritdoc/>

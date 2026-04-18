@@ -1,0 +1,115 @@
+<UserControl x:Class="DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Views.DownloadModifiedApplySelectionDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="420"
+             d:DesignWidth="720">
+    <Border Background="{DynamicResource MaterialDesign.Brush.Background}"
+            Padding="{StaticResource MediumMargin}"
+            BorderBrush="{DynamicResource MaterialDesign.Brush.OutlineVariant}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="{Binding Title}"
+                           Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}"
+                           Margin="{StaticResource XSmallBottomMargin}" />
+                <TextBlock Text="{Binding Message}"
+                           Style="{StaticResource MaterialDesignBodyMediumTextBlock}"
+                           TextWrapping="Wrap"
+                           Margin="{StaticResource SmallBottomMargin}" />
+            </StackPanel>
+
+            <Border Grid.Row="1"
+                    BorderBrush="{DynamicResource MaterialDesign.Brush.OutlineVariant}"
+                    BorderThickness="1"
+                    Margin="{StaticResource SmallBottomMargin}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0"
+                          Background="{DynamicResource MaterialDesign.Brush.SurfaceContainerHigh}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding PathHeader}"
+                                   Style="{StaticResource MaterialDesignLabelLargeTextBlock}"
+                                   Margin="{StaticResource XSmallMargin}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding RepositoryHeader}"
+                                   Style="{StaticResource MaterialDesignLabelLargeTextBlock}"
+                                   Margin="{StaticResource XSmallMargin}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding LocalHeader}"
+                                   Style="{StaticResource MaterialDesignLabelLargeTextBlock}"
+                                   Margin="{StaticResource XSmallMargin}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="SelectionItemsControl"
+                                      ItemsSource="{Binding Items}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource MaterialDesign.Brush.OutlineVariant}"
+                                            BorderThickness="0,0,0,1">
+                                        <Grid Margin="{StaticResource XSmallMargin}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Path}"
+                                                       TextWrapping="Wrap"
+                                                       VerticalAlignment="Center" />
+                                            <RadioButton Grid.Column="1"
+                                                         IsChecked="{Binding IsRepositorySelected, Mode=TwoWay}"
+                                                         GroupName="{Binding GroupName}"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center" />
+                                            <RadioButton Grid.Column="2"
+                                                         IsChecked="{Binding IsLocalSelected, Mode=TwoWay}"
+                                                         GroupName="{Binding GroupName}"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="ConfirmButton"
+                        Click="OnConfirmClick"
+                        Content="{Binding ConfirmButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        Margin="{StaticResource XSmallRightMargin}" />
+                <Button x:Name="CancelButton"
+                        Command="{x:Static md:DialogHost.CloseDialogCommand}"
+                        Content="{Binding CancelButtonText}"
+                        Style="{StaticResource MaterialDesignRaisedButton}" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

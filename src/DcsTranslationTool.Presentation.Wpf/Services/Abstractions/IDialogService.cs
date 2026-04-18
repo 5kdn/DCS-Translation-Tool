@@ -15,6 +15,20 @@ public interface IDialogService {
     Task<ConfirmationDialogResult> ConfirmationDialogShowAsync( ConfirmationDialogParameters parameters );
 
     /// <summary>
+    /// Download Page の差分適用モード選択ダイアログを表示して結果を取得する。
+    /// </summary>
+    /// <param name="parameters">表示に利用する引数。</param>
+    /// <returns>選択結果。</returns>
+    Task<DownloadModifiedApplyModeDialogResult> DownloadModifiedApplyModeDialogShowAsync( DownloadModifiedApplyModeDialogParameters parameters );
+
+    /// <summary>
+    /// Download Page の差分個別選択ダイアログを表示して結果を取得する。
+    /// </summary>
+    /// <param name="parameters">表示に利用する引数。</param>
+    /// <returns>選択結果。</returns>
+    Task<DownloadModifiedApplySelectionDialogResult> DownloadModifiedApplySelectionDialogShowAsync( DownloadModifiedApplySelectionDialogParameters parameters );
+
+    /// <summary>
     /// ダイアログを表示して結果を取得する。
     /// </summary>
     /// <param name="parameters">表示に利用する引数。</param>
