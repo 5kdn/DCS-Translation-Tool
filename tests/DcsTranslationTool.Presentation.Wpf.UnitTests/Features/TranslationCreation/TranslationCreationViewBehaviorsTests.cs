@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 
 using DcsTranslationTool.Application.Models;
+using DcsTranslationTool.Presentation.Wpf.Features.Common;
 using DcsTranslationTool.Presentation.Wpf.Features.TranslationCreation;
 
 using Microsoft.Xaml.Behaviors;
@@ -87,7 +88,7 @@ public sealed class TranslationCreationViewBehaviorsTests {
         var toggleMaximizeButton = new Button();
         var closeButton = new Button();
         var window = new TestWindow();
-        var behavior = new TranslationCreationWindowChromeBehavior
+        var behavior = new WindowChromeBehavior
         {
             TitleBar = titleBar,
             MinimizeButton = minimizeButton,

@@ -14,11 +14,75 @@
         Background="{StaticResource MaterialDesign.Brush.Background}"
         FontFamily="/Assets/Fonts/#Zen kaku Gothic New"
         FontWeight="Medium"
-        Width="800" d:Height="800">
+        Title="{Binding PRTitle}"
+        Width="800"
+        d:Height="800">
+
+    <i:Interaction.Behaviors>
+        <common:WindowChromeBehavior TitleBar="{x:Reference TitleBar}"
+                                     MinimizeButton="{x:Reference MinimizeWindowButton}"
+                                     ToggleMaximizeButton="{x:Reference ToggleMaximizeWindowButton}"
+                                     CloseButton="{x:Reference CloseWindowButton}" />
+    </i:Interaction.Behaviors>
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome
+            CaptionHeight="30"
+            ResizeBorderThickness="8"
+            GlassFrameThickness="0"
+            CornerRadius="0"
+            UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
 
     <md:DialogHost Identifier="{x:Static local:CreatePullRequestDialogHostIdentifiers.Validation}">
-        <ScrollViewer>
-            <StackPanel Margin="{StaticResource MediumMargin}">
+        <Grid x:Name="RootLayout">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0"
+                  x:Name="TitleBar"
+                  Height="30"
+                  Background="{StaticResource MaterialDesign.Brush.Primary}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Margin="{StaticResource MediumXMargin}"
+                           VerticalAlignment="Center"
+                           Text="{Binding PRTitle}"
+                           Style="{StaticResource MaterialDesignTitleMediumTextBlock}"
+                           Foreground="{StaticResource MaterialDesign.Brush.Background}" />
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="MinimizeWindowButton"
+                            Content="{md:PackIcon Kind=WindowMinimize}"
+                            Style="{StaticResource NavigationButtonStyle}" />
+                    <Button x:Name="ToggleMaximizeWindowButton">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavigationButtonStyle}">
+                                <Setter Property="Content" Value="{md:PackIcon Kind=WindowMaximize}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=WindowState}" Value="Maximized">
+                                        <Setter Property="Content" Value="{md:PackIcon Kind=WindowRestore}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button x:Name="CloseWindowButton"
+                            Content="{md:PackIcon Kind=Close}"
+                            Style="{StaticResource CloseButtonStyle}" />
+                </StackPanel>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1">
+                <StackPanel Margin="{StaticResource MediumMargin}">
 
                 <!--アップロードするファイル一覧-->
                 <Expander Header="{x:Static resx:Strings_CreatePullRequest.UploadFileListHeader}"
@@ -170,7 +234,8 @@
                                      IsIndeterminate="True"
                                      IsEnabled="{Binding CanCreatePullRequest}"
                                      cal:Message.Attach="[Event Click] = [Action CreatePullRequest]" />
-            </StackPanel>
-        </ScrollViewer>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </md:DialogHost>
 </Window>
