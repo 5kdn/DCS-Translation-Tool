@@ -141,6 +141,45 @@
   <data name="FilterUnchangedText" xml:space="preserve">
     <value>DL済</value>
   </data>
+  <data name="ModifiedApplyModeDialogApplyAllLocalButtonText" xml:space="preserve">
+    <value>全てローカル版を適用</value>
+  </data>
+  <data name="ModifiedApplyModeDialogApplyAllRepositoryButtonText" xml:space="preserve">
+    <value>全てサーバー版を適用</value>
+  </data>
+  <data name="ModifiedApplyModeDialogCancelButtonText" xml:space="preserve">
+    <value>中止</value>
+  </data>
+  <data name="ModifiedApplyModeDialogMessage" xml:space="preserve">
+    <value>差分があるファイルが {0} 件含まれます。適用方法を選択してください。</value>
+  </data>
+  <data name="ModifiedApplyModeDialogSelectIndividuallyButtonText" xml:space="preserve">
+    <value>個別に選択する</value>
+  </data>
+  <data name="ModifiedApplyModeDialogTitle" xml:space="preserve">
+    <value>差分ファイルの適用方法</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogCancelButtonText" xml:space="preserve">
+    <value>中止</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogConfirmButtonText" xml:space="preserve">
+    <value>決定</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogLocalHeader" xml:space="preserve">
+    <value>ローカル版</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogMessage" xml:space="preserve">
+    <value>差分ファイルごとに適用元を選択してください。初期値は全てローカル版です。</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogPathHeader" xml:space="preserve">
+    <value>ファイル</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogRepositoryHeader" xml:space="preserve">
+    <value>サーバー版</value>
+  </data>
+  <data name="ModifiedApplySelectionDialogTitle" xml:space="preserve">
+    <value>差分ファイルの個別選択</value>
+  </data>
   <data name="OpenDirectoryButtonContent" xml:space="preserve">
     <value>フォルダ</value>
   </data>

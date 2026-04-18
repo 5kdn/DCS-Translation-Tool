@@ -133,6 +133,123 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   全てローカル版を適用 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplyModeDialogApplyAllLocalButtonText {
+            get {
+                return ResourceManager.GetString("ModifiedApplyModeDialogApplyAllLocalButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   全てサーバー版を適用 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplyModeDialogApplyAllRepositoryButtonText {
+            get {
+                return ResourceManager.GetString("ModifiedApplyModeDialogApplyAllRepositoryButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   中止 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplyModeDialogCancelButtonText {
+            get {
+                return ResourceManager.GetString("ModifiedApplyModeDialogCancelButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   差分があるファイルが {0} 件含まれます。適用方法を選択してください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplyModeDialogMessage {
+            get {
+                return ResourceManager.GetString("ModifiedApplyModeDialogMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   個別に選択する に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplyModeDialogSelectIndividuallyButtonText {
+            get {
+                return ResourceManager.GetString("ModifiedApplyModeDialogSelectIndividuallyButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   差分ファイルの適用方法 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplyModeDialogTitle {
+            get {
+                return ResourceManager.GetString("ModifiedApplyModeDialogTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   中止 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogCancelButtonText {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogCancelButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   決定 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogConfirmButtonText {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogConfirmButtonText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   ローカル版 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogLocalHeader {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogLocalHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   差分ファイルごとに適用元を選択してください。初期値は全てローカル版です。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogMessage {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   ファイル に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogPathHeader {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogPathHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   サーバー版 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogRepositoryHeader {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogRepositoryHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   差分ファイルの個別選択 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ModifiedApplySelectionDialogTitle {
+            get {
+                return ResourceManager.GetString("ModifiedApplySelectionDialogTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   フォルダ に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string OpenDirectoryButtonContent {
