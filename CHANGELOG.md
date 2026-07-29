@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.1](https://github.com/5kdn/DCS-Translation-Tool/compare/v2.1.0...v2.1.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* Bump coverlet.collector from 8.0.1 to 10.0.1 ([#133](https://github.com/5kdn/DCS-Translation-Tool/issues/133)) ([abea0cd](https://github.com/5kdn/DCS-Translation-Tool/commit/abea0cda3f855cc5a9c47ab9de0053934135f9e4))
+* Bump Microsoft.Kiota.Abstractions and Microsoft.Kiota.Http.HttpClientLibrary ([#126](https://github.com/5kdn/DCS-Translation-Tool/issues/126)) ([c9e23bd](https://github.com/5kdn/DCS-Translation-Tool/commit/c9e23bd8ae306bafa2f9bdf0d809b79ebdc2d3ee))
+
 ## [2.1.0](https://github.com/5kdn/DCS-Translation-Tool/compare/v2.0.0...v2.1.0) (2026-04-18)
 
 
