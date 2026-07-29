@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+
+# GitHub Pull Request 経由ではないローカル merge commit を拒否する。
+
+set -eu
+
+# ローカル merge commit の明示的な許可状態を判定する。
+is_local_merge_commit_allowed() {
+  [ "${ALLOW_LOCAL_MERGE_COMMIT:-}" = '1' ]
+}
+
+# ローカル merge commit を拒否して、PR 経由の merge 運用へ誘導する。
+reject_local_merge_commit() {
+  current_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || printf '')
+
+  printf '\033[1;31mERROR: ローカル merge commit は禁止されています。\033[0m\n' >&2
+  printf 'GitHub Pull Request 経由で merge してください。\n' >&2
+  if [ -n "$current_branch" ]; then
+    printf 'current branch: %s\n' "$current_branch" >&2
+  fi
+  printf '管理作業としてローカル merge commit が必要な場合は環境変数 \033[33mALLOW_LOCAL_MERGE_COMMIT=1\033[0m を設定してください。\n' >&2
+  exit 1
+}
+
+# pre-merge-commit hook の実行順序を制御する。
+main() {
+  if is_local_merge_commit_allowed; then
+    exit 0
+  fi
+
+  reject_local_merge_commit
+}
+
+main "$@"

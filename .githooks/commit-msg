@@ -1,0 +1,144 @@
+#!/usr/bin/env sh
+
+# summary:
+#   - commit message が Conventional Commits のプロジェクト規約に従うことを検証する
+
+set -eu
+
+ALLOWED_TYPES='feat fix docs style refactor perf test build ci chore revert'
+
+# エラーメッセージと利用可能な形式を表示して終了する。
+reject_commit_message() {
+  reason=$1
+
+  printf '\033[1;31mERROR: commit message must follow Conventional Commits.\033[0m\n' >&2
+  printf '%s\n\n' "$reason" >&2
+  printf 'Allowed formats:\n' >&2
+  printf '  <type>: <description>\n' >&2
+  printf '  <type>(<scope>): <description>\n' >&2
+  printf '  <type>!: <description>\n' >&2
+  printf '  <type>(<scope>)!: <description>\n\n' >&2
+  printf 'Allowed types: %s\n' "$ALLOWED_TYPES" >&2
+  exit 1
+}
+
+# 固定された Conventional Commits type に含まれるかを判定する。
+is_allowed_type() {
+  type=$1
+
+  for allowed_type in $ALLOWED_TYPES; do
+    if [ "$type" = "$allowed_type" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# scope がプロジェクト規約で許可する文字だけで構成されていることを検証する。
+validate_scope() {
+  scope=$1
+
+  if [ -z "$scope" ]; then
+    reject_commit_message 'scope must not be empty.'
+  fi
+
+  if ! printf '%s\n' "$scope" | grep -Eq '^[A-Za-z0-9._/-]+$'; then
+    reject_commit_message 'scope may contain only letters, numbers, ".", "_", "-", and "/".'
+  fi
+}
+
+# description が空でなく、前後に空白を持たないことを検証する。
+validate_description() {
+  description=$1
+
+  if [ -z "$description" ]; then
+    reject_commit_message 'description must not be empty.'
+  fi
+
+  if printf '%s\n' "$description" | grep -Eq '^[[:space:]]|[[:space:]]$'; then
+    reject_commit_message 'description must not start or end with whitespace.'
+  fi
+}
+
+# Git が生成する既定件名や autosquash 用件名を拒否する。
+reject_disallowed_header() {
+  header=$1
+
+  case "$header" in
+    Merge\ *)
+      reject_commit_message 'merge commit messages are not allowed locally. Use GitHub Pull Request merges.'
+      ;;
+    Revert\ \"*)
+      reject_commit_message 'Git default revert messages are not allowed. Use "revert: <description>".'
+      ;;
+    fixup!\ *|squash!\ *)
+      reject_commit_message 'fixup and squash commit messages are not allowed.'
+      ;;
+  esac
+}
+
+# commit message の先頭行を Conventional Commits として検証する。
+validate_header() {
+  header=$1
+
+  reject_disallowed_header "$header"
+
+  if [ "$header" = "${header%%: *}" ]; then
+    reject_commit_message 'header must contain ": " after the type or scope.'
+  fi
+
+  prefix=${header%%: *}
+  description=${header#*: }
+
+  validate_description "$description"
+
+  case "$prefix" in
+    *!)
+      prefix=${prefix%!}
+      ;;
+  esac
+
+  case "$prefix" in
+    *'('*')')
+      type=${prefix%%(*}
+      scope=${prefix#*(}
+      scope=${scope%)}
+      validate_scope "$scope"
+      ;;
+    *'('*|*')'*)
+      reject_commit_message 'scope must be written as "(scope)" before the colon.'
+      ;;
+    *)
+      type=$prefix
+      ;;
+  esac
+
+  if ! printf '%s\n' "$type" | grep -Eq '^[a-z]+$'; then
+    reject_commit_message 'type must be lowercase letters.'
+  fi
+
+  if ! is_allowed_type "$type"; then
+    reject_commit_message "type \"$type\" is not allowed."
+  fi
+}
+
+# commit-msg hook の実行順序を制御する。
+main() {
+  message_file=${1:-}
+
+  if [ -z "$message_file" ] || [ ! -f "$message_file" ]; then
+    reject_commit_message 'commit message file is not available.'
+  fi
+
+  message=$(git stripspace --strip-comments <"$message_file")
+
+  if [ -z "$message" ]; then
+    reject_commit_message 'commit message must not be empty.'
+  fi
+
+  header=$(printf '%s\n' "$message" | sed -n '1p')
+  validate_header "$header"
+}
+
+main "$@"

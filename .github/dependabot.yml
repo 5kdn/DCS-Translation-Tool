@@ -8,7 +8,6 @@ updates:
 
 # ─────────────────────────────────────────────────────────
 # 1) GitHub Actions のアクション更新を監視
-#    - actions/setup-dotnet や checkout 等のバージョン上げで CI 安定化
 # ─────────────────────────────────────────────────────────
 - package-ecosystem: "github-actions"
   directory: "/"
@@ -18,7 +17,7 @@ updates:
     timezone: "Asia/Tokyo"
   labels:
     - "dependencies"
-    - "CI / GitHub Actions"
+    - "ci"
   commit-message:
     prefix: "chore"
     include: "scope"
@@ -31,21 +30,19 @@ updates:
 - package-ecosystem: "nuget"
   directory: "/"
   schedule:
-    interval: "daily"     # daily / weekly / monthly
-    time: "03:00"
+    interval: "weekly"     # daily / weekly / monthly
+    time: "03:40"
     timezone: "Asia/Tokyo"
-  open-pull-requests-limit: 10
-  pull-request-branch-name:
-    separator: "-"
+  target-branch: "master"
   labels:
     - "dependencies"
-    - "Dependencies / NuGet"
+    - "NuGet"
+  versioning-strategy: increase
+  open-pull-requests-limit: 10
   rebase-strategy: "auto"
   commit-message:
-    prefix: "fix"
-    prefix-development: "chore"
+    prefix: "chore"
     include: "scope"
-
   groups:
     app-core:
       patterns:

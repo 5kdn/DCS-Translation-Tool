@@ -2,85 +2,233 @@
 #
 # summary:
 #   - ブランチ名の命名規則チェック
-#   - lintチェック
-#   - master/main 直接コミット禁止
+#   - master/main への直接コミット禁止
+#   - ローカル merge commit 禁止
+#   - staged 差分のシークレット検出
+#   - .NET のフォーマットとテストの検証
 #
 # notes:
-#   - 緊急時のみ一時解除: ALLOW_DIRECT_COMMIT_TO_PROTECTED=1
-#   - 許可する種別は BRANCH_TYPES で上書き可能（既定は Conventional Commits に概ね対応）
+#   - 保護ブランチへの直接コミットは、緊急時のみ ALLOW_DIRECT_COMMIT_TO_PROTECTED=1 で一時解除可能
+#   - ローカル merge commit は、管理作業時のみ ALLOW_LOCAL_MERGE_COMMIT=1 で一時解除可能
+#   - 許可するブランチ種別は BRANCH_TYPES で上書き可能
+#   - Gitleaks がない環境では Docker を使用
+#   - 事前に dotnet restore --locked-mode を実行する
 #   - 例) git config core.hooksPath .githooks
 #
 
 set -eu
 
-# detached HEAD のときはスキップ
-branch="$(git symbolic-ref --quiet --short HEAD || true)"
-[ -n "${branch}" ] || exit 0
+GITLEAKS_IMAGE='ghcr.io/gitleaks/gitleaks:v8.30.1'
+DEFAULT_BRANCH_TYPES='feat|feature|fix|docs|style|refactor|perf|test|build|ci|chore|revert|dependabot'
 
-# .NET コードフォーマット検証
-if command -v dotnet >/dev/null 2>&1; then
-    echo "INFO: Running dotnet format check..."
-    if ! dotnet format --verify-no-changes >/dev/null 2>&1; then
-        echo "ERROR: dotnet format によるフォーマットチェックに失敗しました。" >&2
-        echo "以下を実行して修正してください:" >&2
-        echo "    dotnet format" >&2
-        exit 1
-    fi
-fi
+# 必須コマンドが実行環境に存在することを検証する。
+require_command() {
+  command_name=$1
 
+  if command -v "$command_name" >/dev/null 2>&1; then
+    return 0
+  fi
 
-dotnet test --no-restore --nologo
-RESULT=$?
-if [ $RESULT -ne 0 ]; then
-  echo "dotnet test failed. Commit aborted."
+  printf '\033[1;31mERROR: 必須コマンドを利用できません: %s\033[0m\n' "$command_name" >&2
   exit 1
-fi
+}
 
-# master/main 直接コミットは禁止（緊急時のみ環境変数で一時解除）
-if [ "${branch}" = "master" ] || [ "${branch}" = "main" ]; then
-    if [ "${ALLOW_DIRECT_COMMIT_TO_PROTECTED:-}" = "1" ]; then
-        echo "WARN: master/main への直接コミットを一時的に許可（環境変数による解除）: ${branch}" >&2
-    else
-        echo "ERROR: master/main ブランチでの直接コミットは禁止されています。" >&2
-    echo "別ブランチで作業し、PR 経由で取り込んでください。" >&2
-    exit 1
+# 現在のブランチ名を取得し、detached HEAD では空文字を返す。
+get_current_branch() {
+  git symbolic-ref --quiet --short HEAD 2>/dev/null || printf ''
+}
+
+# コミット対象の追加・変更・コピー・改名されたファイル一覧を取得する。
+get_staged_files() {
+  git diff --cached --name-only --diff-filter=ACMR
+}
+
+# protected branch への直接コミットを拒否する。
+guard_protected_branch() {
+  branch=$1
+
+  case "$branch" in
+    master|main)
+      if [ "${ALLOW_DIRECT_COMMIT_TO_PROTECTED:-}" = '1' ]; then
+        printf '\033[1;33mWARN: %s への直接コミットを一時的に許可します。\033[0m\n' "$branch" >&2
+        return 0
+      fi
+
+      printf '\033[1;31mERROR: master/main ブランチへの直接コミットは禁止されています。\033[0m\n' >&2
+      printf '別ブランチで作業し、GitHub Pull Request 経由で取り込んでください。\n' >&2
+      printf '管理作業で必要な場合のみ、ALLOW_DIRECT_COMMIT_TO_PROTECTED=1 を設定してください。\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
+# GitHub Pull Request 経由ではないローカル merge commit を拒否する。
+guard_local_merge_commit() {
+  if ! git rev-parse --verify --quiet MERGE_HEAD >/dev/null; then
+    return 0
+  fi
+
+  if [ "${ALLOW_LOCAL_MERGE_COMMIT:-}" = '1' ]; then
+    printf '\033[1;33mWARN: ローカル merge commit を一時的に許可します。\033[0m\n' >&2
+    return 0
+  fi
+
+  printf '\033[1;31mERROR: ローカル merge commit は禁止されています。\033[0m\n' >&2
+  printf 'GitHub Pull Request 経由で merge してください。\n' >&2
+  printf '管理作業で必要な場合のみ、ALLOW_LOCAL_MERGE_COMMIT=1 を設定してください。\n' >&2
+  exit 1
+}
+
+# 指定された type がパイプ区切りの許可一覧に含まれるかを判定する。
+is_allowed_branch_type() {
+  requested_type=$1
+  remaining_types=$2
+
+  while [ -n "$remaining_types" ]; do
+    case "$remaining_types" in
+      *'|'*)
+        allowed_type=${remaining_types%%|*}
+        remaining_types=${remaining_types#*|}
+        ;;
+      *)
+        allowed_type=$remaining_types
+        remaining_types=''
+        ;;
+    esac
+
+    if [ -n "$allowed_type" ] && [ "$requested_type" = "$allowed_type" ]; then
+      return 0
     fi
-fi
+  done
 
-# 許可する種別（| 区切り）。必要に応じて BRANCH_TYPES で上書き。
-TYPES="${BRANCH_TYPES:-feature|fix|docs|style|refactor|perf|test|build|ci|chore|revert}"
+  return 1
+}
 
-# 形式:
-# <type>/<optional-issue>-<slug>
-#  - optional-issue は「123-」または「ABC-123/」等も許可
-#  - 例: feature/123-add-login, fix/ABC-456/fix-npe
-PATTERN="^((${TYPES})/(([A-Z]+-[0-9]+|[0-9]+)[-_/])?|dependabot\-|release\-please\-\-).+$"
+# ブランチ名が自動生成ブランチまたは <type>/<description> 形式であることを検証する。
+validate_branch_name() {
+  branch=$1
+  branch_types=${BRANCH_TYPES:-$DEFAULT_BRANCH_TYPES}
 
-if echo "${branch}" | grep -Eq "${PATTERN}"; then
+  case "$branch" in
+    master|main|release-please--*)
+      return 0
+      ;;
+  esac
+
+  branch_type=${branch%%/*}
+  branch_description=${branch#*/}
+
+  if [ "$branch_type" != "$branch" ] &&
+    [ -n "$branch_type" ] &&
+    [ -n "$branch_description" ] &&
+    is_allowed_branch_type "$branch_type" "$branch_types"; then
+    return 0
+  fi
+
+  printf '\033[1;31mERROR: ブランチ名が命名規則に一致しません: %s\033[0m\n\n' "$branch" >&2
+  printf '許可される形式:\n' >&2
+  printf '  <type>/<description>\n\n' >&2
+  printf '例:\n' >&2
+  printf '  feat/123-add-login\n' >&2
+  printf '  fix/ABC-456/fix-npe\n' >&2
+  printf '  docs/update-readme\n' >&2
+  printf '  dependabot/nuget/package-name-1.2.3\n' >&2
+  printf '  release-please--branches--master\n\n' >&2
+  printf '許可される type: %s\n' "$branch_types" >&2
+  printf 'カスタム type を使用する場合は BRANCH_TYPES をパイプ区切りで設定してください。\n' >&2
+  printf 'ブランチ名は git branch -m <new-branch-name> で変更できます。\n' >&2
+  exit 1
+}
+
+# Gitleaks をローカル実行し、未導入の場合は固定バージョンの Docker image で実行する。
+run_gitleaks_stdin() {
+  if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks --no-banner --redact stdin
+    return
+  fi
+
+  if command -v docker >/dev/null 2>&1; then
+    docker run --rm -i "$GITLEAKS_IMAGE" --no-banner --redact stdin
+    return
+  fi
+
+  printf '\033[1;31mERROR: Gitleaks または Docker を利用できません。\033[0m\n' >&2
+  printf 'Gitleaks をインストールするか、Docker を起動してから再実行してください。\n' >&2
+  return 127
+}
+
+# コミット対象の staged 差分にシークレットが含まれていないことを検証する。
+run_secret_detection() {
+  printf '\033[36m==> staged secret detection\033[0m\n'
+
+  if git diff --cached --no-ext-diff --diff-filter=ACMR | run_gitleaks_stdin; then
+    printf '\033[32m==> success staged secret detection\033[0m\n'
+    return 0
+  else
+    status=$?
+  fi
+
+  if [ "$status" -eq 1 ]; then
+    printf '\033[1;31mERROR: staged 差分にシークレットの疑いがある値が含まれています。\033[0m\n' >&2
+    printf '検出内容を確認し、Secret 管理機構や環境変数参照へ移してください。\n' >&2
+  elif [ "$status" -ne 127 ]; then
+    printf '\033[1;31mERROR: Gitleaks による検査を完了できませんでした (exit %s)。\033[0m\n' "$status" >&2
+    printf 'Gitleaks または Docker の実行環境を確認してください。\n' >&2
+  fi
+
+  exit "$status"
+}
+
+# .NET コードがリポジトリのフォーマット規則に適合することを検証する。
+run_dotnet_format_gate() {
+  printf '\033[36m==> .NET format check\033[0m\n'
+
+  if dotnet format --no-restore --verify-no-changes --verbosity normal; then
+    printf '\033[32m==> success .NET format check\033[0m\n'
+    return 0
+  fi
+
+  printf '\033[1;31mERROR: dotnet format によるフォーマットチェックに失敗しました。\033[0m\n' >&2
+  printf 'dotnet format --no-restore を実行し、修正を stage し直してください。\n' >&2
+  exit 1
+}
+
+# Release 構成で .NET テストが成功することを検証する。
+run_dotnet_test_gate() {
+  printf '\033[36m==> .NET Release tests\033[0m\n'
+
+  if dotnet test -c Release --no-restore --nologo; then
+    printf '\033[32m==> success .NET Release tests\033[0m\n'
+    return 0
+  fi
+
+  printf '\033[1;31mERROR: Release 構成のテストに失敗しました。\033[0m\n' >&2
+  printf 'dotnet test -c Release --no-restore を実行して内容を確認してください。\n' >&2
+  exit 1
+}
+
+# pre-commit hook の実行順序を制御する。
+main() {
+  require_command git
+  require_command dotnet
+
+  branch=$(get_current_branch)
+  guard_local_merge_commit
+
+  if [ -n "$branch" ]; then
+    guard_protected_branch "$branch"
+    validate_branch_name "$branch"
+  fi
+
+  staged_files=$(get_staged_files)
+  if [ -z "$staged_files" ]; then
+    printf '\033[36m==> pre-commit: staged の追加・変更・コピー・改名ファイルはありません\033[0m\n'
     exit 0
-fi
+  fi
 
-cat >&2 <<EOF
-ERROR: ブランチ名が命名規則に一致しません: ${branch}
+  run_secret_detection
+  run_dotnet_format_gate
+  run_dotnet_test_gate
+}
 
-許可される形式の例:
-    - feature/123-short-desc
-    - fix/ABC-456/fix-npe
-    - fix/urgent-rollback
-    - docs/update-readme
-    - style/formatting
-    - refactor/simplify-service
-    - perf/optimize-parser
-    - test/add-integration-tests
-    - build/tweak-dockerfile
-    - ci/gha-cache-tuning
-    - chore/dep-bump
-    - revert/revert-abcdef
-
-カスタム種別を許可するには、環境変数 BRANCH_TYPES を設定してください:
-    BRANCH_TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
-
-ブランチ名の変更:
-    git branch -m <new-branch-name>
-EOF
-exit 1
+main "$@"

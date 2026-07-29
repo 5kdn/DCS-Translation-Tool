@@ -1,16 +1,23 @@
 #!/usr/bin/env sh
 #
-# summary: master/main ブランチへの push 禁止
+# summary:
+#   - master/main ブランチへの push 禁止
+#   - push 前の .NET 品質ゲート実行
 #
 # description:
 #   以下のブランチへの push を禁止します。（PR 経由のみ許可）:
 #   - master
 #   - main
 #
-#   事故復旧など止むを得ない場合のみ、環境変数で一時解除できます:
+#   commit を含む更新では、フォーマット検証と Release ビルド・テストを並列実行します。
+#   削除、同一 object ID、commit を含まない ref のみの場合は品質ゲートを省略します。
+#
+#   事故復旧など止むを得ない場合のみ、環境変数でブランチ保護を一時解除できます:
 #     ALLOW_DIRECT_PUSH_TO_PROTECTED=1 git push origin master
 #
 # notes:
+#   - 一時解除した場合も品質ゲートは実行します。
+#   - 品質ゲート実行前に dotnet restore --locked-mode による依存関係の復元を必要とします。
 #   - サーバー側（GitHub）でもブランチ保護を必ず設定してください
 #     （PR 必須 / force-push 禁止 / ステータスチェック必須 / レビュー必須 / 管理者にも適用）。
 #   - Git for Windows でも動作します。チームには以下の設定を周知してください:
@@ -19,42 +26,175 @@
 
 set -eu
 
-# 緊急オプトアウト（既定はブロック）
-if [ "${ALLOW_DIRECT_PUSH_TO_PROTECTED:-}" = "1" ]; then
-    exit 0
-fi
+ZERO_OBJECT='0000000000000000000000000000000000000000'
+HOOK_TEMP_DIR=''
+PUSH_REFS_FILE=''
+PARALLEL_STEP_COUNT=0
 
-# pre-push は stdin に複数行流れてくる:
-# <local ref> <local sha> <remote ref> <remote sha>
-blocked=0
-blocked_list=""
+# hook 実行用の一時ディレクトリを作成する。
+create_hook_temp_dir() {
+  base_dir=${TMPDIR:-${TMP:-${TEMP:-/tmp}}}
+  counter=0
 
-while read -r local_ref local_sha remote_ref remote_sha; do
+  while [ "$counter" -lt 10 ]; do
+    candidate_dir="$base_dir/pre-push.$$.$counter"
+    if mkdir "$candidate_dir" 2>/dev/null; then
+      HOOK_TEMP_DIR=$candidate_dir
+      PUSH_REFS_FILE="$HOOK_TEMP_DIR/push-refs"
+      return 0
+    fi
+
+    counter=$((counter + 1))
+  done
+
+  printf '\033[1;31mERROR: hook 実行用の一時ディレクトリを作成できませんでした。\033[0m\n' >&2
+  exit 1
+}
+
+# hook 実行中に作成した一時ディレクトリを削除する。
+cleanup_hook_temp_dir() {
+  if [ -n "$HOOK_TEMP_DIR" ] && [ -d "$HOOK_TEMP_DIR" ]; then
+    rm -rf "$HOOK_TEMP_DIR"
+  fi
+}
+
+# 必須コマンドが実行環境に存在することを検証する。
+require_command() {
+  command_name=$1
+
+  if command -v "$command_name" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  printf '\033[1;31mERROR: 必須コマンドを利用できません: %s\033[0m\n' "$command_name" >&2
+  exit 1
+}
+
+# 指定された処理をバックグラウンドで実行し、結果表示用の情報を記録する。
+run_parallel_step() {
+  label=$1
+  shift
+
+  PARALLEL_STEP_COUNT=$((PARALLEL_STEP_COUNT + 1))
+  log_file="$HOOK_TEMP_DIR/step-$PARALLEL_STEP_COUNT.log"
+
+  printf '\033[36m==> start %s\033[0m\n' "$label"
+  ( "$@" ) >"$log_file" 2>&1 &
+  pid=$!
+
+  printf '%s\t%s\t%s\n' "$pid" "$label" "$log_file" >>"$HOOK_TEMP_DIR/steps"
+}
+
+# 並列実行した処理をすべて待機し、各処理のログと結果を表示する。
+wait_parallel_steps() {
+  status=0
+  tab=$(printf '\t')
+
+  while IFS="$tab" read -r pid label log_file; do
+    [ -n "$pid" ] || continue
+
+    if wait "$pid"; then
+      step_status=0
+    else
+      step_status=$?
+      status=1
+    fi
+
+    printf '\033[36m==> log %s\033[0m\n' "$label"
+    if [ -s "$log_file" ]; then
+      cat "$log_file"
+    fi
+
+    if [ "$step_status" -eq 0 ]; then
+      printf '\033[32m==> success %s\033[0m\n' "$label"
+    else
+      printf '\033[1;31m==> failure %s (exit %s)\033[0m\n' "$label" "$step_status" >&2
+    fi
+  done <"$HOOK_TEMP_DIR/steps"
+
+  return "$status"
+}
+
+# protected branch への直接 push を検出して拒否する。
+guard_protected_branch_push() {
+  push_refs_file=$1
+  remote_name=$2
+  remote_url=$3
+
+  if [ "${ALLOW_DIRECT_PUSH_TO_PROTECTED:-}" = '1' ]; then
+    printf '\033[1;33mWARN: master/main への直接 push を一時的に許可します。\033[0m\n' >&2
+    return 0
+  fi
+
+  while read -r local_ref local_object remote_ref remote_object; do
     case "${remote_ref:-}" in
-    refs/heads/master|refs/heads/main)
-        blocked=1
-        blocked_list="${blocked_list}${remote_ref}\n"
-        ;;
-    *)
-        # refs/tags/*（タグ）は許可
-        :
+      refs/heads/master|refs/heads/main)
+        printf '\033[1;31mERROR: master/main ブランチへの直接 push は禁止されています。\033[0m\n' >&2
+        printf '別ブランチへ push し、GitHub Pull Request 経由で merge してください。\n' >&2
+        printf 'remote: %s %s\n' "$remote_name" "$remote_url" >&2
+        printf '管理作業で必要な場合のみ、ALLOW_DIRECT_PUSH_TO_PROTECTED=1 を設定してください。\n' >&2
+        return 1
         ;;
     esac
-done
+  done <"$push_refs_file"
+}
 
-if [ "${blocked}" -eq 1 ]; then
-    {
-        echo "ERROR: master/main ブランチへの push は禁止されています。"
-        echo "別ブランチへ push し、Pull Request を作成してください。"
-        echo
-        echo "ブロック対象の参照:"
-        # 空行を除去し、行頭に箇条書きマーカーを付与
-        printf %b "${blocked_list}" | sed '/^$/d; s/^/  - /'
-        echo
-        echo "※緊急時のみ一時解除可: ALLOW_DIRECT_PUSH_TO_PROTECTED=1 git push <remote> <branch>"
-        echo "※サーバー側のブランチ保護も必ず有効化してください。"
-    } >&2
-    exit 1
-fi
+# ref 一覧に品質ゲートを必要とする commit 更新が含まれるかを判定する。
+has_commit_update() {
+  push_refs_file=$1
 
-exit 0
+  while read -r local_ref local_object remote_ref remote_object; do
+    [ -n "${local_ref:-}" ] || continue
+    [ "$local_ref" != '(delete)' ] || continue
+    [ "${local_object:-}" != "$ZERO_OBJECT" ] || continue
+
+    if ! git cat-file -e "$local_object" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    git rev-parse --verify --quiet "$local_object^{commit}" >/dev/null 2>&1 || continue
+    [ "$local_object" = "${remote_object:-}" ] && continue
+    return 0
+  done <"$push_refs_file"
+
+  return 1
+}
+
+# Release 構成をビルドし、すべての単体テストを実行する。
+run_release_build_and_tests() {
+  dotnet build -c Release --no-restore &&
+    dotnet test -c Release --no-build --no-restore
+}
+
+# CI 相当の .NET 品質ゲートを並列実行する。
+run_repository_gates() {
+  run_parallel_step '.NET format check' dotnet format --no-restore --verify-no-changes
+  run_parallel_step '.NET Release build and tests' run_release_build_and_tests
+  wait_parallel_steps
+}
+
+# pre-push hook の実行順序を制御する。
+main() {
+  remote_name=${1:-}
+  remote_url=${2:-}
+
+  create_hook_temp_dir
+  trap cleanup_hook_temp_dir EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  cat >"$PUSH_REFS_FILE"
+
+  guard_protected_branch_push "$PUSH_REFS_FILE" "$remote_name" "$remote_url"
+
+  require_command git
+  if ! has_commit_update "$PUSH_REFS_FILE"; then
+    printf '\033[36m==> pre-push: 検証対象の commit 更新はありません (%s %s)\033[0m\n' "$remote_name" "$remote_url"
+    exit 0
+  fi
+
+  require_command dotnet
+  run_repository_gates
+}
+
+main "$@"
