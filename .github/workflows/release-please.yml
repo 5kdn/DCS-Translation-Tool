@@ -24,7 +24,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Run Release Please
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         id: rp
         with:
           # see also https://github.com/googleapis/release-please-action#release-types-supported
