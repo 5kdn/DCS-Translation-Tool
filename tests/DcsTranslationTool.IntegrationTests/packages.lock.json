@@ -699,15 +699,15 @@
       },
       "MaterialDesignColors": {
         "type": "Transitive",
-        "resolved": "5.3.1",
-        "contentHash": "QtVKQnA+3c/tAC2gdBDZcOdGBe/nIsQUVpaea10nmatUwuZRYVoRXMd0VqgwmYHpyxv/5vWy+z6l0HgNgZMs2w=="
+        "resolved": "5.3.2",
+        "contentHash": "ru09iYhsnGcTI/La30zuzSeg/DXwvdFgDfvG17XU+/+XkIY915YiQFStZlykui5vpWzMEtyADh2c2T7CodrGrg=="
       },
       "MaterialDesignThemes": {
         "type": "Transitive",
-        "resolved": "5.3.1",
-        "contentHash": "IjsWlh22m2jRQEMwlg5LIDZLsSEgeROyBQU7yMjqOQATx1ls/dZoLxDcLgwjNMbO2LcGPsHAeY1Q9tjKkN45ig==",
+        "resolved": "5.3.2",
+        "contentHash": "G/aQKjpxcwQt7aZ3JzGX64gr1CzsJK7vtm+l57zpejCs6GebWN4MZ536PHLWpyrgrLySrKxPSjSlWCw2A1HWig==",
         "dependencies": {
-          "MaterialDesignColors": "5.3.1",
+          "MaterialDesignColors": "5.3.2",
           "Microsoft.Xaml.Behaviors.Wpf": "1.1.77"
         }
       },
@@ -815,18 +815,18 @@
       },
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
-        "resolved": "10.0.5",
-        "contentHash": "y4noWO5q8tav8I/JyOhuWxII+1KrXCLuhjXdP1GRd3PvVf/IlgL+eQlikp9DyCrybQxS/0ZO7Me/X6c22MjSaQ==",
+        "resolved": "10.0.10",
+        "contentHash": "58JwZ39lCvRXHfV5O6RQfbHEDu8ZsXI7weRoVRR4jrGRxxkS+qyeuGrN2xD+9VYEICApYr0iTSL6PuU+DdsvPg==",
         "dependencies": {
-          "Microsoft.Data.Sqlite.Core": "10.0.5",
+          "Microsoft.Data.Sqlite.Core": "10.0.10",
           "SQLitePCLRaw.bundle_e_sqlite3": "2.1.11",
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
       "Microsoft.Data.Sqlite.Core": {
         "type": "Transitive",
-        "resolved": "10.0.5",
-        "contentHash": "jFYXnh7s0RShCw6Vkf+ReGCw+mVi7ISg1YaEzYCJcXnUifmbW+aqvCsRJuSRj2ZuQ+oqetpjxlZtbpMmk5FKqQ==",
+        "resolved": "10.0.10",
+        "contentHash": "TPCs0ldm7AWqcKmp6f/Xr+14sat7hx4rHfRlS4RgCURBH2thEWbAKEyX7cCWr63zVJVOJIJZTg2cBiUXa8ys6g==",
         "dependencies": {
           "SQLitePCLRaw.core": "2.1.11"
         }
@@ -1190,8 +1190,8 @@
       },
       "NLog": {
         "type": "Transitive",
-        "resolved": "6.1.1",
-        "contentHash": "TCIwfAQX2IpZDnqs/+c5jCPnveCG8M6/wFmUk2odjRl0xiocfe4B+4qIvRbVbazSxcS28+Zu14pFeRJE9yAQAQ=="
+        "resolved": "6.1.4",
+        "contentHash": "ft6Lv17uoFuHTGWiY47FEXH7VA5HMHp973zodaOZAJyFg6mHL9RdXjqdNkRJXFo5plQJR+LPt5e6aAZU8KSDog=="
       },
       "NSwag.Core": {
         "type": "Transitive",
@@ -1888,7 +1888,7 @@
           "DcsTranslationTool.Domain": "[1.0.0, )",
           "DcsTranslationTool.Shared": "[1.0.0, )",
           "FluentResults": "[4.0.0, )",
-          "Microsoft.Data.Sqlite": "[10.0.5, )",
+          "Microsoft.Data.Sqlite": "[10.0.10, )",
           "Microsoft.Kiota.Abstractions": "[2.0.0, )",
           "Microsoft.Kiota.Http.HttpClientLibrary": "[2.0.0, )",
           "Microsoft.Kiota.Serialization.Form": "[2.0.0, )",
@@ -1896,7 +1896,7 @@
           "Microsoft.Kiota.Serialization.Multipart": "[2.0.0, )",
           "Microsoft.Kiota.Serialization.Text": "[2.0.0, )",
           "MoonSharp": "[2.0.0, )",
-          "NLog": "[6.1.1, )",
+          "NLog": "[6.1.4, )",
           "UTF.Unknown": "[2.6.0, )"
         }
       },
@@ -1908,7 +1908,7 @@
           "DcsTranslationTool.Composition": "[1.0.0, )",
           "DcsTranslationTool.Resources": "[1.0.0, )",
           "DcsTranslationTool.Shared": "[1.0.0, )",
-          "MaterialDesignThemes": "[5.3.1, )",
+          "MaterialDesignThemes": "[5.3.2, )",
           "Microsoft.Xaml.Behaviors.Wpf": "[1.1.135, )",
           "MoonSharp": "[2.0.0, )"
         }
