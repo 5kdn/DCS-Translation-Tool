@@ -1,14 +1,40 @@
 # ------------------------------------------------------------
 # Workflow Name : Publish to GitHub Release
-# Trigger       : release type publish
+# Trigger       : workflow_call / workflow_dispatch
 # Purpose       :
-#   - releaseに対してAssetを追加
+#   - draft releaseにAssetを追加し、検証後に公開
 # ------------------------------------------------------------
 name: Publish to GitHub Release
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      release-tag:
+        description: Assetを追加するdraft Releaseのtag
+        required: true
+        type: string
+      release-sha:
+        description: Release PleaseがReleaseを作成したcommit SHA
+        required: true
+        type: string
+    secrets:
+      PAT:
+        description: Immutable Releases設定を確認するためのAdministration read権限を持つtoken
+        required: true
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: 再実行するdraft Releaseのtag
+        required: true
+        type: string
+      release-sha:
+        description: Releaseのcommit SHA（空の場合はtagから解決）
+        required: false
+        type: string
+
+concurrency:
+  group: publish-release-${{ inputs['release-tag'] }}
+  cancel-in-progress: false
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -18,13 +44,92 @@ env:
   TARGET_PROJECT: src/DcsTranslationTool.Presentation.Wpf/DcsTranslationTool.Presentation.Wpf.csproj
 
 jobs:
-  Release:
-    name: Release
+  prepare:
+    name: Prepare release
     runs-on: windows-latest
     permissions:
-      actions: write
-      contents: write
+      contents: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      mode: ${{ steps.release.outputs.mode }}
+    steps:
+      - name: Validate immutable draft release
+        id: release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.PAT }}
+          RELEASE_TAG: ${{ inputs['release-tag'] }}
+          RELEASE_SHA: ${{ inputs['release-sha'] }}
+        run: |
+          gh release verify --help | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw 'GitHub CLI does not support immutable release verification.'
+          }
+
+          $immutabilityJson = gh api `
+            -H 'Accept: application/vnd.github+json' `
+            -H 'X-GitHub-Api-Version: 2026-03-10' `
+            "repos/$env:GITHUB_REPOSITORY/immutable-releases"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Immutable Releases is disabled, or PAT lacks Administration read permission.'
+          }
+          $immutability = $immutabilityJson | ConvertFrom-Json
+          if (-not $immutability.enabled) {
+            throw 'Immutable Releases must be enabled before publishing a release.'
+          }
+
+          $tag = $env:RELEASE_TAG
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw 'release-tag is empty.'
+          }
+          if ($tag -notmatch '^[vV](?<ver>[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9._-]+)?)$') {
+            throw "tag '${tag}' does not match expected pattern 'v1.2.3[-prerelease]'."
+          }
+          $version = $Matches['ver']
+
+          $releaseJson = gh release view $tag --json isDraft,isImmutable,tagName
+          if ($LASTEXITCODE -ne 0) {
+            throw "release '${tag}' was not found."
+          }
+
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.isDraft) {
+            $mode = 'publish'
+          } elseif ($release.isImmutable) {
+            $mode = 'verify'
+          } else {
+            throw "release '${tag}' is published but not immutable."
+          }
+          if ($release.tagName -cne $tag) {
+            throw "release tag '$($release.tagName)' does not match requested tag '${tag}'."
+          }
+
+          $resolvedSha = gh api "repos/$env:GITHUB_REPOSITORY/commits/$tag" --jq '.sha'
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resolvedSha)) {
+            throw "failed to resolve commit SHA for tag '${tag}'."
+          }
+
+          $requestedSha = $env:RELEASE_SHA
+          if (-not [string]::IsNullOrWhiteSpace($requestedSha) -and $requestedSha -cne $resolvedSha) {
+            throw "release SHA '${requestedSha}' does not match tag SHA '${resolvedSha}'."
+          }
+
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "sha=$resolvedSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "mode=$mode" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+  release:
+    name: Build ${{ matrix.rid }}
+    needs: prepare
+    if: ${{ needs.prepare.outputs.mode == 'publish' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
         dotnet-version: ["8.0.x"]
         rid: ["win-x64", "win-x86"]
@@ -32,25 +137,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-
-      # tag_name の安全抽出と検証 → $env:VERSION に渡す
-      - name: Derive VERSION from tag_name securely
-        id: ver
-        shell: pwsh
-        run: |
-          $tag = '${{ github.event.release.tag_name }}'
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            throw 'release.tag_name is empty'
-          }
-          # 先頭の v/V を許可。SemVer + 追加のプリリリース/ビルドを限定文字で許可
-          if ($tag -notmatch '^[vV](?<ver>[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9._-]+)?)$') {
-            throw "tag '${tag}' does not match expected pattern 'v1.2.3[-prerelease]'"
-          }
-          $version = $Matches['ver']  # 1.2.3[…]
-          # 追加のガード: 改行や空白、シェル特殊文字を拒否
-          if ($version -match '[\s`"''$&|<>]') { throw 'invalid chars in version' }
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "VERSION=$version"
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Setup .NET ${{ matrix.dotnet-version }}
         uses: actions/setup-dotnet@v6
@@ -65,7 +153,7 @@ jobs:
 
       - name: Restore
         shell: pwsh
-        run:  dotnet restore -r ${{ matrix.rid }}
+        run:  dotnet restore ${{ env.TARGET_PROJECT }} --locked-mode
 
       - name: Publish
         shell: pwsh
@@ -89,7 +177,7 @@ jobs:
       - name: Generate third-party notices
         shell: pwsh
         run: |
-          dotnet tool install -g nuget-license
+          dotnet tool install -g nuget-license --version 4.0.15
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
           # 出力先を当該 RID の publish フォルダへ
           $outDir = "publish/${{ matrix.rid }}"
@@ -106,7 +194,7 @@ jobs:
         run: |
           $pubDir  = "publish/${{ matrix.rid }}"
           $stage   = "package/${{ matrix.rid }}"   # ZIP 直前のステージング
-          $dest    = "${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip"
+          $dest    = "${{ env.APP_NAME }}-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip"
 
           if (-not (Test-Path $pubDir)) {
             throw "publish directory not found: $pubDir"
@@ -151,11 +239,159 @@ jobs:
           $shaFile = "$dest.sha256"
           Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
 
-      - name: Attach assets to the current Release
-        uses: softprops/action-gh-release@v3
+      - name: Store release assets
+        uses: actions/upload-artifact@v7
         with:
-          files: |
-            ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip
-            ${{ env.APP_NAME }}-${{ steps.ver.outputs.version }}-${{ matrix.rid }}.zip.sha256
+          name: release-assets-${{ matrix.rid }}
+          path: |
+            ${{ env.APP_NAME }}-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip
+            ${{ env.APP_NAME }}-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  publish:
+    name: Publish or verify release
+    needs: [prepare, release]
+    if: ${{ always() && needs.prepare.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
+    runs-on: windows-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Publish or verify immutable release
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_MODE: ${{ needs.prepare.outputs.mode }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $mode = $env:RELEASE_MODE
+          $tag = $env:RELEASE_TAG
+          $version = $env:RELEASE_VERSION
+          if ($mode -notin @('publish', 'verify')) {
+            throw "unsupported release mode '${mode}'."
+          }
+
+          $assetDirectory = Join-Path $env:GITHUB_WORKSPACE 'release-assets'
+          New-Item -ItemType Directory -Force -Path $assetDirectory | Out-Null
+          if ($mode -eq 'publish') {
+            foreach ($artifactName in @('release-assets-win-x64', 'release-assets-win-x86')) {
+              gh run download $env:GITHUB_RUN_ID --name $artifactName --dir $assetDirectory
+              if ($LASTEXITCODE -ne 0) {
+                throw "failed to download workflow artifact '${artifactName}'."
+              }
+            }
+          } else {
+            gh release download $tag --dir $assetDirectory
+            if ($LASTEXITCODE -ne 0) {
+              throw "failed to download assets from immutable release '${tag}'."
+            }
+          }
+
+          $expected = @(
+            "${{ env.APP_NAME }}-$version-win-x64.zip",
+            "${{ env.APP_NAME }}-$version-win-x64.zip.sha256",
+            "${{ env.APP_NAME }}-$version-win-x86.zip",
+            "${{ env.APP_NAME }}-$version-win-x86.zip.sha256"
+          ) | Sort-Object
+          $actual = @(
+            Get-ChildItem -LiteralPath $assetDirectory -File |
+              ForEach-Object { $_.Name } |
+              Sort-Object
+          )
+          $differences = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual)
+          if ($differences.Count -ne 0) {
+            throw "release assets do not match the expected set. Actual: $($actual -join ', ')"
+          }
+
+          $assetPaths = @()
+          $localDigests = @{}
+          foreach ($name in $expected) {
+            $path = Join-Path $assetDirectory $name
+            $assetPaths += $path
+            $localDigests[$name] = "sha256:$((Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLowerInvariant())"
+          }
+
+          foreach ($rid in @('win-x64', 'win-x86')) {
+            $zipName = "${{ env.APP_NAME }}-$version-$rid.zip"
+            $zipPath = Join-Path $assetDirectory $zipName
+            $shaPath = "$zipPath.sha256"
+            $checksum = Get-Content -Raw -Path $shaPath
+            if ($checksum -notmatch '^(?<hash>[A-Fa-f0-9]{64})  (?<file>[^\r\n]+)\s*$') {
+              throw "invalid SHA256 file format: $shaPath"
+            }
+            $expectedHash = $Matches['hash'].ToUpperInvariant()
+            $referencedFile = $Matches['file']
+            if ($referencedFile -cne $zipName) {
+              throw "SHA256 file references '${referencedFile}' instead of '${zipName}'."
+            }
+
+            $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
+            if ($actualHash -cne $expectedHash) {
+              throw "SHA256 mismatch for asset '${zipName}'."
+            }
+          }
+
+          if ($mode -eq 'publish') {
+            gh release upload $tag @assetPaths --clobber
+            if ($LASTEXITCODE -ne 0) {
+              throw "failed to upload assets to draft release '${tag}'."
+            }
+          }
+
+          $releaseJson = gh release view $tag --json assets,isDraft
+          if ($LASTEXITCODE -ne 0) {
+            throw "failed to read release '${tag}'."
+          }
+          $release = $releaseJson | ConvertFrom-Json
+          if ($mode -eq 'publish' -and -not $release.isDraft) {
+            throw "release '${tag}' was published before asset verification completed."
+          }
+
+          $remoteNames = @($release.assets | ForEach-Object { $_.name } | Sort-Object)
+          $differences = @(Compare-Object -ReferenceObject $expected -DifferenceObject $remoteNames)
+          if ($differences.Count -ne 0) {
+            throw "release assets do not match the expected set. Actual: $($remoteNames -join ', ')"
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.digest -cne $localDigests[$asset.name]) {
+              throw "uploaded digest mismatch for asset '$($asset.name)'."
+            }
+          }
+
+          if ($mode -eq 'publish') {
+            gh release edit $tag --draft=false
+            if ($LASTEXITCODE -ne 0) {
+              throw "failed to publish release '${tag}'."
+            }
+          }
+
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            $release = gh release view $tag --json isDraft,isImmutable | ConvertFrom-Json
+            if (-not $release.isDraft -and $release.isImmutable) {
+              gh release verify $tag
+              $verified = $LASTEXITCODE -eq 0
+              if ($verified) {
+                foreach ($assetPath in $assetPaths) {
+                  gh release verify-asset $tag $assetPath
+                  if ($LASTEXITCODE -ne 0) {
+                    $verified = $false
+                    break
+                  }
+                }
+              }
+
+              if ($verified) {
+                Write-Host "Release '${tag}' is published, immutable, and verified."
+                return
+              }
+            }
+
+            if ($attempt -lt 12) {
+              Start-Sleep -Seconds 5
+            }
+          }
+
+          throw "immutable release verification did not succeed for '${tag}'."
