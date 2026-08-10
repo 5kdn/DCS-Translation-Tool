@@ -23,10 +23,14 @@ public static class CompositionRegistration {
     public static void Register( SimpleContainer c ) {
         var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly() ?? typeof( CompositionRegistration ).Assembly;
         var title = ResolveAssemblyTitle( assembly ) ?? "DcsTranslationTool";
+#if E2E_TESTING
+        var saveDir = ApplicationUpdateE2eConfiguration.Load().UserDataDirectory;
+#else
         var saveDir = Path.Combine(
                 Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData ),
                 title
             );
+#endif
         const string fileName = "appsettings.json";
         var loggingOptions = CreateLoggingOptions();
         NLog.LogManager.Configuration = LoggingService.BuildConfiguration( loggingOptions );
@@ -46,9 +50,13 @@ public static class CompositionRegistration {
         c.Singleton<ITranslationDictionaryService, TranslationDictionaryService>();
         c.Singleton<IZipService, ZipService>();
         c.Singleton<IEnvironmentProvider, EnvironmentProvider>();
-        c.Singleton<IProcessLauncher, ProcessLauncher>();
+        var processLauncher = new ProcessLauncher();
+        c.Instance<IProcessLauncher>( processLauncher );
         c.Singleton<ISystemService, SystemService>();
         c.Singleton<IUpdateCheckService, UpdateCheckService>();
+        var updatePackageService = new ApplicationUpdatePackageService( loggingService );
+        c.Instance( updatePackageService );
+        c.Instance<IApplicationUpdateService>( new ApplicationUpdateService( updatePackageService, loggingService, processLauncher ) );
     }
 
     /// <summary>

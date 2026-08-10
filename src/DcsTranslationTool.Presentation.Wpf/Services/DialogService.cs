@@ -1,11 +1,13 @@
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.CreatePullRequest;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Views;
+using DcsTranslationTool.Resources;
 
 using MaterialDesignThemes.Wpf;
 
@@ -55,6 +57,20 @@ public sealed class DialogService(
         };
         logger.Info( $"確認ダイアログが閉じられた。Result={dialogResult}" );
         return dialogResult;
+    }
+
+    /// <inheritdoc />
+    public async Task<FluentResults.Result<ApplicationUpdateStageResult>> ApplicationUpdateProgressDialogShowAsync(
+        ApplicationUpdateProgressDialogParameters parameters
+    ) {
+        ArgumentNullException.ThrowIfNull( parameters );
+        using(parameters) {
+            var dialog = new ApplicationUpdateProgressDialog { DataContext = parameters };
+            var result = await DialogHost.Show( dialog, "RootDialogHost" );
+            return result as FluentResults.Result<ApplicationUpdateStageResult>
+                ?? FluentResults.Result.Fail<ApplicationUpdateStageResult>(
+                    Strings_Shared.ResourceManager.GetString( "ApplicationUpdateCanceledMessage" ) ?? "ApplicationUpdateCanceledMessage" );
+        }
     }
 
     /// <inheritdoc/>

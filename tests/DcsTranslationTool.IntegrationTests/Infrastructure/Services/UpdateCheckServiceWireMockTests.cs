@@ -36,7 +36,22 @@ public sealed class UpdateCheckServiceWireMockTests {
                           "tag_name": "v1.4.0",
                           "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
                           "draft": false,
-                          "prerelease": false
+                          "prerelease": false,
+                          "immutable": true,
+                          "assets": [
+                            {
+                              "name": "DCS-Translation-Tool-1.4.0-win-x64.zip",
+                              "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip",
+                              "size": 1024,
+                              "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                            },
+                            {
+                              "name": "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
+                              "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
+                              "size": 128,
+                              "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                            }
+                          ]
                         }
                         """ ) );
 

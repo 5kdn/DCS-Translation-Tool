@@ -9,6 +9,8 @@ using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 using DcsTranslationTool.Presentation.Wpf.Shell;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Shared.Models;
 
 using MaterialDesignThemes.Wpf;
@@ -19,6 +21,44 @@ namespace DcsTranslationTool.Presentation.Wpf.UnitTests.Shell;
 
 /// <summary>ShellViewModel のナビゲーション挙動を検証するテストを提供する。</summary>
 public sealed class ShellViewModelTests {
+    /// <summary>補助ウィンドウが終了を拒否した場合は更新適用プロセスを開始しないことを検証する。</summary>
+    [StaFact]
+    public async Task ConfirmRestartAsyncは補助ウィンドウが終了を拒否した場合に更新を起動しない() {
+        var appSettingsService = new Mock<IAppSettingsService>();
+        appSettingsService.SetupGet( service => service.Settings ).Returns( new AppSettings() );
+        var applicationUpdateService = new Mock<IApplicationUpdateService>();
+        var dialogService = new Mock<IDialogService>();
+        dialogService.Setup( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .ReturnsAsync( ConfirmationDialogResult.Confirm );
+        var restartCoordinator = new Mock<IApplicationRestartCoordinator>();
+        restartCoordinator.Setup( service => service.PrepareForRestartAsync( It.IsAny<CancellationToken>() ) ).ReturnsAsync( false );
+        var viewModel = new ShellViewModel(
+            appSettingsService.Object,
+            Mock.Of<IEventAggregator>(),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<INavigationService>(),
+            Mock.Of<ISnackbarService>(),
+            Mock.Of<ISystemService>(),
+            Mock.Of<IUpdateCheckService>(),
+            applicationUpdateService.Object,
+            dialogService.Object,
+            restartCoordinator.Object );
+        var stageResult = new ApplicationUpdateStageResult(
+            @"C:\updates\workspace",
+            @"C:\updates\workspace\staging",
+            new Version( 1, 4, 0 ),
+            "win-x64",
+            ApplicationUpdateAssetKind.Full,
+            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0" );
+        var method = typeof( ShellViewModel ).GetMethod( "ConfirmRestartAsync", BindingFlags.Instance | BindingFlags.NonPublic );
+
+        await (Task)method!.Invoke( viewModel, [stageResult] )!;
+
+        applicationUpdateService.Verify(
+            service => service.LaunchApplyProcess( It.IsAny<ApplicationUpdateStageResult>(), It.IsAny<int>() ),
+            Times.Never );
+    }
+
     /// <summary>ActivateAsync を呼び出した際の初期ナビゲーションと Snackbar 通知を検証する。</summary>
     [StaFact]
     public async Task ActivateAsyncを呼び出すと初期ナビゲーションと設定不足を通知する() {

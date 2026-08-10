@@ -43,6 +43,8 @@ public class Bootstrapper : BootstrapperBase {
         container.Singleton<IDialogService, DialogService>();
         container.Singleton<IDialogProvider, DialogProvider>();
         container.Singleton<IDispatcherService, DispatcherService>();
+        container.Singleton<IApplicationWindowProvider, ApplicationWindowProvider>();
+        container.Singleton<IApplicationRestartCoordinator, ApplicationRestartCoordinator>();
         container.Singleton<IEntryApplyService, EntryApplyService>();
         container.Singleton<IRepoOnlySyncService, RepoOnlySyncService>();
         container.Singleton<IApplyWorkflowService, ApplyWorkflowService>();
@@ -77,6 +79,28 @@ public class Bootstrapper : BootstrapperBase {
 
     protected override async void OnStartup( object sender, StartupEventArgs e ) {
         loggingService?.Info( "起動" );
+        if(e.Args is ["--apply-update", var requestPath]) {
+            var updateService = container!.GetInstance<IApplicationUpdateService>();
+            var applyResult = await updateService.ApplyPreparedUpdateAsync( requestPath );
+            if(applyResult.IsFailed) {
+                loggingService?.Error( $"更新専用モードに失敗した。Errors={string.Join( "; ", applyResult.Errors.Select( error => error.Message ) )}" );
+                MessageBox.Show(
+                    string.Format(
+                        DcsTranslationTool.Resources.Strings_Shared.ResourceManager.GetString( "ApplicationUpdateApplyFailureMessageFormat" ) ?? "{0}",
+                        string.Join( Environment.NewLine, applyResult.Errors.Select( error => error.Message ) ) ),
+                    DcsTranslationTool.Resources.Strings_Shared.ResourceManager.GetString( "ApplicationUpdateApplyFailureTitle" ) ?? "DCS Translation Tool",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error );
+            }
+            System.Windows.Application.Current.Shutdown( applyResult.IsSuccess ? 0 : 1 );
+            return;
+        }
+
+        var cleanupResult = container!.GetInstance<IApplicationUpdateService>().CleanupCompletedUpdates();
+        if(cleanupResult.IsFailed) {
+            loggingService?.Warn( $"完了済み更新のクリーンアップを継続できなかった。Errors={string.Join( "; ", cleanupResult.Errors.Select( error => error.Message ) )}" );
+        }
+
         var shellView = new ShellView();
         var frameAdapter = new FrameAdapter( shellView.RootFrame, true );
         container!.Instance<INavigationService>( frameAdapter );

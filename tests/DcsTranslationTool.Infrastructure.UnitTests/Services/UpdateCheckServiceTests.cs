@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Infrastructure.Services;
 using DcsTranslationTool.TestCommon.Http;
 
@@ -27,7 +28,34 @@ public sealed class UpdateCheckServiceTests {
                   "tag_name": "v1.4.0",
                   "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
                   "draft": false,
-                  "prerelease": false
+                  "prerelease": false,
+                  "immutable": true,
+                  "assets": [
+                    {
+                      "name": "DCS-Translation-Tool-1.4.0-win-x64.zip",
+                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip",
+                      "size": 120000000,
+                      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    },
+                    {
+                      "name": "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
+                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
+                      "size": 120,
+                      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                    },
+                    {
+                      "name": "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip",
+                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip",
+                      "size": 20000000,
+                      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    },
+                    {
+                      "name": "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip.sha256",
+                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip.sha256",
+                      "size": 120,
+                      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                    }
+                  ]
                 }
                 """,
                 Encoding.UTF8,
@@ -35,13 +63,19 @@ public sealed class UpdateCheckServiceTests {
             } );
         } );
 
-        var sut = new UpdateCheckService( appInfoServiceMock.Object, loggerMock.Object, httpClient );
+        var sut = new UpdateCheckService( appInfoServiceMock.Object, loggerMock.Object, httpClient, "win-x64" );
 
         var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
 
         Assert.True( result.IsUpdateAvailable );
         Assert.Equal( "v1.4.0", result.LatestVersionLabel );
         Assert.Equal( "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0", result.ReleaseUrl );
+        Assert.True( result.IsImmutable );
+        Assert.Equal( "win-x64", result.RuntimeIdentifier );
+        Assert.Equal( "DCS-Translation-Tool-1.4.0-win-x64.zip", result.FullAsset?.Name );
+        Assert.Equal( "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256", result.FullAsset?.Checksum.Name );
+        Assert.Equal( "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip", result.DeltaAsset?.Name );
+        Assert.Equal( ApplicationUpdateAssetKind.Delta, result.PreferredAsset?.Kind );
     }
 
     [Fact]
