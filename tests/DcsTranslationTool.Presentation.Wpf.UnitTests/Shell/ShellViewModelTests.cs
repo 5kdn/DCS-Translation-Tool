@@ -21,6 +21,70 @@ namespace DcsTranslationTool.Presentation.Wpf.UnitTests.Shell;
 
 /// <summary>ShellViewModel のナビゲーション挙動を検証するテストを提供する。</summary>
 public sealed class ShellViewModelTests {
+    /// <summary>ダウンロード確認では更新方式を表示せず、ダウンロード操作を強調することを検証する。</summary>
+    [StaFact]
+    public async Task ExecuteApplicationUpdateAsyncは更新方式を表示せずダウンロードを強調する() {
+        var appSettingsService = new Mock<IAppSettingsService>();
+        appSettingsService.SetupGet( service => service.Settings ).Returns( new AppSettings() );
+        ConfirmationDialogParameters? capturedParameters = null;
+        var dialogService = new Mock<IDialogService>();
+        dialogService
+            .Setup( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .Callback<ConfirmationDialogParameters>( parameters => capturedParameters = parameters )
+            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+        var viewModel = new ShellViewModel(
+            appSettingsService.Object,
+            Mock.Of<IEventAggregator>(),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<INavigationService>(),
+            Mock.Of<ISnackbarService>(),
+            Mock.Of<ISystemService>(),
+            Mock.Of<IUpdateCheckService>(),
+            Mock.Of<IApplicationUpdateService>(),
+            dialogService.Object );
+        var update = CreateUpdateCheckResult();
+        var method = typeof( ShellViewModel ).GetMethod( "ExecuteApplicationUpdateAsync", BindingFlags.Instance | BindingFlags.NonPublic );
+
+        await (Task)method!.Invoke( viewModel, [update] )!;
+
+        Assert.NotNull( capturedParameters );
+        Assert.DoesNotContain( "種類:", capturedParameters.Message, StringComparison.Ordinal );
+    }
+
+    /// <summary>更新準備の失敗時は次の操作を案内し、ボタンを指定順で強調することを検証する。</summary>
+    [StaFact]
+    public async Task HandleUpdateFailureAsyncは再試行と手動更新を案内する() {
+        var appSettingsService = new Mock<IAppSettingsService>();
+        appSettingsService.SetupGet( service => service.Settings ).Returns( new AppSettings() );
+        ConfirmationDialogParameters? capturedParameters = null;
+        var dialogService = new Mock<IDialogService>();
+        dialogService
+            .Setup( service => service.ConfirmationDialogShowAsync( It.IsAny<ConfirmationDialogParameters>() ) )
+            .Callback<ConfirmationDialogParameters>( parameters => capturedParameters = parameters )
+            .ReturnsAsync( ConfirmationDialogResult.Cancel );
+        var viewModel = new ShellViewModel(
+            appSettingsService.Object,
+            Mock.Of<IEventAggregator>(),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<INavigationService>(),
+            Mock.Of<ISnackbarService>(),
+            Mock.Of<ISystemService>(),
+            Mock.Of<IUpdateCheckService>(),
+            Mock.Of<IApplicationUpdateService>(),
+            dialogService.Object );
+        var method = typeof( ShellViewModel ).GetMethod( "HandleUpdateFailureAsync", BindingFlags.Instance | BindingFlags.NonPublic );
+
+        await (Task)method!.Invoke( viewModel, [CreateUpdateCheckResult()] )!;
+
+        Assert.NotNull( capturedParameters );
+        Assert.Equal( "自動更新に失敗しました", capturedParameters.Title );
+        Assert.Contains( "再試行", capturedParameters.Message, StringComparison.Ordinal );
+        Assert.Contains( "リリースページ", capturedParameters.Message, StringComparison.Ordinal );
+        Assert.Equal(
+            [ConfirmationDialogResult.Confirm, ConfirmationDialogResult.Secondary, ConfirmationDialogResult.Cancel],
+            capturedParameters.ButtonOrder );
+    }
+
     /// <summary>補助ウィンドウが終了を拒否した場合は更新適用プロセスを開始しないことを検証する。</summary>
     [StaFact]
     public async Task ConfirmRestartAsyncは補助ウィンドウが終了を拒否した場合に更新を起動しない() {
@@ -525,5 +589,29 @@ public sealed class ShellViewModelTests {
     private static NavigationEventArgs CreateNavigatedEventArgs() {
         var ctor = typeof( NavigationEventArgs ).GetConstructors( BindingFlags.Instance | BindingFlags.NonPublic ).Single();
         return (NavigationEventArgs)ctor.Invoke( [null, null, null, null, null, false] );
+    }
+
+    /// <summary>ダウンロード確認用の更新結果を作成する。</summary>
+    private static UpdateCheckResult CreateUpdateCheckResult() {
+        var checksum = new ApplicationUpdateChecksumAsset( "update.zip.sha256", "https://example.test/update.zip.sha256", 512 * 1024, "checksum" );
+        var asset = new ApplicationUpdateAsset(
+            "update.zip",
+            "https://example.test/update.zip",
+            9 * 1024 * 1024,
+            "digest",
+            ApplicationUpdateAssetKind.Full,
+            null,
+            new Version( 1, 2, 0 ),
+            checksum );
+        return new UpdateCheckResult(
+            true,
+            new Version( 1, 0, 0 ),
+            new Version( 1, 2, 0 ),
+            "v1.2.0",
+            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.2.0",
+            "win-x64",
+            true,
+            asset,
+            [] );
     }
 }

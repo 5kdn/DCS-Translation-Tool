@@ -235,15 +235,13 @@ public class ShellViewModel(
 
         this._applicationUpdateInProgress = true;
         try {
-            var assetKind = update.PreferredAssetKind == ApplicationUpdateAssetKind.Delta
-                ? GetResourceString( "ApplicationUpdateDeltaLabel" )
-                : GetResourceString( "ApplicationUpdateFullLabel" );
             var confirmResult = await dialogService.ConfirmationDialogShowAsync( new ConfirmationDialogParameters
             {
                 AutomationId = "ApplicationUpdateDownloadConfirmationDialog",
                 Title = GetResourceString( "ApplicationUpdateDialogTitle" ),
-                Message = string.Format( GetResourceString( "ApplicationUpdateDownloadMessageFormat" ), update.LatestVersionLabel, assetKind, FormatFileSize( update.PreferredDownloadSize ) ),
+                Message = string.Format( GetResourceString( "ApplicationUpdateDownloadMessageFormat" ), update.LatestVersionLabel, FormatFileSize( update.PreferredDownloadSize ) ),
                 ConfirmButtonText = GetResourceString( "ApplicationUpdateDownloadButton" ),
+                ConfirmButtonStyleKey = "MaterialDesignRaisedButton",
                 CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" )
             } );
             if(confirmResult != ConfirmationDialogResult.Confirm) {
@@ -283,7 +281,14 @@ public class ShellViewModel(
             Message = string.Format( GetResourceString( "ApplicationUpdateRestartMessageFormat" ), stageResult.TargetVersion.ToString( 3 ) ),
             ConfirmButtonText = GetResourceString( "ApplicationUpdateRestartNowButton" ),
             SecondaryButtonText = GetResourceString( "ApplicationUpdateLaterButton" ),
-            CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" )
+            CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" ),
+            ConfirmButtonStyleKey = "MaterialDesignRaisedButton",
+            SecondaryButtonStyleKey = "MaterialDesignRaisedButton",
+            ButtonOrder = [
+                ConfirmationDialogResult.Confirm,
+                ConfirmationDialogResult.Secondary,
+                ConfirmationDialogResult.Cancel
+            ]
         } );
         if(restartResult == ConfirmationDialogResult.Secondary) {
             return;
@@ -341,8 +346,15 @@ public class ShellViewModel(
             Title = GetResourceString( "ApplicationUpdateFailureTitle" ),
             Message = GetResourceString( "ApplicationUpdateFailureMessage" ),
             ConfirmButtonText = GetResourceString( "ApplicationUpdateRetryButton" ),
+            ConfirmButtonStyleKey = "MaterialDesignRaisedButton",
             SecondaryButtonText = GetResourceString( "ApplicationUpdateReleasePageButton" ),
-            CancelButtonText = GetResourceString( "ApplicationUpdateCloseButton" )
+            SecondaryButtonStyleKey = "MaterialDesignRaisedButton",
+            CancelButtonText = GetResourceString( "ApplicationUpdateCloseButton" ),
+            ButtonOrder = [
+                ConfirmationDialogResult.Confirm,
+                ConfirmationDialogResult.Secondary,
+                ConfirmationDialogResult.Cancel
+            ]
         } );
         if(failureResult == ConfirmationDialogResult.Confirm) {
             this._applicationUpdateInProgress = false;

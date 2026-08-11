@@ -69,7 +69,7 @@ public sealed class ApplicationUpdateEndToEndTests {
             var downloadDialog = await WaitForElementAsync( desktop, "ApplicationUpdateDownloadConfirmationDialog", UiTimeout );
             var downloadMessage = await WaitForElementAsync( downloadDialog, "ConfirmationDialogMessage", UiTimeout );
             Assert.Contains( "v1.2.0", downloadMessage.Name, StringComparison.Ordinal );
-            Assert.Contains( "差分", downloadMessage.Name, StringComparison.Ordinal );
+            Assert.DoesNotContain( "種類:", downloadMessage.Name, StringComparison.Ordinal );
             var downloadButton = await WaitForElementAsync( downloadDialog, "ConfirmationDialogRightButton", UiTimeout );
             downloadButton.AsButton().Invoke();
 
@@ -164,7 +164,7 @@ public sealed class ApplicationUpdateEndToEndTests {
             (await WaitForElementAsync( downloadDialog, "ConfirmationDialogRightButton", UiTimeout )).AsButton().Invoke();
 
             var restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
-            (await WaitForElementAsync( restartDialog, "ConfirmationDialogCenterButton", UiTimeout )).AsButton().Invoke();
+            (await WaitForElementAsync( restartDialog, "ConfirmationDialogLeftButton", UiTimeout )).AsButton().Invoke();
             await WaitForAsync<object>(
                 () => FindElement( desktop, "ApplicationUpdateRestartConfirmationDialog" ) is null ? new object() : null,
                 UiTimeout,
