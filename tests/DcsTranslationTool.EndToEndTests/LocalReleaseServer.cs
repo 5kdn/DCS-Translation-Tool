@@ -46,8 +46,16 @@ internal sealed class LocalReleaseServer( string runtimeIdentifier, string asset
         } );
         application.MapGet(
             "/repos/5kdn/DCS-Translation-Tool/releases/latest",
-            () => Results.Json( this.CreateReleasePayload() ) );
-        application.MapGet( "/releases/v1.1.0", () => Results.Text( "v1.1.0" ) );
+            () => Results.Json( this.CreateReleasePayload( "1.2.0", "1.1.0" ) ) );
+        application.MapGet(
+            "/repos/5kdn/DCS-Translation-Tool/releases",
+            () => Results.Json( new[]
+            {
+                this.CreateReleasePayload( "1.2.0", "1.1.0" ),
+                this.CreateReleasePayload( "1.1.0", "1.0.0" ),
+                this.CreateStableReleasePayload( "1.0.0" )
+            } ) );
+        application.MapGet( "/releases/v1.2.0", () => Results.Text( "v1.2.0" ) );
         application.MapGet( "/assets/{fileName}", this.DownloadAssetAsync );
         await application.StartAsync( cancellationToken );
 
@@ -86,13 +94,15 @@ internal sealed class LocalReleaseServer( string runtimeIdentifier, string asset
     /// <summary>
     /// Immutable Release相当のJSONペイロードを生成する。
     /// </summary>
+    /// <param name="version">Releaseバージョン。</param>
+    /// <param name="baseVersion">差分の基準バージョン。</param>
     /// <returns>Release APIへ返すオブジェクトを返す。</returns>
-    private object CreateReleasePayload() {
-        var fullName = $"DCS-Translation-Tool-1.1.0-{this._runtimeIdentifier}.zip";
-        var deltaName = $"DCS-Translation-Tool-1.0.0-to-1.1.0-{this._runtimeIdentifier}.delta.zip";
+    private object CreateReleasePayload( string version, string baseVersion ) {
+        var fullName = $"DCS-Translation-Tool-{version}-{this._runtimeIdentifier}.zip";
+        var deltaName = $"DCS-Translation-Tool-{baseVersion}-to-{version}-{this._runtimeIdentifier}.delta.zip";
         return new {
-            tag_name = "v1.1.0",
-            html_url = new Uri( this.BaseUri, "releases/v1.1.0" ).AbsoluteUri,
+            tag_name = $"v{version}",
+            html_url = new Uri( this.BaseUri, $"releases/v{version}" ).AbsoluteUri,
             draft = false,
             prerelease = false,
             immutable = true,
@@ -105,6 +115,20 @@ internal sealed class LocalReleaseServer( string runtimeIdentifier, string asset
             }
         };
     }
+
+    /// <summary>
+    /// アセットを参照しない安定したImmutable ReleaseのJSONペイロードを生成する。
+    /// </summary>
+    /// <param name="version">Releaseバージョン。</param>
+    /// <returns>Release APIへ返すオブジェクトを返す。</returns>
+    private object CreateStableReleasePayload( string version ) => new {
+        tag_name = $"v{version}",
+        html_url = new Uri( this.BaseUri, $"releases/v{version}" ).AbsoluteUri,
+        draft = false,
+        prerelease = false,
+        immutable = true,
+        assets = Array.Empty<object>()
+    };
 
     /// <summary>
     /// Release APIのasset要素を生成する。

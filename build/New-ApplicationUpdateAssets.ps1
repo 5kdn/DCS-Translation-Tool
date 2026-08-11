@@ -50,7 +50,14 @@ $manifestName = 'update-manifest.json'
 $entryPoint = 'DCS-Translation-Tool.exe'
 $stage = [IO.Path]::GetFullPath($StageDirectory)
 $output = [IO.Path]::GetFullPath($OutputDirectory)
+$targetVersionValue = $null
+if (-not [Version]::TryParse($TargetVersion, [ref] $targetVersionValue)) {
+    throw "target version is invalid: $TargetVersion"
+}
 New-Item -ItemType Directory -Force -Path $output | Out-Null
+$targetDeltaPattern = "$applicationName-*-to-$TargetVersion-$RuntimeIdentifier.delta.zip*"
+Get-ChildItem -LiteralPath $output -File -Filter $targetDeltaPattern -ErrorAction SilentlyContinue |
+    Remove-Item -Force
 
 <#
 .SYNOPSIS
@@ -177,6 +184,16 @@ try {
         $baseManifest.runtimeIdentifier -cne $RuntimeIdentifier -or
         $baseManifest.entryPoint -cne $entryPoint) {
         Write-Host 'Base manifest is incompatible; delta is omitted.'
+        return
+    }
+
+    $baseVersionValue = $null
+    if (-not [Version]::TryParse([string] $baseManifest.version, [ref] $baseVersionValue)) {
+        Write-Host 'Base manifest version is invalid; delta is omitted.'
+        return
+    }
+    if ($baseVersionValue.Major -ne $targetVersionValue.Major) {
+        Write-Host "Base and target major versions differ; delta is omitted. Base=$($baseManifest.version), Target=$TargetVersion"
         return
     }
 

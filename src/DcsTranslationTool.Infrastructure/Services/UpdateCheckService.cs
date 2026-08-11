@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -26,6 +27,8 @@ public sealed partial class UpdateCheckService(
     private const string GitHubMediaType = "application/vnd.github+json";
     private const string UserAgent = "DCS-Translation-Tool";
     private const string AssetNamePrefix = "DCS-Translation-Tool";
+    private const int ReleasesPerPage = 100;
+    private const int MaximumReleasePages = 10;
 
     private readonly HttpClient _httpClient = InitializeHttpClient( httpClient );
     private readonly string? _runtimeIdentifier = runtimeIdentifier ?? ResolveRuntimeIdentifier();
@@ -85,15 +88,16 @@ public sealed partial class UpdateCheckService(
                 return UpdateCheckResult.NoUpdate;
             }
 
-            var deltaAssetName = $"{AssetNamePrefix}-{FormatVersion( currentVersion )}-to-{FormatVersion( latestVersion )}-{this._runtimeIdentifier}.delta.zip";
-            var deltaAsset = ResolveAsset(
-                payload.Assets,
-                deltaAssetName,
-                ApplicationUpdateAssetKind.Delta,
-                currentVersion,
-                latestVersion );
-            logger.Info( $"更新を検出した。Current={currentVersion}, Latest={latestVersionLabel}" );
-            return new UpdateCheckResult(
+            IReadOnlyList<ApplicationUpdateAsset> deltaAssets = [];
+            if(currentVersion.Major == latestVersion.Major) {
+                deltaAssets = await this.ResolveDeltaChainAsync(
+                    currentVersion,
+                    latestVersion,
+                    payload,
+                    cancellationToken ).ConfigureAwait( false );
+            }
+
+            var result = new UpdateCheckResult(
                 true,
                 currentVersion,
                 latestVersion,
@@ -102,7 +106,12 @@ public sealed partial class UpdateCheckService(
                 this._runtimeIdentifier,
                 true,
                 fullAsset,
-                deltaAsset );
+                deltaAssets );
+            logger.Info(
+                $"更新を検出した。Current={currentVersion}, Latest={latestVersionLabel}, " +
+                $"DeltaCount={deltaAssets.Count}, DeltaBytes={result.DeltaDownloadSize}, " +
+                $"FullBytes={result.FullDownloadSize}, Preferred={result.PreferredAssetKind}, Reason={result.SelectionReason}" );
+            return result;
         }
         catch(TaskCanceledException ex) when(!cancellationToken.IsCancellationRequested) {
             logger.Warn( "更新確認 API 呼び出しがタイムアウトしたため通知を行わない。", ex );
@@ -158,11 +167,23 @@ public sealed partial class UpdateCheckService(
         Version? baseVersion,
         Version targetVersion
     ) {
-        var asset = assets?.SingleOrDefault( item => string.Equals( item.Name, expectedName, StringComparison.Ordinal ) );
+        var matchingAssets = assets?
+            .Where( item => string.Equals( item.Name, expectedName, StringComparison.Ordinal ) )
+            .Take( 2 )
+            .ToArray();
         var checksumName = $"{expectedName}.sha256";
-        var checksumAsset = assets?.SingleOrDefault( item => string.Equals( item.Name, checksumName, StringComparison.Ordinal ) );
-        if(asset is null || asset.Size <= 0 || !IsValidSha256Digest( asset.Digest ) ||
-            checksumAsset is null || checksumAsset.Size <= 0 || !IsValidSha256Digest( checksumAsset.Digest )) {
+        var matchingChecksumAssets = assets?
+            .Where( item => string.Equals( item.Name, checksumName, StringComparison.Ordinal ) )
+            .Take( 2 )
+            .ToArray();
+        if(matchingAssets?.Length != 1 || matchingChecksumAssets?.Length != 1) {
+            return null;
+        }
+
+        var asset = matchingAssets[0];
+        var checksumAsset = matchingChecksumAssets[0];
+        if(asset.Size <= 0 || !IsValidSha256Digest( asset.Digest ) ||
+            checksumAsset.Size <= 0 || !IsValidSha256Digest( checksumAsset.Digest )) {
             return null;
         }
 
@@ -186,6 +207,150 @@ public sealed partial class UpdateCheckService(
                 checksumDownloadUri.AbsoluteUri,
                 checksumAsset.Size,
                 checksumAsset.Digest! ) );
+    }
+
+    /// <summary>
+    /// Release履歴から現在版と最新版を結ぶ連続した差分アセットを解決する。
+    /// </summary>
+    private async Task<IReadOnlyList<ApplicationUpdateAsset>> ResolveDeltaChainAsync(
+        Version currentVersion,
+        Version latestVersion,
+        GitHubReleasePayload latestRelease,
+        CancellationToken cancellationToken
+    ) {
+        var releasesByVersion = new Dictionary<string, VersionedRelease>( StringComparer.Ordinal )
+        {
+            [FormatVersion( latestVersion )] = new( latestVersion, latestRelease )
+        };
+        var currentReleaseFound = false;
+
+        try {
+            for(var page = 1; page <= MaximumReleasePages; page++) {
+                var requestUri =
+                    $"repos/{ApplicationRepository.Owner}/{ApplicationRepository.Repo}/releases?per_page={ReleasesPerPage}&page={page}";
+                using var request = new HttpRequestMessage( HttpMethod.Get, requestUri );
+                request.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( GitHubMediaType ) );
+                using var response = await this._httpClient.SendAsync( request, cancellationToken ).ConfigureAwait( false );
+                if(!response.IsSuccessStatusCode) {
+                    logger.Warn( $"Release履歴の取得に失敗したため完全版を使用する。StatusCode={(int)response.StatusCode}, Page={page}" );
+                    return [];
+                }
+
+                var releases = await response.Content
+                    .ReadFromJsonAsync<IReadOnlyList<GitHubReleasePayload>>( cancellationToken )
+                    .ConfigureAwait( false );
+                if(releases is null) {
+                    logger.Warn( "Release履歴のレスポンスが不正なため完全版を使用する。" );
+                    return [];
+                }
+
+                foreach(var release in releases) {
+                    if(string.IsNullOrWhiteSpace( release.TagName ) ||
+                        !TryNormalizeVersion( release.TagName, out var releaseVersion ) ||
+                        releaseVersion.Major != currentVersion.Major ||
+                        releaseVersion < currentVersion || releaseVersion > latestVersion) {
+                        continue;
+                    }
+
+                    var key = FormatVersion( releaseVersion );
+                    if(release.Draft || release.Prerelease || !release.Immutable) {
+                        logger.Info( $"更新区間内に信頼できないReleaseがあるため完全版を使用する。Version={key}" );
+                        return [];
+                    }
+
+                    if(releaseVersion == currentVersion) {
+                        currentReleaseFound = true;
+                        continue;
+                    }
+
+                    if(releaseVersion == latestVersion) {
+                        continue;
+                    }
+
+                    if(!releasesByVersion.TryAdd( key, new VersionedRelease( releaseVersion, release ) )) {
+                        logger.Warn( $"同一バージョンのReleaseが複数存在するため完全版を使用する。Version={key}" );
+                        return [];
+                    }
+
+                    if(releasesByVersion.Count > UpdateCheckResult.MaximumDeltaChainLength) {
+                        logger.Info( $"差分チェーンが上限を超えるため完全版を使用する。Count={releasesByVersion.Count}" );
+                        return [];
+                    }
+                }
+
+                if(currentReleaseFound) {
+                    break;
+                }
+
+                if(releases.Count < ReleasesPerPage) {
+                    break;
+                }
+
+                if(page == MaximumReleasePages) {
+                    logger.Warn( $"Release履歴が取得上限を超えたため完全版を使用する。Pages={MaximumReleasePages}" );
+                    return [];
+                }
+            }
+        }
+        catch(TaskCanceledException ex) when(!cancellationToken.IsCancellationRequested) {
+            logger.Warn( "Release履歴の取得がタイムアウトしたため完全版を使用する。", ex );
+            return [];
+        }
+        catch(HttpRequestException ex) {
+            logger.Warn( "Release履歴の取得に失敗したため完全版を使用する。", ex );
+            return [];
+        }
+        catch(Exception ex) when(ex is JsonException or NotSupportedException) {
+            logger.Warn( "Release履歴を解釈できないため完全版を使用する。", ex );
+            return [];
+        }
+
+        if(!currentReleaseFound) {
+            logger.Info( $"現在版の安定したImmutable Releaseを確認できないため完全版を使用する。Current={FormatVersion( currentVersion )}" );
+            return [];
+        }
+
+        var orderedReleases = releasesByVersion.Values
+            .OrderBy( item => item.Version )
+            .ToArray();
+        if(orderedReleases.Length is 0 or > UpdateCheckResult.MaximumDeltaChainLength) {
+            return [];
+        }
+
+        var expectedBaseVersion = currentVersion;
+        var deltaAssets = new List<ApplicationUpdateAsset>( orderedReleases.Length );
+        foreach(var release in orderedReleases) {
+            var deltaAsset = ResolveDeltaAsset( release.Release, expectedBaseVersion, release.Version );
+            if(deltaAsset is null) {
+                logger.Info(
+                    $"連続する差分アセットがないため完全版を使用する。Base={FormatVersion( expectedBaseVersion )}, " +
+                    $"Target={FormatVersion( release.Version )}" );
+                return [];
+            }
+
+            deltaAssets.Add( deltaAsset );
+            expectedBaseVersion = release.Version;
+        }
+
+        return deltaAssets;
+    }
+
+    /// <summary>
+    /// 指定した基準版と更新先に対応するRID別の差分アセットを解決する。
+    /// </summary>
+    private ApplicationUpdateAsset? ResolveDeltaAsset(
+        GitHubReleasePayload release,
+        Version baseVersion,
+        Version targetVersion
+    ) {
+        var expectedName =
+            $"{AssetNamePrefix}-{FormatVersion( baseVersion )}-to-{FormatVersion( targetVersion )}-{this._runtimeIdentifier}.delta.zip";
+        return ResolveAsset(
+            release.Assets,
+            expectedName,
+            ApplicationUpdateAssetKind.Delta,
+            baseVersion,
+            targetVersion );
     }
 
     private static bool IsValidSha256Digest( string? digest ) =>
@@ -257,4 +422,9 @@ public sealed partial class UpdateCheckService(
         [property: JsonPropertyName( "size" )] long Size,
         [property: JsonPropertyName( "digest" )] string? Digest
     );
+
+    /// <summary>
+    /// 正規化済みバージョンとRelease情報の組を表す。
+    /// </summary>
+    private sealed record VersionedRelease( Version Version, GitHubReleasePayload Release );
 }

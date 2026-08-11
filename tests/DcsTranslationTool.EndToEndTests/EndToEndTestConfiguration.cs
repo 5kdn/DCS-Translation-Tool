@@ -8,6 +8,7 @@ internal sealed record EndToEndTestConfiguration(
     string ArtifactsDirectory,
     string DiagnosticsDirectory,
     string BasePackagePath,
+    string IntermediateAssetsDirectory,
     string TargetAssetsDirectory
 ) {
     private const string RuntimeIdentifierEnvironmentVariable = "DCS_TRANSLATION_TOOL_E2E_RID";
@@ -31,8 +32,11 @@ internal sealed record EndToEndTestConfiguration(
             artifactsDirectory,
             "base-assets",
             $"DCS-Translation-Tool-1.0.0-{runtimeIdentifier}.zip" );
+        var intermediateAssetsDirectory = Path.Combine( artifactsDirectory, "intermediate-assets" );
         var targetAssetsDirectory = Path.Combine( artifactsDirectory, "target-assets" );
-        if(!File.Exists( basePackagePath ) || !Directory.Exists( targetAssetsDirectory )) {
+        if(!File.Exists( basePackagePath ) ||
+            !Directory.Exists( intermediateAssetsDirectory ) ||
+            !Directory.Exists( targetAssetsDirectory )) {
             throw new InvalidOperationException( "E2E update assets have not been generated." );
         }
 
@@ -42,6 +46,7 @@ internal sealed record EndToEndTestConfiguration(
             artifactsDirectory,
             diagnosticsDirectory,
             basePackagePath,
+            intermediateAssetsDirectory,
             targetAssetsDirectory );
     }
 

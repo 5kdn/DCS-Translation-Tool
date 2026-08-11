@@ -3,8 +3,8 @@
 publish済みWPFアプリケーションを使用して更新E2Eテストを実行する。
 
 .DESCRIPTION
-指定RIDについて1.0.0と1.1.0のE2E専用自己完結publishを生成し、既存の更新アセット生成処理で
-完全版と差分版を作成する。生成後、FlaUI UIA3とlocalhost Releaseサーバーを使用する専用xUnit
+指定RIDについて1.0.0、1.1.0、1.2.0のE2E専用自己完結publishを生成し、既存の更新アセット生成処理で
+完全版と隣接バージョン間の差分版を作成する。生成後、FlaUI UIA3とlocalhost Releaseサーバーを使用する専用xUnit
 プロジェクトを実行する。出力先はリポジトリ内のartifacts/e2e配下に限定する。
 
 .PARAMETER RuntimeIdentifier
@@ -48,11 +48,14 @@ if (Test-Path -LiteralPath $output) {
 
 $baseStage = Join-Path $output 'base-stage'
 $baseAssets = Join-Path $output 'base-assets'
+$intermediateStage = Join-Path $output 'intermediate-stage'
+$intermediateAssets = Join-Path $output 'intermediate-assets'
 $targetStage = Join-Path $output 'target-stage'
 $targetAssets = Join-Path $output 'target-assets'
+$majorBoundaryAssets = Join-Path $output 'major-boundary-assets'
 $diagnostics = Join-Path $output 'diagnostics'
 $testResults = Join-Path $output 'test-results'
-New-Item -ItemType Directory -Force -Path $baseStage, $baseAssets, $targetStage, $targetAssets, $diagnostics, $testResults | Out-Null
+New-Item -ItemType Directory -Force -Path $baseStage, $baseAssets, $intermediateStage, $intermediateAssets, $targetStage, $targetAssets, $majorBoundaryAssets, $diagnostics, $testResults | Out-Null
 
 $applicationProject = Join-Path $repoRoot 'src\DcsTranslationTool.Presentation.Wpf\DcsTranslationTool.Presentation.Wpf.csproj'
 $e2eProject = Join-Path $repoRoot 'tests\DcsTranslationTool.EndToEndTests\DcsTranslationTool.EndToEndTests.csproj'
@@ -84,21 +87,59 @@ if ($LASTEXITCODE -ne 0) { throw 'Base application publish failed.' }
     -r $RuntimeIdentifier `
     --self-contained true `
     --no-restore `
-    -o $targetStage `
+    -o $intermediateStage `
     '-p:E2ETesting=true' `
     '-p:Version=1.1.0' `
     '-p:PublishSingleFile=false' `
     '-p:PublishTrimmed=false' `
     '-p:PublishReadyToRun=false'
-if ($LASTEXITCODE -ne 0) { throw 'Target application publish failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Intermediate application publish failed.' }
 
 $basePackage = Join-Path $baseAssets "DCS-Translation-Tool-1.0.0-$RuntimeIdentifier.zip"
 & (Join-Path $PSScriptRoot 'New-ApplicationUpdateAssets.ps1') `
-    -StageDirectory $targetStage `
+    -StageDirectory $intermediateStage `
     -TargetVersion '1.1.0' `
     -RuntimeIdentifier $RuntimeIdentifier `
-    -OutputDirectory $targetAssets `
+    -OutputDirectory $intermediateAssets `
     -BasePackagePath $basePackage
+
+& dotnet publish $applicationProject `
+    -c Release `
+    -r $RuntimeIdentifier `
+    --self-contained true `
+    --no-restore `
+    -o $targetStage `
+    '-p:E2ETesting=true' `
+    '-p:Version=1.2.0' `
+    '-p:PublishSingleFile=false' `
+    '-p:PublishTrimmed=false' `
+    '-p:PublishReadyToRun=false'
+if ($LASTEXITCODE -ne 0) { throw 'Target application publish failed.' }
+
+$intermediatePackage = Join-Path $intermediateAssets "DCS-Translation-Tool-1.1.0-$RuntimeIdentifier.zip"
+& (Join-Path $PSScriptRoot 'New-ApplicationUpdateAssets.ps1') `
+    -StageDirectory $targetStage `
+    -TargetVersion '1.2.0' `
+    -RuntimeIdentifier $RuntimeIdentifier `
+    -OutputDirectory $targetAssets `
+    -BasePackagePath $intermediatePackage
+
+$staleMajorDelta = Join-Path $majorBoundaryAssets "DCS-Translation-Tool-1.2.0-to-2.0.0-$RuntimeIdentifier.delta.zip"
+New-Item -ItemType File -Force -Path $staleMajorDelta, "$staleMajorDelta.sha256" | Out-Null
+& (Join-Path $PSScriptRoot 'New-ApplicationUpdateAssets.ps1') `
+    -StageDirectory $targetStage `
+    -TargetVersion '2.0.0' `
+    -RuntimeIdentifier $RuntimeIdentifier `
+    -OutputDirectory $majorBoundaryAssets `
+    -BasePackagePath $intermediatePackage
+$majorFullPackage = Join-Path $majorBoundaryAssets "DCS-Translation-Tool-2.0.0-$RuntimeIdentifier.zip"
+if (-not (Test-Path -LiteralPath $majorFullPackage -PathType Leaf) -or
+    -not (Test-Path -LiteralPath "$majorFullPackage.sha256" -PathType Leaf)) {
+    throw 'Major-boundary full assets were not generated.'
+}
+if (@(Get-ChildItem -LiteralPath $majorBoundaryAssets -File -Filter '*.delta.zip*').Count -ne 0) {
+    throw 'Major-boundary delta assets were not removed.'
+}
 
 & dotnet restore $e2eProject --locked-mode
 if ($LASTEXITCODE -ne 0) { throw 'E2E test restore failed.' }

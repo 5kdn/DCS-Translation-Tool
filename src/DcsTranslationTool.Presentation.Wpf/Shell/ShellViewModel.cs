@@ -229,21 +229,20 @@ public class ShellViewModel(
     }
 
     private async Task ExecuteApplicationUpdateAsync( UpdateCheckResult update ) {
-        if(this._applicationUpdateInProgress || applicationUpdateService is null || dialogService is null || update.PreferredAsset is null) {
+        if(this._applicationUpdateInProgress || applicationUpdateService is null || dialogService is null || update.PreferredAssets.Count == 0) {
             return;
         }
 
         this._applicationUpdateInProgress = true;
         try {
-            var asset = update.PreferredAsset;
-            var assetKind = asset.Kind == ApplicationUpdateAssetKind.Delta
+            var assetKind = update.PreferredAssetKind == ApplicationUpdateAssetKind.Delta
                 ? GetResourceString( "ApplicationUpdateDeltaLabel" )
                 : GetResourceString( "ApplicationUpdateFullLabel" );
             var confirmResult = await dialogService.ConfirmationDialogShowAsync( new ConfirmationDialogParameters
             {
                 AutomationId = "ApplicationUpdateDownloadConfirmationDialog",
                 Title = GetResourceString( "ApplicationUpdateDialogTitle" ),
-                Message = string.Format( GetResourceString( "ApplicationUpdateDownloadMessageFormat" ), update.LatestVersionLabel, assetKind, FormatFileSize( asset.Size ) ),
+                Message = string.Format( GetResourceString( "ApplicationUpdateDownloadMessageFormat" ), update.LatestVersionLabel, assetKind, FormatFileSize( update.PreferredDownloadSize ) ),
                 ConfirmButtonText = GetResourceString( "ApplicationUpdateDownloadButton" ),
                 CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" )
             } );

@@ -61,7 +61,7 @@ public sealed class ApplicationUpdateEndToEndTests {
 
             var downloadDialog = await WaitForElementAsync( desktop, "ApplicationUpdateDownloadConfirmationDialog", UiTimeout );
             var downloadMessage = await WaitForElementAsync( downloadDialog, "ConfirmationDialogMessage", UiTimeout );
-            Assert.Contains( "v1.1.0", downloadMessage.Name, StringComparison.Ordinal );
+            Assert.Contains( "v1.2.0", downloadMessage.Name, StringComparison.Ordinal );
             Assert.Contains( "差分", downloadMessage.Name, StringComparison.Ordinal );
             var downloadButton = await WaitForElementAsync( downloadDialog, "ConfirmationDialogRightButton", UiTimeout );
             downloadButton.AsButton().Invoke();
@@ -90,7 +90,7 @@ public sealed class ApplicationUpdateEndToEndTests {
 
             var restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
             var restartMessage = await WaitForElementAsync( restartDialog, "ConfirmationDialogMessage", UiTimeout );
-            Assert.Contains( "1.1.0", restartMessage.Name, StringComparison.Ordinal );
+            Assert.Contains( "1.2.0", restartMessage.Name, StringComparison.Ordinal );
             var restartButton = await WaitForElementAsync( restartDialog, "ConfirmationDialogRightButton", UiTimeout );
             restartButton.AsButton().Invoke();
 
@@ -103,7 +103,7 @@ public sealed class ApplicationUpdateEndToEndTests {
             restartedApplication = FlaApplication.Attach( restartedProcess );
             currentWindow = await WaitForMainWindowAsync( restartedApplication, automation, UiTimeout );
             Assert.Equal( "MainWindow", currentWindow.Properties.AutomationId.ValueOrDefault );
-            Assert.Equal( new Version( 1, 1, 0, 0 ), NormalizeVersion( FileVersionInfo.GetVersionInfo( workspace.ApplicationExecutablePath ).FileVersion ) );
+            Assert.Equal( new Version( 1, 2, 0, 0 ), NormalizeVersion( FileVersionInfo.GetVersionInfo( workspace.ApplicationExecutablePath ).FileVersion ) );
 
             workspace.AssertTargetManifest();
             workspace.AssertPreservedFiles();
@@ -297,18 +297,26 @@ public sealed class ApplicationUpdateEndToEndTests {
         string runtimeIdentifier,
         bool corruptDelta
     ) {
-        var deltaPath = $"/assets/DCS-Translation-Tool-1.0.0-to-1.1.0-{runtimeIdentifier}.delta.zip";
-        var fullPath = $"/assets/DCS-Translation-Tool-1.1.0-{runtimeIdentifier}.zip";
-        var deltaSidecarPath = $"{deltaPath}.sha256";
+        var firstDeltaPath = $"/assets/DCS-Translation-Tool-1.0.0-to-1.1.0-{runtimeIdentifier}.delta.zip";
+        var secondDeltaPath = $"/assets/DCS-Translation-Tool-1.1.0-to-1.2.0-{runtimeIdentifier}.delta.zip";
+        var fullPath = $"/assets/DCS-Translation-Tool-1.2.0-{runtimeIdentifier}.zip";
+        var firstDeltaSidecarPath = $"{firstDeltaPath}.sha256";
+        var secondDeltaSidecarPath = $"{secondDeltaPath}.sha256";
         var fullSidecarPath = $"{fullPath}.sha256";
         var orderedRequests = requests.ToArray();
-        Assert.Equal( 1, orderedRequests.Count( path => path == deltaPath ) );
-        Assert.Equal( 1, orderedRequests.Count( path => path == deltaSidecarPath ) );
+        Assert.Equal( 1, orderedRequests.Count( path => path == "/repos/5kdn/DCS-Translation-Tool/releases" ) );
+        Assert.Equal( 1, orderedRequests.Count( path => path == firstDeltaPath ) );
+        Assert.Equal( 1, orderedRequests.Count( path => path == firstDeltaSidecarPath ) );
+        Assert.Equal( 1, orderedRequests.Count( path => path == secondDeltaPath ) );
+        Assert.Equal( 1, orderedRequests.Count( path => path == secondDeltaSidecarPath ) );
+        Assert.True(
+            Array.IndexOf( orderedRequests, firstDeltaPath ) < Array.IndexOf( orderedRequests, secondDeltaPath ),
+            "Delta packages must be requested in version order." );
         if(corruptDelta) {
             Assert.Equal( 1, orderedRequests.Count( path => path == fullPath ) );
             Assert.Equal( 1, orderedRequests.Count( path => path == fullSidecarPath ) );
             Assert.True(
-                Array.IndexOf( orderedRequests, deltaPath ) < Array.IndexOf( orderedRequests, fullPath ),
+                Array.IndexOf( orderedRequests, secondDeltaPath ) < Array.IndexOf( orderedRequests, fullPath ),
                 "The full package must be requested only after the delta package." );
         }
         else {

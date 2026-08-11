@@ -57,15 +57,11 @@ public sealed partial class ApplicationUpdateService(
         }
 
         Directory.CreateDirectory( this._updatesDirectory );
-        var workspaceDirectory = Path.Combine(
-            this._updatesDirectory,
-            $"{update.LatestVersion.ToString( 3 )}-{update.RuntimeIdentifier}-{Guid.NewGuid():N}" );
-        Directory.CreateDirectory( workspaceDirectory );
+        var workspaceDirectory = this.CreateWorkspaceDirectory( update.LatestVersion, update.RuntimeIdentifier );
 
         try {
-            if(update.PreferredAsset is { Kind: ApplicationUpdateAssetKind.Delta } deltaAsset) {
-                var deltaResult = await this.StageAssetAsync(
-                    deltaAsset,
+            if(update.IsDeltaPreferred) {
+                var deltaResult = await this.StageDeltaChainAsync(
                     update,
                     workspaceDirectory,
                     progress,
@@ -75,7 +71,8 @@ public sealed partial class ApplicationUpdateService(
                 }
 
                 logger.Warn( $"差分更新の取得または検証に失敗したため完全版へフォールバックする。Errors={string.Join( "; ", deltaResult.Errors.Select( error => error.Message ) )}" );
-                DeleteStagingChildren( workspaceDirectory );
+                TryDeleteDirectory( workspaceDirectory );
+                workspaceDirectory = this.CreateWorkspaceDirectory( update.LatestVersion, update.RuntimeIdentifier );
             }
 
             var fullResult = await this.StageAssetAsync(
@@ -94,6 +91,116 @@ public sealed partial class ApplicationUpdateService(
         catch(OperationCanceledException) {
             TryDeleteDirectory( workspaceDirectory );
             throw;
+        }
+    }
+
+    /// <summary>
+    /// 更新先とRIDに対応する一意な更新作業ディレクトリを作成する。
+    /// </summary>
+    private string CreateWorkspaceDirectory( Version targetVersion, string runtimeIdentifier ) {
+        var workspaceDirectory = Path.Combine(
+            this._updatesDirectory,
+            $"{targetVersion.ToString( 3 )}-{runtimeIdentifier}-{Guid.NewGuid():N}" );
+        Directory.CreateDirectory( workspaceDirectory );
+        return workspaceDirectory;
+    }
+
+    /// <summary>
+    /// 差分アセットを基準版順に取得し、最新版のステージを逐次再構築する。
+    /// </summary>
+    private async Task<Result<ApplicationUpdateStageResult>> StageDeltaChainAsync(
+        UpdateCheckResult update,
+        string workspaceDirectory,
+        IProgress<ApplicationUpdateProgress>? progress,
+        CancellationToken cancellationToken
+    ) {
+        var currentManifestResult = packageService.ReadInstalledManifest( this._applicationDirectory );
+        if(currentManifestResult.IsFailed) {
+            return currentManifestResult.ToResult<ApplicationUpdateStageResult>();
+        }
+
+        var baseDirectory = this._applicationDirectory;
+        var baseManifest = currentManifestResult.Value;
+        long completedDownloadBytes = 0;
+        try {
+            for(var index = 0; index < update.DeltaAssets.Count; index++) {
+                var asset = update.DeltaAssets[index];
+                var assetPath = Path.Combine( workspaceDirectory, asset.Name );
+                var checksumPath = Path.Combine( workspaceDirectory, asset.Checksum.Name );
+                var isLast = index == update.DeltaAssets.Count - 1;
+                var destinationDirectory = Path.Combine( workspaceDirectory, isLast ? "staging" : $"staging-{index + 1}" );
+                var downloadResult = await this.DownloadFileAsync(
+                    asset.DownloadUrl,
+                    assetPath,
+                    asset.Size,
+                    asset.Sha256Digest,
+                    new AggregateProgress( progress, completedDownloadBytes, update.DeltaDownloadSize ),
+                    cancellationToken );
+                if(downloadResult.IsFailed) {
+                    return downloadResult.ToResult<ApplicationUpdateStageResult>();
+                }
+
+                completedDownloadBytes = AddDownloadSize( completedDownloadBytes, asset.Size );
+                var checksumResult = await this.DownloadFileAsync(
+                    asset.Checksum.DownloadUrl,
+                    checksumPath,
+                    asset.Checksum.Size,
+                    asset.Checksum.Sha256Digest,
+                    new AggregateProgress( progress, completedDownloadBytes, update.DeltaDownloadSize ),
+                    cancellationToken );
+                if(checksumResult.IsFailed) {
+                    return checksumResult.ToResult<ApplicationUpdateStageResult>();
+                }
+
+                completedDownloadBytes = AddDownloadSize( completedDownloadBytes, asset.Checksum.Size );
+                progress?.Report( new ApplicationUpdateProgress(
+                    ApplicationUpdateProgressPhase.Verifying,
+                    completedDownloadBytes,
+                    update.DeltaDownloadSize ) );
+                var sidecarResult = ValidateSidecar( checksumPath, asset.Name, assetPath );
+                if(sidecarResult.IsFailed) {
+                    return sidecarResult.ToResult<ApplicationUpdateStageResult>();
+                }
+
+                progress?.Report( new ApplicationUpdateProgress(
+                    ApplicationUpdateProgressPhase.Staging,
+                    completedDownloadBytes,
+                    update.DeltaDownloadSize ) );
+                var packageResult = packageService.ReconstructDeltaPackage(
+                    assetPath,
+                    baseDirectory,
+                    destinationDirectory,
+                    baseManifest,
+                    asset.TargetVersion,
+                    update.RuntimeIdentifier! );
+                if(packageResult.IsFailed) {
+                    return packageResult.ToResult<ApplicationUpdateStageResult>();
+                }
+
+                TryDeleteFile( assetPath );
+                TryDeleteFile( checksumPath );
+                if(!PathsEqual( baseDirectory, this._applicationDirectory )) {
+                    TryDeleteDirectory( baseDirectory );
+                }
+
+                baseDirectory = destinationDirectory;
+                baseManifest = packageResult.Value;
+            }
+
+            return Result.Ok( new ApplicationUpdateStageResult(
+                workspaceDirectory,
+                baseDirectory,
+                update.LatestVersion!,
+                update.RuntimeIdentifier!,
+                ApplicationUpdateAssetKind.Delta,
+                update.ReleaseUrl! ) );
+        }
+        catch(OperationCanceledException) {
+            throw;
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or HttpRequestException) {
+            logger.Error( "差分チェーンのステージングに失敗した。", ex );
+            return Result.Fail( ResultErrorFactory.External( "差分更新を準備できませんでした。", "UPDATE_DELTA_CHAIN_STAGE_FAILED", ex ) );
         }
     }
 
@@ -361,13 +468,14 @@ public sealed partial class ApplicationUpdateService(
         var assetPath = Path.Combine( workspaceDirectory, asset.Name );
         var checksumPath = Path.Combine( workspaceDirectory, asset.Checksum.Name );
         var stagingDirectory = Path.Combine( workspaceDirectory, "staging" );
+        var totalDownloadSize = AddDownloadSize( asset.Size, asset.Checksum.Size );
         try {
             var downloadResult = await this.DownloadFileAsync(
                 asset.DownloadUrl,
                 assetPath,
                 asset.Size,
                 asset.Sha256Digest,
-                progress,
+                new AggregateProgress( progress, 0, totalDownloadSize ),
                 cancellationToken );
             if(downloadResult.IsFailed) {
                 return downloadResult.ToResult<ApplicationUpdateStageResult>();
@@ -378,19 +486,19 @@ public sealed partial class ApplicationUpdateService(
                 checksumPath,
                 asset.Checksum.Size,
                 asset.Checksum.Sha256Digest,
-                null,
+                new AggregateProgress( progress, asset.Size, totalDownloadSize ),
                 cancellationToken );
             if(checksumResult.IsFailed) {
                 return checksumResult.ToResult<ApplicationUpdateStageResult>();
             }
 
-            progress?.Report( new ApplicationUpdateProgress( ApplicationUpdateProgressPhase.Verifying, asset.Size, asset.Size ) );
+            progress?.Report( new ApplicationUpdateProgress( ApplicationUpdateProgressPhase.Verifying, totalDownloadSize, totalDownloadSize ) );
             var sidecarResult = ValidateSidecar( checksumPath, asset.Name, assetPath );
             if(sidecarResult.IsFailed) {
                 return sidecarResult.ToResult<ApplicationUpdateStageResult>();
             }
 
-            progress?.Report( new ApplicationUpdateProgress( ApplicationUpdateProgressPhase.Staging, asset.Size, asset.Size ) );
+            progress?.Report( new ApplicationUpdateProgress( ApplicationUpdateProgressPhase.Staging, totalDownloadSize, totalDownloadSize ) );
             Result<ApplicationUpdateManifest> packageResult;
             if(asset.Kind == ApplicationUpdateAssetKind.Delta) {
                 var currentManifestResult = packageService.ReadInstalledManifest( this._applicationDirectory );
@@ -838,6 +946,14 @@ public sealed partial class ApplicationUpdateService(
     private static string NormalizeRelativePath( string path ) =>
         path.Replace( '\\', '/' ).TrimStart( '/' ).TrimEnd( '/' );
 
+    /// <summary>
+    /// オーバーフロー時に最大値へ飽和させて転送量を加算する。
+    /// </summary>
+    private static long AddDownloadSize( long left, long right ) =>
+        left < 0 || right < 0 || left > long.MaxValue - right
+            ? long.MaxValue
+            : left + right;
+
     private static void TryDeleteFile( string path ) {
         try {
             if(File.Exists( path )) {
@@ -858,14 +974,18 @@ public sealed partial class ApplicationUpdateService(
         catch(UnauthorizedAccessException) { }
     }
 
-    private static void DeleteStagingChildren( string workspaceDirectory ) {
-        foreach(var path in Directory.GetFileSystemEntries( workspaceDirectory )) {
-            if(Directory.Exists( path )) {
-                Directory.Delete( path, true );
-            }
-            else {
-                File.Delete( path );
-            }
-        }
+    /// <summary>
+    /// 個別ファイルの進捗を更新方式全体の進捗へ変換する。
+    /// </summary>
+    private sealed class AggregateProgress(
+        IProgress<ApplicationUpdateProgress>? progress,
+        long completedBytes,
+        long totalBytes
+    ) : IProgress<ApplicationUpdateProgress> {
+        /// <inheritdoc />
+        public void Report( ApplicationUpdateProgress value ) => progress?.Report( new ApplicationUpdateProgress(
+            value.Phase,
+            Math.Min( AddDownloadSize( completedBytes, value.DownloadedBytes ), totalBytes ),
+            totalBytes ) );
     }
 }

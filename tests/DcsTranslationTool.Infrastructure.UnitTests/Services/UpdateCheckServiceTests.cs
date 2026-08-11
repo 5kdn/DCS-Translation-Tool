@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Application.Models;
@@ -18,7 +19,16 @@ public sealed class UpdateCheckServiceTests {
     public async Task CheckForUpdateAsyncは最新版が存在する場合に更新ありを返す() {
         var loggerMock = new Mock<ILoggingService>();
         var appInfoServiceMock = CreateAppInfoServiceMock();
+        var requestedPaths = new List<string>();
         var httpClient = CreateClient( (request, _) => {
+            requestedPaths.Add( request.RequestUri!.PathAndQuery );
+            if(!request.RequestUri.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )) {
+                return Task.FromResult( CreateJsonResponse( JsonSerializer.Serialize( new[]
+                {
+                    CreateReleasePayload( "1.3.1" )
+                } ) ) );
+            }
+
             Assert.Equal( "/repos/5kdn/DCS-Translation-Tool/releases/latest", request.RequestUri?.AbsolutePath );
             return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
             {
@@ -74,8 +84,234 @@ public sealed class UpdateCheckServiceTests {
         Assert.Equal( "win-x64", result.RuntimeIdentifier );
         Assert.Equal( "DCS-Translation-Tool-1.4.0-win-x64.zip", result.FullAsset?.Name );
         Assert.Equal( "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256", result.FullAsset?.Checksum.Name );
-        Assert.Equal( "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip", result.DeltaAsset?.Name );
-        Assert.Equal( ApplicationUpdateAssetKind.Delta, result.PreferredAsset?.Kind );
+        Assert.Equal( "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip", Assert.Single( result.DeltaAssets ).Name );
+        Assert.Equal( ApplicationUpdateAssetKind.Delta, result.PreferredAssetKind );
+        Assert.Contains( "/repos/5kdn/DCS-Translation-Tool/releases?per_page=100&page=1", requestedPaths );
+    }
+
+    /// <summary>
+    /// 複数の安定版Releaseから連続した差分チェーンを構築することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task CheckForUpdateAsyncは複数Releaseから差分チェーンを構築する() {
+        var requestedPaths = new List<string>();
+        var latest = CreateReleasePayload(
+            "2.2.0",
+            CreateFullAssetPayload( "2.2.0", 900, 100 ),
+            CreateDeltaAssetPayload( "2.1.0", "2.2.0", 300, 50 ) );
+        var intermediate = CreateReleasePayload(
+            "2.1.0",
+            CreateFullAssetPayload( "2.1.0", 900, 100 ),
+            CreateDeltaAssetPayload( "2.0.0", "2.1.0", 300, 50 ) );
+        var current = CreateReleasePayload( "2.0.0" );
+        var httpClient = CreateClient( (request, _) => {
+            requestedPaths.Add( request.RequestUri!.PathAndQuery );
+            var json = request.RequestUri.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )
+                ? JsonSerializer.Serialize( latest )
+                : JsonSerializer.Serialize( new[] { latest, intermediate, current } );
+            return Task.FromResult( CreateJsonResponse( json ) );
+        } );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 0, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Equal( 2, result.DeltaAssets.Count );
+        Assert.Equal( "2.0.0", result.DeltaAssets[0].BaseVersion?.ToString( 3 ) );
+        Assert.Equal( "2.1.0", result.DeltaAssets[0].TargetVersion.ToString( 3 ) );
+        Assert.Equal( "2.2.0", result.DeltaAssets[1].TargetVersion.ToString( 3 ) );
+        Assert.True( result.IsDeltaPreferred );
+        Assert.Contains( "/repos/5kdn/DCS-Translation-Tool/releases?per_page=100&page=1", requestedPaths );
+    }
+
+    /// <summary>
+    /// 現在版Releaseを履歴で確認できない場合に完全版を選択することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task CheckForUpdateAsyncは現在版Releaseが履歴にない場合に完全版を返す() {
+        var latest = CreateReleasePayload(
+            "2.1.0",
+            CreateFullAssetPayload( "2.1.0", 900, 100 ),
+            CreateDeltaAssetPayload( "2.0.0", "2.1.0", 100, 50 ) );
+        var httpClient = CreateClient( (request, _) => Task.FromResult( CreateJsonResponse(
+            JsonSerializer.Serialize(
+                request.RequestUri!.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )
+                    ? latest
+                    : new[] { latest } ) ) ) );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 0, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Empty( result.DeltaAssets );
+        Assert.Equal( ApplicationUpdateAssetKind.Full, result.PreferredAssetKind );
+    }
+
+    /// <summary>
+    /// 更新区間内に信頼できないReleaseがある場合に完全版を選択することを確認する。
+    /// </summary>
+    /// <param name="prerelease">途中のReleaseがprereleaseかを示す。</param>
+    /// <param name="immutable">途中のReleaseがimmutableかを示す。</param>
+    [Theory]
+    [InlineData( false, false )]
+    [InlineData( true, true )]
+    public async Task CheckForUpdateAsyncは更新区間内に信頼できないReleaseがある場合に完全版を返す(
+        bool prerelease,
+        bool immutable
+    ) {
+        var latest = CreateReleasePayload(
+            "2.2.0",
+            CreateFullAssetPayload( "2.2.0", 900, 100 ),
+            CreateDeltaAssetPayload( "2.0.0", "2.2.0", 100, 50 ) );
+        var untrusted = CreateReleasePayload( "2.1.0", false, prerelease, immutable );
+        var current = CreateReleasePayload( "2.0.0" );
+        var httpClient = CreateClient( (request, _) => Task.FromResult( CreateJsonResponse(
+            JsonSerializer.Serialize(
+                request.RequestUri!.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )
+                    ? latest
+                    : new[] { latest, untrusted, current } ) ) ) );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 0, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Empty( result.DeltaAssets );
+        Assert.Equal( ApplicationUpdateAssetKind.Full, result.PreferredAssetKind );
+    }
+
+    /// <summary>
+    /// 利用可能な隣接差分アセットがない場合に完全版を選択することを確認する。
+    /// </summary>
+    /// <param name="includeWrongRidAsset">異なるRIDの差分アセットを含めるかを示す。</param>
+    [Theory]
+    [InlineData( false )]
+    [InlineData( true )]
+    public async Task CheckForUpdateAsyncは利用可能な隣接差分がない場合に完全版を返す( bool includeWrongRidAsset ) {
+        var latest = CreateReleasePayload(
+            "2.2.0",
+            CreateFullAssetPayload( "2.2.0", 900, 100 ),
+            CreateDeltaAssetPayload( "2.1.0", "2.2.0", 100, 50 ) );
+        var intermediateAssets = includeWrongRidAsset
+            ? new[]
+            {
+                CreateAssetPayload(
+                    "2.1.0",
+                    "DCS-Translation-Tool-2.0.0-to-2.1.0-win-x86.delta.zip",
+                    100,
+                    50 )
+            }
+            : [];
+        var intermediate = CreateReleasePayload( "2.1.0", intermediateAssets );
+        var current = CreateReleasePayload( "2.0.0" );
+        var httpClient = CreateClient( (request, _) => Task.FromResult( CreateJsonResponse(
+            JsonSerializer.Serialize(
+                request.RequestUri!.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )
+                    ? latest
+                    : new[] { latest, intermediate, current } ) ) ) );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 0, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Empty( result.DeltaAssets );
+        Assert.Equal( ApplicationUpdateAssetKind.Full, result.PreferredAssetKind );
+    }
+
+    /// <summary>
+    /// 差分アセットのdigestが不正な場合に完全版を選択することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task CheckForUpdateAsyncは差分digestが不正な場合に完全版を返す() {
+        var deltaName = "DCS-Translation-Tool-2.0.0-to-2.1.0-win-x64.delta.zip";
+        var latest = CreateReleasePayload(
+            "2.1.0",
+            CreateFullAssetPayload( "2.1.0", 900, 100 ),
+            CreateAssetPayload( "2.1.0", deltaName, 100, 50, "invalid" ) );
+        var current = CreateReleasePayload( "2.0.0" );
+        var httpClient = CreateClient( (request, _) => Task.FromResult( CreateJsonResponse(
+            JsonSerializer.Serialize(
+                request.RequestUri!.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )
+                    ? latest
+                    : new[] { latest, current } ) ) ) );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 0, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Empty( result.DeltaAssets );
+        Assert.Equal( ApplicationUpdateAssetKind.Full, result.PreferredAssetKind );
+    }
+
+    /// <summary>
+    /// majorが異なる場合にRelease履歴を取得せず完全版を選択することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task CheckForUpdateAsyncはmajorが異なる場合に履歴を取得せず完全版を返す() {
+        var requestCount = 0;
+        var latest = CreateReleasePayload(
+            "3.0.0",
+            CreateFullAssetPayload( "3.0.0", 900, 100 ),
+            CreateDeltaAssetPayload( "2.9.0", "3.0.0", 100, 50 ) );
+        var httpClient = CreateClient( (request, _) => {
+            requestCount++;
+            Assert.EndsWith( "/releases/latest", request.RequestUri!.AbsolutePath, StringComparison.Ordinal );
+            return Task.FromResult( CreateJsonResponse( JsonSerializer.Serialize( latest ) ) );
+        } );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 9, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Empty( result.DeltaAssets );
+        Assert.Equal( ApplicationUpdateAssetKind.Full, result.PreferredAssetKind );
+        Assert.Equal( 1, requestCount );
+    }
+
+    /// <summary>
+    /// 差分チェーンが6本必要な場合に完全版を選択することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task CheckForUpdateAsyncは差分チェーンが6本の場合に完全版を返す() {
+        var releases = Enumerable.Range( 1, 6 )
+            .Select( minor => CreateReleasePayload(
+                $"2.{minor}.0",
+                CreateFullAssetPayload( $"2.{minor}.0", 900, 100 ),
+                CreateDeltaAssetPayload( $"2.{minor - 1}.0", $"2.{minor}.0", 50, 10 ) ) )
+            .Reverse()
+            .ToArray();
+        var httpClient = CreateClient( (request, _) => Task.FromResult( CreateJsonResponse(
+            JsonSerializer.Serialize(
+                request.RequestUri!.AbsolutePath.EndsWith( "/latest", StringComparison.Ordinal )
+                    ? releases[0]
+                    : releases ) ) ) );
+        var sut = new UpdateCheckService(
+            CreateAppInfoServiceMock( new Version( 2, 0, 0 ) ).Object,
+            Mock.Of<ILoggingService>(),
+            httpClient,
+            "win-x64" );
+
+        var result = await sut.CheckForUpdateAsync( TestContext.Current.CancellationToken );
+
+        Assert.Empty( result.DeltaAssets );
+        Assert.Equal( ApplicationUpdateAssetKind.Full, result.PreferredAssetKind );
     }
 
     [Fact]
@@ -207,11 +443,74 @@ public sealed class UpdateCheckServiceTests {
         return TestHttpClientFactory.Create( responder, "https://api.github.com/" );
     }
 
-    private static Mock<IApplicationInfoService> CreateAppInfoServiceMock() {
+    private static HttpResponseMessage CreateJsonResponse( string json ) => new( HttpStatusCode.OK )
+    {
+        Content = new StringContent( json, Encoding.UTF8, "application/json" )
+    };
+
+    private static object CreateReleasePayload( string version, params object[][] assetGroups ) => new {
+        tag_name = $"v{version}",
+        html_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v{version}",
+        draft = false,
+        prerelease = false,
+        immutable = true,
+        assets = assetGroups.SelectMany( assets => assets ).ToArray()
+    };
+
+    private static object CreateReleasePayload(
+        string version,
+        bool draft,
+        bool prerelease,
+        bool immutable,
+        params object[][] assetGroups
+    ) => new {
+        tag_name = $"v{version}",
+        html_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v{version}",
+        draft,
+        prerelease,
+        immutable,
+        assets = assetGroups.SelectMany( assets => assets ).ToArray()
+    };
+
+    private static object[] CreateFullAssetPayload( string version, long size, long checksumSize ) {
+        var name = $"DCS-Translation-Tool-{version}-win-x64.zip";
+        return CreateAssetPayload( version, name, size, checksumSize );
+    }
+
+    private static object[] CreateDeltaAssetPayload( string baseVersion, string targetVersion, long size, long checksumSize ) {
+        var name = $"DCS-Translation-Tool-{baseVersion}-to-{targetVersion}-win-x64.delta.zip";
+        return CreateAssetPayload( targetVersion, name, size, checksumSize );
+    }
+
+    private static object[] CreateAssetPayload(
+        string version,
+        string name,
+        long size,
+        long checksumSize,
+        string? digest = null
+    ) =>
+    [
+        new
+        {
+            name,
+            browser_download_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/download/v{version}/{name}",
+            size,
+            digest = digest ?? $"sha256:{new string( 'a', 64 )}"
+        },
+        new
+        {
+            name = $"{name}.sha256",
+            browser_download_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/download/v{version}/{name}.sha256",
+            size = checksumSize,
+            digest = $"sha256:{new string( 'b', 64 )}"
+        }
+    ];
+
+    private static Mock<IApplicationInfoService> CreateAppInfoServiceMock( Version? version = null ) {
         var appInfoServiceMock = new Mock<IApplicationInfoService>();
         appInfoServiceMock
             .Setup( service => service.GetVersion() )
-            .Returns( new Version( 1, 3, 1, 0 ) );
+            .Returns( version ?? new Version( 1, 3, 1, 0 ) );
         return appInfoServiceMock;
     }
 }

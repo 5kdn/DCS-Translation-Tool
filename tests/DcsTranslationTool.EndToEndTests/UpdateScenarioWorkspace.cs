@@ -48,6 +48,7 @@ internal sealed class UpdateScenarioWorkspace : IDisposable {
         Directory.CreateDirectory( this.UserDataDirectory );
         SeedApplicationSettings( this.UserDataDirectory, this.ApplicationDirectory );
         ZipFile.ExtractToDirectory( configuration.BasePackagePath, this.ApplicationDirectory );
+        CopyDirectory( configuration.IntermediateAssetsDirectory, this.AssetsDirectory );
         CopyDirectory( configuration.TargetAssetsDirectory, this.AssetsDirectory );
         if(corruptDelta) {
             CorruptDeltaPackage( this.AssetsDirectory, configuration.RuntimeIdentifier );
@@ -230,7 +231,7 @@ internal sealed class UpdateScenarioWorkspace : IDisposable {
     private static JsonElement ReadTargetManifest( string assetsDirectory, string runtimeIdentifier ) {
         var packagePath = Path.Combine(
             assetsDirectory,
-            $"DCS-Translation-Tool-1.1.0-{runtimeIdentifier}.zip" );
+            $"DCS-Translation-Tool-1.2.0-{runtimeIdentifier}.zip" );
         using var archive = ZipFile.OpenRead( packagePath );
         var manifestEntry = archive.GetEntry( "update-manifest.json" )
             ?? throw new InvalidDataException( $"Target package manifest is missing: {packagePath}" );
@@ -258,7 +259,7 @@ internal sealed class UpdateScenarioWorkspace : IDisposable {
     /// <param name="assetsDirectory">アセットディレクトリ。</param>
     /// <param name="runtimeIdentifier">対象RID。</param>
     private static void CorruptDeltaPackage( string assetsDirectory, string runtimeIdentifier ) {
-        var fileName = $"DCS-Translation-Tool-1.0.0-to-1.1.0-{runtimeIdentifier}.delta.zip";
+        var fileName = $"DCS-Translation-Tool-1.1.0-to-1.2.0-{runtimeIdentifier}.delta.zip";
         var packagePath = Path.Combine( assetsDirectory, fileName );
         using(var archive = ZipFile.Open( packagePath, ZipArchiveMode.Update )) {
             archive.GetEntry( "delta-manifest.json" )?.Delete();
