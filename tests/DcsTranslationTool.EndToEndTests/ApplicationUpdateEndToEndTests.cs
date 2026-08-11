@@ -98,7 +98,8 @@ public sealed class ApplicationUpdateEndToEndTests {
             var restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
             var restartMessage = await WaitForElementAsync( restartDialog, "ConfirmationDialogMessage", UiTimeout );
             Assert.Contains( "1.2.0", restartMessage.Name, StringComparison.Ordinal );
-            var restartButton = await WaitForElementAsync( restartDialog, "ConfirmationDialogRightButton", UiTimeout );
+            var restartButton = await WaitForElementAsync( restartDialog, "ConfirmationDialogLeftButton", UiTimeout );
+            Assert.Equal( "今すぐ再起動", restartButton.Name );
             restartButton.AsButton().Invoke();
 
             await WaitForProcessExitAsync( launchedApplication.ProcessId, UiTimeout );
@@ -164,7 +165,9 @@ public sealed class ApplicationUpdateEndToEndTests {
             (await WaitForElementAsync( downloadDialog, "ConfirmationDialogRightButton", UiTimeout )).AsButton().Invoke();
 
             var restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
-            (await WaitForElementAsync( restartDialog, "ConfirmationDialogLeftButton", UiTimeout )).AsButton().Invoke();
+            var laterButton = await WaitForElementAsync( restartDialog, "ConfirmationDialogCenterButton", UiTimeout );
+            Assert.Equal( "後で", laterButton.Name );
+            laterButton.AsButton().Invoke();
             await WaitForAsync<object>(
                 () => FindElement( desktop, "ApplicationUpdateRestartConfirmationDialog" ) is null ? new object() : null,
                 UiTimeout,
@@ -187,7 +190,9 @@ public sealed class ApplicationUpdateEndToEndTests {
             updateAction = await WaitForElementAsync( desktop, "UpdateSnackbarAction", UiTimeout );
             updateAction.AsButton().Invoke();
             restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
-            (await WaitForElementAsync( restartDialog, "ConfirmationDialogRightButton", UiTimeout )).AsButton().Invoke();
+            var restartButton = await WaitForElementAsync( restartDialog, "ConfirmationDialogLeftButton", UiTimeout );
+            Assert.Equal( "今すぐ再起動", restartButton.Name );
+            restartButton.AsButton().Invoke();
 
             var secondProcessId = secondApplication.ProcessId;
             await WaitForProcessExitAsync( secondProcessId, UiTimeout );
