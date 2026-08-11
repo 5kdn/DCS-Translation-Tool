@@ -311,6 +311,7 @@ public sealed partial class ApplicationUpdateService(
                 Path.Combine( stageResult.WorkspaceDirectory, "backup" ),
                 parentProcessId,
                 stageResult.RuntimeIdentifier,
+                currentVersion.ToString( 3 ),
                 stageResult.TargetVersion.ToString( 3 ) );
             var requestPath = Path.Combine( stageResult.WorkspaceDirectory, "apply-request.json" );
             File.WriteAllText( requestPath, JsonSerializer.Serialize( request, JsonOptions ) );
@@ -361,6 +362,11 @@ public sealed partial class ApplicationUpdateService(
 
             var currentManifest = currentManifestResult.Value;
             var targetManifest = targetManifestResult.Value;
+            if(!string.Equals( Version.Parse( currentManifest.Version ).ToString( 3 ), Version.Parse( request.BaseVersion ).ToString( 3 ), StringComparison.Ordinal )) {
+                return Result.Fail( ResultErrorFactory.Conflict(
+                    "更新の準備後にアプリケーションのバージョンが変更されています。更新を再確認してください。",
+                    "UPDATE_APPLY_BASE_VERSION_MISMATCH" ) );
+            }
             var currentValidation = packageService.ValidateManifest(
                 request.ApplicationDirectory,
                 currentManifest,
@@ -377,12 +383,13 @@ public sealed partial class ApplicationUpdateService(
                 return Result.Fail( currentValidation.Errors.Concat( targetValidation.Errors ) );
             }
 
-            var currentPaths = currentManifest.Files.Select( file => NormalizeRelativePath( file.Path ) )
-                .ToHashSet( StringComparer.OrdinalIgnoreCase );
+            var currentFilesByPath = currentManifest.Files.ToDictionary(
+                file => NormalizeRelativePath( file.Path ),
+                StringComparer.OrdinalIgnoreCase );
             foreach(var targetFile in targetManifest.Files) {
                 var normalizedPath = NormalizeRelativePath( targetFile.Path );
                 var destinationPath = ResolveRelativePath( request.ApplicationDirectory, normalizedPath );
-                if(!currentPaths.Contains( normalizedPath ) && (File.Exists( destinationPath ) || Directory.Exists( destinationPath ))) {
+                if(!currentFilesByPath.ContainsKey( normalizedPath ) && (File.Exists( destinationPath ) || Directory.Exists( destinationPath ))) {
                     return Result.Fail( ResultErrorFactory.Conflict(
                         $"管理対象外ファイルと更新先が衝突しています: {targetFile.Path}",
                         "UPDATE_APPLY_UNKNOWN_FILE_COLLISION" ) );
@@ -392,7 +399,10 @@ public sealed partial class ApplicationUpdateService(
             BackupCurrentFiles( request, currentManifest );
             try {
                 foreach(var targetFile in targetManifest.Files) {
-                    CopyRelativeFile( request.StagingDirectory, request.ApplicationDirectory, targetFile.Path, overwrite: true );
+                    var normalizedPath = NormalizeRelativePath( targetFile.Path );
+                    if(!currentFilesByPath.TryGetValue( normalizedPath, out var currentFile ) || !HaveSameContent( currentFile, targetFile )) {
+                        CopyRelativeFile( request.StagingDirectory, request.ApplicationDirectory, targetFile.Path, overwrite: true );
+                    }
                 }
 
                 var targetPaths = targetManifest.Files.Select( file => NormalizeRelativePath( file.Path ) )
@@ -686,6 +696,7 @@ public sealed partial class ApplicationUpdateService(
             !Path.IsPathFullyQualified( requestPath ) ||
             request.ParentProcessId < 0 ||
             request.RuntimeIdentifier is not ("win-x64" or "win-x86") ||
+            !Version.TryParse( request.BaseVersion, out _ ) ||
             !Version.TryParse( request.TargetVersion, out var targetVersion )) {
             return false;
         }
@@ -883,15 +894,25 @@ public sealed partial class ApplicationUpdateService(
         ApplicationUpdateManifest currentManifest,
         ApplicationUpdateManifest targetManifest
     ) {
+        var currentFilesByPath = currentManifest.Files.ToDictionary(
+            file => NormalizeRelativePath( file.Path ),
+            StringComparer.OrdinalIgnoreCase );
         foreach(var targetFile in targetManifest.Files) {
-            var targetPath = ResolveRelativePath( request.ApplicationDirectory, targetFile.Path );
-            if(File.Exists( targetPath )) {
-                File.Delete( targetPath );
+            var normalizedPath = NormalizeRelativePath( targetFile.Path );
+            if(!currentFilesByPath.TryGetValue( normalizedPath, out var currentFile ) || !HaveSameContent( currentFile, targetFile )) {
+                var targetPath = ResolveRelativePath( request.ApplicationDirectory, targetFile.Path );
+                if(File.Exists( targetPath )) {
+                    File.Delete( targetPath );
+                }
             }
         }
 
         foreach(var oldFile in currentManifest.Files) {
-            CopyRelativeFile( request.BackupDirectory, request.ApplicationDirectory, oldFile.Path, overwrite: true );
+            var normalizedPath = NormalizeRelativePath( oldFile.Path );
+            var targetFile = targetManifest.Files.FirstOrDefault( file => string.Equals( NormalizeRelativePath( file.Path ), normalizedPath, StringComparison.OrdinalIgnoreCase ) );
+            if(targetFile is null || !HaveSameContent( oldFile, targetFile )) {
+                CopyRelativeFile( request.BackupDirectory, request.ApplicationDirectory, oldFile.Path, overwrite: true );
+            }
         }
         File.Copy(
             Path.Combine( request.BackupDirectory, ApplicationUpdatePackageService.ManifestFileName ),
@@ -908,6 +929,15 @@ public sealed partial class ApplicationUpdateService(
         }
         File.Copy( sourcePath, destinationPath, overwrite );
     }
+
+    /// <summary>
+    /// マニフェスト上で同一内容のファイルかどうかを確認する。
+    /// </summary>
+    /// <param name="first">比較元のファイルを受け取る。</param>
+    /// <param name="second">比較先のファイルを受け取る。</param>
+    /// <returns>サイズとハッシュが一致する場合はtrueを返す。</returns>
+    private static bool HaveSameContent( ApplicationUpdateManifestFile first, ApplicationUpdateManifestFile second ) =>
+        first.Size == second.Size && string.Equals( first.Sha256, second.Sha256, StringComparison.Ordinal );
 
     private static string ResolveRelativePath( string root, string relativePath ) {
         var normalized = NormalizeRelativePath( relativePath );

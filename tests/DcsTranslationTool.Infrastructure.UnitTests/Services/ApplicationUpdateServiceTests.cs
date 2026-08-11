@@ -59,6 +59,92 @@ public sealed class ApplicationUpdateServiceTests {
     }
 
     [Fact]
+    public async Task ApplyPreparedUpdateAsyncは同一内容の管理ファイルを置換せず適用する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( ApplyPreparedUpdateAsyncは同一内容の管理ファイルを置換せず適用する ) );
+        var applicationDirectory = temporaryDirectory.GetPath( "application" );
+        var workspaceDirectory = temporaryDirectory.GetPath( "updates/1.4.0-win-x64-11111111111111111111111111111111" );
+        var stagingDirectory = Path.Combine( workspaceDirectory, "staging" );
+        const string sharedRuntimePath = "lib/PenImc_cor3.dll";
+        WriteApplication( applicationDirectory, "1.3.1", "old", (sharedRuntimePath, "shared runtime") );
+        WriteApplication( stagingDirectory, "1.4.0", "new", (sharedRuntimePath, "shared runtime") );
+        var installedRuntimePath = Path.Combine( applicationDirectory, sharedRuntimePath.Replace( '/', Path.DirectorySeparatorChar ) );
+        using var lockedRuntime = new FileStream( installedRuntimePath, FileMode.Open, FileAccess.Read, FileShare.Read );
+        var requestPath = WriteApplyRequest( workspaceDirectory, applicationDirectory, stagingDirectory );
+        var processLauncher = new Mock<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>();
+        processLauncher.Setup( launcher => launcher.Start( It.IsAny<ProcessStartInfo>() ) ).Returns( new Process() );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            processLauncher.Object,
+            applicationDirectory: applicationDirectory,
+            updatesDirectory: temporaryDirectory.GetPath( "updates" ) );
+
+        var result = await service.ApplyPreparedUpdateAsync( requestPath, TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsSuccess, string.Join( "; ", result.Errors.Select( error => error.Message ) ) );
+        Assert.Equal( "new", File.ReadAllText( Path.Combine( applicationDirectory, "DCS-Translation-Tool.exe" ) ) );
+        Assert.Equal( "shared runtime", File.ReadAllText( installedRuntimePath ) );
+        processLauncher.Verify( launcher => launcher.Start( It.IsAny<ProcessStartInfo>() ), Times.Once );
+    }
+
+    [Fact]
+    public async Task ApplyPreparedUpdateAsyncはロック済みの同一内容ファイルを残してロールバックする() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( ApplyPreparedUpdateAsyncはロック済みの同一内容ファイルを残してロールバックする ) );
+        var applicationDirectory = temporaryDirectory.GetPath( "application" );
+        var workspaceDirectory = temporaryDirectory.GetPath( "updates/1.4.0-win-x64-11111111111111111111111111111111" );
+        var stagingDirectory = Path.Combine( workspaceDirectory, "staging" );
+        const string sharedRuntimePath = "lib/PenImc_cor3.dll";
+        WriteApplication( applicationDirectory, "1.3.1", "old", (sharedRuntimePath, "shared runtime") );
+        WriteApplication( stagingDirectory, "1.4.0", "new", (sharedRuntimePath, "shared runtime") );
+        var installedRuntimePath = Path.Combine( applicationDirectory, sharedRuntimePath.Replace( '/', Path.DirectorySeparatorChar ) );
+        using var lockedRuntime = new FileStream( installedRuntimePath, FileMode.Open, FileAccess.Read, FileShare.Read );
+        var requestPath = WriteApplyRequest( workspaceDirectory, applicationDirectory, stagingDirectory );
+        var processLauncher = new Mock<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>();
+        processLauncher.Setup( launcher => launcher.Start( It.IsAny<ProcessStartInfo>() ) ).Returns( (Process?)null );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            processLauncher.Object,
+            applicationDirectory: applicationDirectory,
+            updatesDirectory: temporaryDirectory.GetPath( "updates" ) );
+
+        var result = await service.ApplyPreparedUpdateAsync( requestPath, TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsFailed );
+        Assert.Equal( "old", File.ReadAllText( Path.Combine( applicationDirectory, "DCS-Translation-Tool.exe" ) ) );
+        Assert.Equal( "shared runtime", File.ReadAllText( installedRuntimePath ) );
+        var manifest = JsonSerializer.Deserialize<ApplicationUpdateManifest>(
+            File.ReadAllText( Path.Combine( applicationDirectory, "update-manifest.json" ) ),
+            JsonOptions );
+        Assert.Equal( "1.3.1", manifest!.Version );
+    }
+
+    [Fact]
+    public async Task ApplyPreparedUpdateAsyncは基準バージョンと異なる場合に適用しない() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( ApplyPreparedUpdateAsyncは基準バージョンと異なる場合に適用しない ) );
+        var applicationDirectory = temporaryDirectory.GetPath( "application" );
+        var workspaceDirectory = temporaryDirectory.GetPath( "updates/1.4.0-win-x64-11111111111111111111111111111111" );
+        var stagingDirectory = Path.Combine( workspaceDirectory, "staging" );
+        WriteApplication( applicationDirectory, "1.3.1", "old" );
+        WriteApplication( stagingDirectory, "1.4.0", "new" );
+        var requestPath = WriteApplyRequest( workspaceDirectory, applicationDirectory, stagingDirectory, "1.3.0" );
+        var processLauncher = new Mock<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>();
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            processLauncher.Object,
+            applicationDirectory: applicationDirectory,
+            updatesDirectory: temporaryDirectory.GetPath( "updates" ) );
+
+        var result = await service.ApplyPreparedUpdateAsync( requestPath, TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsFailed );
+        Assert.Contains( result.Errors, error => error.Metadata.ContainsValue( "UPDATE_APPLY_BASE_VERSION_MISMATCH" ) );
+        Assert.Equal( "old", File.ReadAllText( Path.Combine( applicationDirectory, "DCS-Translation-Tool.exe" ) ) );
+        processLauncher.Verify( launcher => launcher.Start( It.IsAny<ProcessStartInfo>() ), Times.Never );
+    }
+
+    [Fact]
     public async Task ApplyPreparedUpdateAsyncは新管理パスと未知ファイルの衝突時に現行版を維持する() {
         using var temporaryDirectory = new TemporaryDirectory( nameof( ApplyPreparedUpdateAsyncは新管理パスと未知ファイルの衝突時に現行版を維持する ) );
         var applicationDirectory = temporaryDirectory.GetPath( "application" );
@@ -856,7 +942,7 @@ public sealed class ApplicationUpdateServiceTests {
         File.WriteAllText( Path.Combine( directory, "update-manifest.json" ), JsonSerializer.Serialize( manifest, JsonOptions ) );
     }
 
-    private static string WriteApplyRequest( string workspaceDirectory, string applicationDirectory, string stagingDirectory ) {
+    private static string WriteApplyRequest( string workspaceDirectory, string applicationDirectory, string stagingDirectory, string baseVersion = "1.3.1" ) {
         Directory.CreateDirectory( workspaceDirectory );
         var request = new ApplicationUpdateApplyRequest(
             applicationDirectory,
@@ -864,6 +950,7 @@ public sealed class ApplicationUpdateServiceTests {
             Path.Combine( workspaceDirectory, "backup" ),
             0,
             "win-x64",
+            baseVersion,
             "1.4.0" );
         var requestPath = Path.Combine( workspaceDirectory, "apply-request.json" );
         File.WriteAllText( requestPath, JsonSerializer.Serialize( request, JsonOptions ) );

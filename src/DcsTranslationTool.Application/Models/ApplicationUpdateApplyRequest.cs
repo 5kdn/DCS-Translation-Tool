@@ -8,6 +8,7 @@ namespace DcsTranslationTool.Application.Models;
 /// <param name="BackupDirectory">ロールバック用バックアップルートを受け取る。</param>
 /// <param name="ParentProcessId">終了を待機する親プロセス ID を受け取る。</param>
 /// <param name="RuntimeIdentifier">更新対象 RID を受け取る。</param>
+/// <param name="BaseVersion">更新を準備した時点の現行バージョンを受け取る。</param>
 /// <param name="TargetVersion">更新先バージョンを受け取る。</param>
 public sealed record ApplicationUpdateApplyRequest(
     string ApplicationDirectory,
@@ -15,5 +16,6 @@ public sealed record ApplicationUpdateApplyRequest(
     string BackupDirectory,
     int ParentProcessId,
     string RuntimeIdentifier,
+    string BaseVersion,
     string TargetVersion
 );
