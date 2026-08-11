@@ -240,55 +240,20 @@ public sealed class ApplicationUpdateServiceTests {
     }
 
     [Fact]
-    public void GetPendingUpdateは更新作業ルート外の保留情報を拒否する() {
-        using var temporaryDirectory = new TemporaryDirectory( nameof( GetPendingUpdateは更新作業ルート外の保留情報を拒否する ) );
-        var updatesDirectory = temporaryDirectory.GetPath( "updates" );
-        var outsideWorkspace = temporaryDirectory.GetPath( "outside" );
-        var outsideStaging = Path.Combine( outsideWorkspace, "staging" );
-        Directory.CreateDirectory( updatesDirectory );
-        Directory.CreateDirectory( outsideStaging );
-        var pending = new ApplicationUpdateStageResult(
-            outsideWorkspace,
-            outsideStaging,
-            new Version( 1, 4, 0 ),
-            "win-x64",
-            ApplicationUpdateAssetKind.Full,
-            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0" );
-        File.WriteAllText(
-            Path.Combine( updatesDirectory, "pending-update.json" ),
-            JsonSerializer.Serialize( pending, JsonOptions ) );
-        var service = new ApplicationUpdateService(
-            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
-            Mock.Of<ILoggingService>(),
-            Mock.Of<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>(),
-            applicationDirectory: temporaryDirectory.GetPath( "application" ),
-            updatesDirectory: updatesDirectory );
-
-        var result = service.GetPendingUpdate();
-
-        Assert.True( result.IsFailed );
-    }
-
-    /// <summary>
-    /// ファイルバージョン由来のリビジョン付きバージョンでも保留中の更新を復元できることを確認する。
-    /// </summary>
-    [Fact]
-    public void GetPendingUpdateはリビジョン付き対象バージョンを受け入れる() {
-        using var temporaryDirectory = new TemporaryDirectory( nameof( GetPendingUpdateはリビジョン付き対象バージョンを受け入れる ) );
+    public void DiscardStagedUpdateはステージ済み作業領域を削除する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( DiscardStagedUpdateはステージ済み作業領域を削除する ) );
         var updatesDirectory = temporaryDirectory.GetPath( "updates" );
         var workspace = Path.Combine( updatesDirectory, "1.4.0-win-x64-11111111111111111111111111111111" );
         var staging = Path.Combine( workspace, "staging" );
         Directory.CreateDirectory( staging );
-        var pending = new ApplicationUpdateStageResult(
+        var stageResult = new ApplicationUpdateStageResult(
             workspace,
             staging,
-            new Version( 1, 4, 0, 0 ),
+            new Version( 1, 3, 1 ),
+            new Version( 1, 4, 0 ),
             "win-x64",
             ApplicationUpdateAssetKind.Full,
             "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0" );
-        File.WriteAllText(
-            Path.Combine( updatesDirectory, "pending-update.json" ),
-            JsonSerializer.Serialize( pending, JsonOptions ) );
         var service = new ApplicationUpdateService(
             new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
             Mock.Of<ILoggingService>(),
@@ -296,10 +261,10 @@ public sealed class ApplicationUpdateServiceTests {
             applicationDirectory: temporaryDirectory.GetPath( "application" ),
             updatesDirectory: updatesDirectory );
 
-        var result = service.GetPendingUpdate();
+        var result = service.DiscardStagedUpdate( stageResult );
 
         Assert.True( result.IsSuccess );
-        Assert.NotNull( result.Value );
+        Assert.False( Directory.Exists( workspace ) );
     }
 
     [Fact]
@@ -318,6 +283,7 @@ public sealed class ApplicationUpdateServiceTests {
         var stageResult = new ApplicationUpdateStageResult(
             outsideWorkspace,
             outsideStaging,
+            new Version( 1, 3, 1 ),
             new Version( 1, 4, 0 ),
             "win-x64",
             ApplicationUpdateAssetKind.Full,
@@ -336,25 +302,18 @@ public sealed class ApplicationUpdateServiceTests {
     }
 
     [Fact]
-    public void CleanupCompletedUpdatesは保留中の作業領域を保持して完了済み領域だけを削除する() {
-        using var temporaryDirectory = new TemporaryDirectory( nameof( CleanupCompletedUpdatesは保留中の作業領域を保持して完了済み領域だけを削除する ) );
+    public void CleanupCompletedUpdatesはキャッシュを保持して作業領域を削除する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( CleanupCompletedUpdatesはキャッシュを保持して作業領域を削除する ) );
         var updatesDirectory = temporaryDirectory.GetPath( "updates" );
-        var pendingWorkspace = Path.Combine( updatesDirectory, "1.4.0-win-x64-11111111111111111111111111111111" );
-        var pendingStaging = Path.Combine( pendingWorkspace, "staging" );
+        var stagedWorkspace = Path.Combine( updatesDirectory, "1.4.0-win-x64-11111111111111111111111111111111" );
+        var stagedStaging = Path.Combine( stagedWorkspace, "staging" );
         var completedWorkspace = Path.Combine( updatesDirectory, "1.3.1-win-x64-22222222222222222222222222222222" );
-        Directory.CreateDirectory( pendingStaging );
+        var cachePath = Path.Combine( updatesDirectory, "cache", "cached.zip" );
+        Directory.CreateDirectory( stagedStaging );
         Directory.CreateDirectory( completedWorkspace );
+        Directory.CreateDirectory( Path.GetDirectoryName( cachePath )! );
+        File.WriteAllText( cachePath, "cache" );
         File.WriteAllText( Path.Combine( completedWorkspace, "runner.log" ), "old" );
-        var pending = new ApplicationUpdateStageResult(
-            pendingWorkspace,
-            pendingStaging,
-            new Version( 1, 4, 0 ),
-            "win-x64",
-            ApplicationUpdateAssetKind.Full,
-            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0" );
-        File.WriteAllText(
-            Path.Combine( updatesDirectory, "pending-update.json" ),
-            JsonSerializer.Serialize( pending, JsonOptions ) );
         var service = new ApplicationUpdateService(
             new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
             Mock.Of<ILoggingService>(),
@@ -365,13 +324,73 @@ public sealed class ApplicationUpdateServiceTests {
         var result = service.CleanupCompletedUpdates();
 
         Assert.True( result.IsSuccess );
-        Assert.True( Directory.Exists( pendingWorkspace ) );
+        Assert.True( File.Exists( cachePath ) );
+        Assert.False( Directory.Exists( stagedWorkspace ) );
         Assert.False( Directory.Exists( completedWorkspace ) );
     }
 
+    /// <summary>
+    /// 別プロセスが使用中の更新作業領域をクリーンアップしないことを確認する。
+    /// </summary>
     [Fact]
-    public async Task DownloadAndStageAsyncは完全版を二重検証して保留状態へ保存する() {
-        using var temporaryDirectory = new TemporaryDirectory( nameof( DownloadAndStageAsyncは完全版を二重検証して保留状態へ保存する ) );
+    public void CleanupCompletedUpdatesは使用中の作業領域を削除しない() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( CleanupCompletedUpdatesは使用中の作業領域を削除しない ) );
+        var updatesDirectory = temporaryDirectory.GetPath( "updates" );
+        var workspace = Path.Combine( updatesDirectory, "1.4.0-win-x64-11111111111111111111111111111111" );
+        var stagingDirectory = Path.Combine( workspace, "staging" );
+        Directory.CreateDirectory( stagingDirectory );
+        var leasePath = Path.Combine( workspace, ".in-use" );
+        using var lease = new FileStream( leasePath, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>(),
+            applicationDirectory: temporaryDirectory.GetPath( "application" ),
+            updatesDirectory: updatesDirectory );
+
+        var result = service.CleanupCompletedUpdates();
+
+        Assert.True( result.IsSuccess );
+        Assert.True( Directory.Exists( workspace ) );
+    }
+
+    /// <summary>
+    /// 差分キャッシュの期限切れアセットと未完了一時ファイルを削除することを確認する。
+    /// </summary>
+    [Fact]
+    public void CleanupCompletedUpdatesは期限切れの差分キャッシュを削除する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( CleanupCompletedUpdatesは期限切れの差分キャッシュを削除する ) );
+        var updatesDirectory = temporaryDirectory.GetPath( "updates" );
+        var cacheDirectory = Path.Combine( updatesDirectory, "cache" );
+        var expiredAssetPath = Path.Combine( cacheDirectory, $"{new string( 'a', 64 )}.zip" );
+        var retainedAssetPath = Path.Combine( cacheDirectory, $"{new string( 'b', 64 )}.zip" );
+        var expiredPartialPath = Path.Combine( cacheDirectory, $"{new string( 'c', 64 )}.zip.incomplete.partial" );
+        Directory.CreateDirectory( cacheDirectory );
+        File.WriteAllText( expiredAssetPath, "expired" );
+        File.WriteAllText( retainedAssetPath, "retained" );
+        File.WriteAllText( expiredPartialPath, "partial" );
+        File.SetLastWriteTimeUtc( expiredAssetPath, DateTime.UtcNow.AddDays( -31 ) );
+        File.SetLastWriteTimeUtc( retainedAssetPath, DateTime.UtcNow.AddDays( -29 ) );
+        File.SetLastWriteTimeUtc( expiredPartialPath, DateTime.UtcNow.AddDays( -31 ) );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>(),
+            applicationDirectory: temporaryDirectory.GetPath( "application" ),
+            updatesDirectory: updatesDirectory );
+
+        var result = service.CleanupCompletedUpdates();
+
+        Assert.True( result.IsSuccess );
+        Assert.False( File.Exists( expiredAssetPath ) );
+        Assert.True( File.Exists( retainedAssetPath ) );
+        Assert.False( File.Exists( expiredPartialPath ) );
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsyncは完全版を二重検証して保留状態を保存する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( DownloadAndStageAsyncは完全版を二重検証して保留状態を保存する ) );
+        WriteApplication( temporaryDirectory.GetPath( "application" ), "1.3.1", "old" );
         var packageBytes = CreateFullPackageBytes( temporaryDirectory, "1.4.0", "win-x64", 64 * 1024 );
         const string packageName = "DCS-Translation-Tool-1.4.0-win-x64.zip";
         var packageHash = CalculateSha256( packageBytes );
@@ -405,11 +424,206 @@ public sealed class ApplicationUpdateServiceTests {
         Assert.Equal( ApplicationUpdateAssetKind.Full, result.Value.AssetKind );
         Assert.True( File.Exists( Path.Combine( result.Value.StagingDirectory, "DCS-Translation-Tool.exe" ) ) );
         Assert.True( File.Exists( temporaryDirectory.GetPath( "updates/pending-update.json" ) ) );
+        Assert.Equal( new Version( 1, 3, 1 ), result.Value.BaseVersion );
+        var pendingResult = service.GetPendingUpdate();
+        Assert.True( pendingResult.IsSuccess, string.Join( "; ", pendingResult.Errors.Select( error => error.Message ) ) );
+        Assert.Equal( result.Value, pendingResult.Value );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
+    }
+
+    /// <summary>
+    /// 検証済み差分キャッシュを再利用するときも sidecar を再検証することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task DownloadAndStageAsyncは一致する差分キャッシュを再利用してsidecarを再検証する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( DownloadAndStageAsyncは一致する差分キャッシュを再利用してsidecarを再検証する ) );
+        var applicationDirectory = temporaryDirectory.GetPath( "application" );
+        var updatesDirectory = temporaryDirectory.GetPath( "updates" );
+        WriteApplication( applicationDirectory, "1.3.1", "old" );
+        var deltaBytes = CreateDeltaPackageBytes( temporaryDirectory, "1.3.1", "1.4.0", "new" );
+        const string deltaName = "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip";
+        var deltaSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( deltaBytes )}  {deltaName}\r\n" );
+        var fullBytes = CreateFullPackageBytes( temporaryDirectory, "1.4.0", "win-x64", 64 * 1024 );
+        const string fullName = "DCS-Translation-Tool-1.4.0-win-x64.zip";
+        var fullSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( fullBytes )}  {fullName}\r\n" );
+        var deltaAsset = CreateAsset( deltaName, deltaBytes, deltaSidecar, ApplicationUpdateAssetKind.Delta );
+        var fullAsset = CreateAsset( fullName, fullBytes, fullSidecar, ApplicationUpdateAssetKind.Full );
+        var cachePath = Path.Combine( updatesDirectory, "cache", $"{CalculateSha256( deltaBytes )}.zip" );
+        Directory.CreateDirectory( Path.GetDirectoryName( cachePath )! );
+        File.WriteAllBytes( cachePath, deltaBytes );
+        File.SetLastWriteTimeUtc( cachePath, DateTime.UtcNow.AddDays( -1 ) );
+        var cachedLastWriteTime = File.GetLastWriteTimeUtc( cachePath );
+        var requests = new List<string>();
+        var httpClient = TestHttpClientFactory.Create( (request, _) => {
+            var name = Path.GetFileName( request.RequestUri!.AbsolutePath );
+            requests.Add( name );
+            var responseBytes = name switch
+            {
+                var value when value == $"{deltaName}.sha256" => deltaSidecar,
+                var value when value == fullName => fullBytes,
+                var value when value == $"{fullName}.sha256" => fullSidecar,
+                _ => throw new InvalidOperationException( $"Unexpected request: {name}" )
+            };
+            return Task.FromResult( CreateResponse( responseBytes, name.EndsWith( ".sha256", StringComparison.Ordinal ) ? "text/plain" : "application/zip" ) );
+        }, "https://github.com/" );
+        var update = new UpdateCheckResult(
+            true,
+            new Version( 1, 3, 1 ),
+            new Version( 1, 4, 0 ),
+            "v1.4.0",
+            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
+            "win-x64",
+            true,
+            fullAsset,
+            [deltaAsset] );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>(),
+            httpClient,
+            applicationDirectory,
+            updatesDirectory );
+
+        var result = await service.DownloadAndStageAsync( update, null, TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsSuccess, string.Join( "; ", result.Errors.Select( error => error.Message ) ) );
+        Assert.Equal( ApplicationUpdateAssetKind.Delta, result.Value.AssetKind );
+        Assert.Equal( new Version( 1, 3, 1 ), result.Value.BaseVersion );
+        Assert.Equal( [$"{deltaName}.sha256"], requests );
+        Assert.Equal( "new", File.ReadAllText( Path.Combine( result.Value.StagingDirectory, "DCS-Translation-Tool.exe" ) ) );
+        Assert.True( File.GetLastWriteTimeUtc( cachePath ) > cachedLastWriteTime );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
+    }
+
+    /// <summary>
+    /// 再解析ポイントのキャッシュルートを利用せず、作業ルート外へキャッシュを書き込まないことを確認する。
+    /// </summary>
+    [Fact]
+    public async Task DownloadAndStageAsyncは再解析ポイントの差分キャッシュへ書き込まない() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( DownloadAndStageAsyncは再解析ポイントの差分キャッシュへ書き込まない ) );
+        var applicationDirectory = temporaryDirectory.GetPath( "application" );
+        var updatesDirectory = temporaryDirectory.GetPath( "updates" );
+        var outsideDirectory = temporaryDirectory.GetPath( "outside" );
+        var cacheDirectory = Path.Combine( updatesDirectory, "cache" );
+        Directory.CreateDirectory( updatesDirectory );
+        Directory.CreateDirectory( outsideDirectory );
+        Directory.CreateSymbolicLink( cacheDirectory, outsideDirectory );
+        WriteApplication( applicationDirectory, "1.3.1", "old" );
+        var deltaBytes = CreateDeltaPackageBytes( temporaryDirectory, "1.3.1", "1.4.0", "new" );
+        const string deltaName = "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip";
+        var deltaSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( deltaBytes )}  {deltaName}\r\n" );
+        var fullBytes = CreateFullPackageBytes( temporaryDirectory, "1.4.0", "win-x64", 64 * 1024 );
+        const string fullName = "DCS-Translation-Tool-1.4.0-win-x64.zip";
+        var fullSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( fullBytes )}  {fullName}\r\n" );
+        var deltaAsset = CreateAsset( deltaName, deltaBytes, deltaSidecar, ApplicationUpdateAssetKind.Delta );
+        var fullAsset = CreateAsset( fullName, fullBytes, fullSidecar, ApplicationUpdateAssetKind.Full );
+        var requests = new List<string>();
+        var httpClient = TestHttpClientFactory.Create( (request, _) => {
+            var name = Path.GetFileName( request.RequestUri!.AbsolutePath );
+            requests.Add( name );
+            var responseBytes = name switch
+            {
+                var value when value == deltaName => deltaBytes,
+                var value when value == $"{deltaName}.sha256" => deltaSidecar,
+                var value when value == fullName => fullBytes,
+                var value when value == $"{fullName}.sha256" => fullSidecar,
+                _ => throw new InvalidOperationException( $"Unexpected request: {name}" )
+            };
+            return Task.FromResult( CreateResponse( responseBytes, name.EndsWith( ".sha256", StringComparison.Ordinal ) ? "text/plain" : "application/zip" ) );
+        }, "https://github.com/" );
+        var update = new UpdateCheckResult(
+            true,
+            new Version( 1, 3, 1 ),
+            new Version( 1, 4, 0 ),
+            "v1.4.0",
+            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
+            "win-x64",
+            true,
+            fullAsset,
+            [deltaAsset] );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>(),
+            httpClient,
+            applicationDirectory,
+            updatesDirectory );
+
+        var result = await service.DownloadAndStageAsync( update, null, TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsSuccess, string.Join( "; ", result.Errors.Select( error => error.Message ) ) );
+        Assert.Equal( ApplicationUpdateAssetKind.Delta, result.Value.AssetKind );
+        Assert.Equal( [deltaName, $"{deltaName}.sha256"], requests );
+        Assert.False( File.Exists( Path.Combine( outsideDirectory, $"{CalculateSha256( deltaBytes )}.zip" ) ) );
+        Assert.Empty( Directory.GetFiles( outsideDirectory, "*.partial", SearchOption.TopDirectoryOnly ) );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
+    }
+
+    /// <summary>
+    /// 現在の更新アセットと一致しない差分キャッシュを使用せず再取得することを確認する。
+    /// </summary>
+    [Fact]
+    public async Task DownloadAndStageAsyncはハッシュが一致しない差分キャッシュを再取得する() {
+        using var temporaryDirectory = new TemporaryDirectory( nameof( DownloadAndStageAsyncはハッシュが一致しない差分キャッシュを再取得する ) );
+        var applicationDirectory = temporaryDirectory.GetPath( "application" );
+        var updatesDirectory = temporaryDirectory.GetPath( "updates" );
+        WriteApplication( applicationDirectory, "1.3.1", "old" );
+        var deltaBytes = CreateDeltaPackageBytes( temporaryDirectory, "1.3.1", "1.4.0", "new" );
+        const string deltaName = "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip";
+        var deltaSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( deltaBytes )}  {deltaName}\r\n" );
+        var fullBytes = CreateFullPackageBytes( temporaryDirectory, "1.4.0", "win-x64", 64 * 1024 );
+        const string fullName = "DCS-Translation-Tool-1.4.0-win-x64.zip";
+        var fullSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( fullBytes )}  {fullName}\r\n" );
+        var deltaAsset = CreateAsset( deltaName, deltaBytes, deltaSidecar, ApplicationUpdateAssetKind.Delta );
+        var fullAsset = CreateAsset( fullName, fullBytes, fullSidecar, ApplicationUpdateAssetKind.Full );
+        var cachePath = Path.Combine( updatesDirectory, "cache", $"{CalculateSha256( deltaBytes )}.zip" );
+        Directory.CreateDirectory( Path.GetDirectoryName( cachePath )! );
+        File.WriteAllBytes( cachePath, Encoding.UTF8.GetBytes( "tampered cache" ) );
+        var requests = new List<string>();
+        var httpClient = TestHttpClientFactory.Create( (request, _) => {
+            var name = Path.GetFileName( request.RequestUri!.AbsolutePath );
+            requests.Add( name );
+            var responseBytes = name switch
+            {
+                var value when value == deltaName => deltaBytes,
+                var value when value == $"{deltaName}.sha256" => deltaSidecar,
+                var value when value == fullName => fullBytes,
+                var value when value == $"{fullName}.sha256" => fullSidecar,
+                _ => throw new InvalidOperationException( $"Unexpected request: {name}" )
+            };
+            return Task.FromResult( CreateResponse( responseBytes, name.EndsWith( ".sha256", StringComparison.Ordinal ) ? "text/plain" : "application/zip" ) );
+        }, "https://github.com/" );
+        var update = new UpdateCheckResult(
+            true,
+            new Version( 1, 3, 1 ),
+            new Version( 1, 4, 0 ),
+            "v1.4.0",
+            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
+            "win-x64",
+            true,
+            fullAsset,
+            [deltaAsset] );
+        var service = new ApplicationUpdateService(
+            new ApplicationUpdatePackageService( Mock.Of<ILoggingService>() ),
+            Mock.Of<ILoggingService>(),
+            Mock.Of<DcsTranslationTool.Infrastructure.Interfaces.IProcessLauncher>(),
+            httpClient,
+            applicationDirectory,
+            updatesDirectory );
+
+        var result = await service.DownloadAndStageAsync( update, null, TestContext.Current.CancellationToken );
+
+        Assert.True( result.IsSuccess, string.Join( "; ", result.Errors.Select( error => error.Message ) ) );
+        Assert.Equal( ApplicationUpdateAssetKind.Delta, result.Value.AssetKind );
+        Assert.Equal( [deltaName, $"{deltaName}.sha256"], requests );
+        Assert.Equal( deltaBytes, File.ReadAllBytes( cachePath ) );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
     }
 
     [Fact]
     public async Task DownloadAndStageAsyncは差分検証失敗時に完全版へフォールバックする() {
         using var temporaryDirectory = new TemporaryDirectory( nameof( DownloadAndStageAsyncは差分検証失敗時に完全版へフォールバックする ) );
+        WriteApplication( temporaryDirectory.GetPath( "application" ), "1.3.1", "old" );
         var packageBytes = CreateFullPackageBytes( temporaryDirectory, "1.4.0", "win-x64", 64 * 1024 );
         const string fullName = "DCS-Translation-Tool-1.4.0-win-x64.zip";
         var fullSidecar = Encoding.UTF8.GetBytes( $"{CalculateSha256( packageBytes )}  {fullName}\r\n" );
@@ -451,6 +665,7 @@ public sealed class ApplicationUpdateServiceTests {
 
         Assert.True( result.IsSuccess, string.Join( "; ", result.Errors.Select( error => error.Message ) ) );
         Assert.Equal( ApplicationUpdateAssetKind.Full, result.Value.AssetKind );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
     }
 
     /// <summary>
@@ -521,6 +736,7 @@ public sealed class ApplicationUpdateServiceTests {
             Assert.Equal( ApplicationUpdateAssetKind.Full, result.Value.AssetKind );
             Assert.NotEqual( failedWorkspace, result.Value.WorkspaceDirectory );
             Assert.Contains( fullName, requests );
+            Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
         }
         finally {
             lockedFile?.Dispose();
@@ -573,6 +789,7 @@ public sealed class ApplicationUpdateServiceTests {
 
         Assert.True( result.IsSuccess, string.Join( "; ", result.Errors.Select( error => error.Message ) ) );
         Assert.Equal( ApplicationUpdateAssetKind.Full, result.Value.AssetKind );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
     }
 
     /// <summary>
@@ -672,6 +889,7 @@ public sealed class ApplicationUpdateServiceTests {
         Assert.NotEmpty( progressValues );
         Assert.All( progressValues, value => Assert.Equal( expectedDownloadSize, value.TotalBytes ) );
         Assert.Equal( expectedDownloadSize, progressValues.Max( value => value.DownloadedBytes ) );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
         Assert.Equal(
             progressValues.Select( value => value.DownloadedBytes ).Order().ToArray(),
             progressValues.Select( value => value.DownloadedBytes ).ToArray() );
@@ -822,7 +1040,10 @@ public sealed class ApplicationUpdateServiceTests {
         Assert.Equal(
             [firstName, $"{firstName}.sha256", secondName, $"{secondName}.sha256", fullName, $"{fullName}.sha256"],
             requests );
-        Assert.Equal( result.Value.WorkspaceDirectory, Assert.Single( Directory.GetDirectories( updatesDirectory ) ) );
+        Assert.Equal(
+            result.Value.WorkspaceDirectory,
+            Assert.Single( Directory.GetDirectories( updatesDirectory ), directory => Path.GetFileName( directory ) != "cache" ) );
+        Assert.True( service.DiscardStagedUpdate( result.Value ).IsSuccess );
     }
 
     private static byte[] CreateFullPackageBytes(
@@ -944,6 +1165,7 @@ public sealed class ApplicationUpdateServiceTests {
 
     private static string WriteApplyRequest( string workspaceDirectory, string applicationDirectory, string stagingDirectory, string baseVersion = "1.3.1" ) {
         Directory.CreateDirectory( workspaceDirectory );
+        File.WriteAllText( Path.Combine( workspaceDirectory, ".in-use" ), string.Empty );
         var request = new ApplicationUpdateApplyRequest(
             applicationDirectory,
             stagingDirectory,

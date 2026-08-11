@@ -27,6 +27,13 @@ public interface IApplicationUpdateService {
     Result<ApplicationUpdateStageResult?> GetPendingUpdate();
 
     /// <summary>
+    /// ステージ済み更新の作業領域を破棄する。
+    /// </summary>
+    /// <param name="stageResult">破棄するステージ済み更新を受け取る。</param>
+    /// <returns>作業領域を破棄できた場合に成功を返す。</returns>
+    Result DiscardStagedUpdate( ApplicationUpdateStageResult stageResult );
+
+    /// <summary>
     /// 保留中ではない完了済み更新の作業領域を安全に削除する。
     /// </summary>
     /// <returns>クリーンアップ処理の結果を返す。</returns>

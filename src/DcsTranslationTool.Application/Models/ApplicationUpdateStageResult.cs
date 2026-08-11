@@ -44,6 +44,7 @@ public sealed record ApplicationUpdateProgress(
 /// </summary>
 /// <param name="WorkspaceDirectory">更新作業ディレクトリを受け取る。</param>
 /// <param name="StagingDirectory">完全な更新先ファイルのステージングディレクトリを受け取る。</param>
+/// <param name="BaseVersion">更新を準備し始めた時点の現行バージョンを受け取る。</param>
 /// <param name="TargetVersion">更新先バージョンを受け取る。</param>
 /// <param name="RuntimeIdentifier">更新対象 RID を受け取る。</param>
 /// <param name="AssetKind">実際に利用したアセット種別を受け取る。</param>
@@ -51,6 +52,7 @@ public sealed record ApplicationUpdateProgress(
 public sealed record ApplicationUpdateStageResult(
     string WorkspaceDirectory,
     string StagingDirectory,
+    Version BaseVersion,
     Version TargetVersion,
     string RuntimeIdentifier,
     ApplicationUpdateAssetKind AssetKind,

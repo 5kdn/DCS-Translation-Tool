@@ -28,7 +28,9 @@ public sealed partial class ApplicationUpdateService(
     IProcessLauncher processLauncher,
     HttpClient? httpClient = null,
     string? applicationDirectory = null,
-    string? updatesDirectory = null
+    string? updatesDirectory = null,
+    DeltaAssetCacheService? deltaAssetCacheService = null,
+    UpdateWorkspaceLeaseService? workspaceLeaseService = null
 ) : IApplicationUpdateService {
     private const string PendingUpdateFileName = "pending-update.json";
     private const int DownloadBufferSize = 81920;
@@ -42,6 +44,8 @@ public sealed partial class ApplicationUpdateService(
     private readonly HttpClient _httpClient = InitializeHttpClient( httpClient );
     private readonly string _applicationDirectory = ResolveApplicationDirectory( applicationDirectory );
     private readonly string _updatesDirectory = ResolveUpdatesDirectory( updatesDirectory );
+    private readonly DeltaAssetCacheService _deltaAssetCacheService = deltaAssetCacheService ?? new DeltaAssetCacheService( logger, ResolveUpdatesDirectory( updatesDirectory ) );
+    private readonly UpdateWorkspaceLeaseService _workspaceLeaseService = workspaceLeaseService ?? new UpdateWorkspaceLeaseService( logger, ResolveUpdatesDirectory( updatesDirectory ) );
     private readonly IProcessLauncher _processLauncher = processLauncher;
 
     /// <inheritdoc />
@@ -56,6 +60,12 @@ public sealed partial class ApplicationUpdateService(
             return Result.Fail( ResultErrorFactory.Validation( "自動更新に必要な情報が不足しています。", "UPDATE_INFORMATION_INCOMPLETE" ) );
         }
 
+        var currentManifestResult = packageService.ReadInstalledManifest( this._applicationDirectory );
+        if(currentManifestResult.IsFailed) {
+            return currentManifestResult.ToResult<ApplicationUpdateStageResult>();
+        }
+
+        var baseVersion = Version.Parse( currentManifestResult.Value.Version );
         Directory.CreateDirectory( this._updatesDirectory );
         var workspaceDirectory = this.CreateWorkspaceDirectory( update.LatestVersion, update.RuntimeIdentifier );
 
@@ -64,13 +74,15 @@ public sealed partial class ApplicationUpdateService(
                 var deltaResult = await this.StageDeltaChainAsync(
                     update,
                     workspaceDirectory,
+                    baseVersion,
                     progress,
-                    cancellationToken );
+                cancellationToken );
                 if(deltaResult.IsSuccess) {
                     return PersistOrCleanup( deltaResult.Value );
                 }
 
                 logger.Warn( $"差分更新の取得または検証に失敗したため完全版へフォールバックする。Errors={string.Join( "; ", deltaResult.Errors.Select( error => error.Message ) )}" );
+                this._workspaceLeaseService.ReleaseWorkspaceLease( workspaceDirectory );
                 TryDeleteDirectory( workspaceDirectory );
                 workspaceDirectory = this.CreateWorkspaceDirectory( update.LatestVersion, update.RuntimeIdentifier );
             }
@@ -79,16 +91,19 @@ public sealed partial class ApplicationUpdateService(
                 update.FullAsset,
                 update,
                 workspaceDirectory,
+                baseVersion,
                 progress,
                 cancellationToken );
             if(fullResult.IsSuccess) {
                 return PersistOrCleanup( fullResult.Value );
             }
 
+            this._workspaceLeaseService.ReleaseWorkspaceLease( workspaceDirectory );
             TryDeleteDirectory( workspaceDirectory );
             return fullResult;
         }
         catch(OperationCanceledException) {
+            this._workspaceLeaseService.ReleaseWorkspaceLease( workspaceDirectory );
             TryDeleteDirectory( workspaceDirectory );
             throw;
         }
@@ -98,11 +113,7 @@ public sealed partial class ApplicationUpdateService(
     /// 更新先とRIDに対応する一意な更新作業ディレクトリを作成する。
     /// </summary>
     private string CreateWorkspaceDirectory( Version targetVersion, string runtimeIdentifier ) {
-        var workspaceDirectory = Path.Combine(
-            this._updatesDirectory,
-            $"{targetVersion.ToString( 3 )}-{runtimeIdentifier}-{Guid.NewGuid():N}" );
-        Directory.CreateDirectory( workspaceDirectory );
-        return workspaceDirectory;
+        return this._workspaceLeaseService.CreateWorkspaceDirectory( targetVersion, runtimeIdentifier );
     }
 
     /// <summary>
@@ -111,6 +122,7 @@ public sealed partial class ApplicationUpdateService(
     private async Task<Result<ApplicationUpdateStageResult>> StageDeltaChainAsync(
         UpdateCheckResult update,
         string workspaceDirectory,
+        Version baseVersion,
         IProgress<ApplicationUpdateProgress>? progress,
         CancellationToken cancellationToken
     ) {
@@ -129,16 +141,26 @@ public sealed partial class ApplicationUpdateService(
                 var checksumPath = Path.Combine( workspaceDirectory, asset.Checksum.Name );
                 var isLast = index == update.DeltaAssets.Count - 1;
                 var destinationDirectory = Path.Combine( workspaceDirectory, isLast ? "staging" : $"staging-{index + 1}" );
-                var downloadResult = await this.DownloadFileAsync(
-                    asset.DownloadUrl,
-                    assetPath,
-                    asset.Size,
-                    asset.Sha256Digest,
-                    new AggregateProgress( progress, completedDownloadBytes, update.DeltaDownloadSize ),
-                    cancellationToken );
-                if(downloadResult.IsFailed) {
-                    return downloadResult.ToResult<ApplicationUpdateStageResult>();
+                var downloadedFromNetwork = !await this._deltaAssetCacheService
+                    .TryRestoreAsync( asset, assetPath, cancellationToken )
+                    .ConfigureAwait( false );
+                if(downloadedFromNetwork) {
+                    var downloadResult = await this.DownloadFileAsync(
+                        asset.DownloadUrl,
+                        assetPath,
+                        asset.Size,
+                        asset.Sha256Digest,
+                        new AggregateProgress( progress, completedDownloadBytes, update.DeltaDownloadSize ),
+                        cancellationToken );
+                    if(downloadResult.IsFailed) {
+                        return downloadResult.ToResult<ApplicationUpdateStageResult>();
+                    }
                 }
+
+                progress?.Report( new ApplicationUpdateProgress(
+                    ApplicationUpdateProgressPhase.Downloading,
+                    AddDownloadSize( completedDownloadBytes, asset.Size ),
+                    update.DeltaDownloadSize ) );
 
                 completedDownloadBytes = AddDownloadSize( completedDownloadBytes, asset.Size );
                 var checksumResult = await this.DownloadFileAsync(
@@ -160,6 +182,10 @@ public sealed partial class ApplicationUpdateService(
                 var sidecarResult = ValidateSidecar( checksumPath, asset.Name, assetPath );
                 if(sidecarResult.IsFailed) {
                     return sidecarResult.ToResult<ApplicationUpdateStageResult>();
+                }
+
+                if(downloadedFromNetwork) {
+                    await this._deltaAssetCacheService.StoreAsync( asset, assetPath, cancellationToken ).ConfigureAwait( false );
                 }
 
                 progress?.Report( new ApplicationUpdateProgress(
@@ -190,6 +216,7 @@ public sealed partial class ApplicationUpdateService(
             return Result.Ok( new ApplicationUpdateStageResult(
                 workspaceDirectory,
                 baseDirectory,
+                baseVersion,
                 update.LatestVersion!,
                 update.RuntimeIdentifier!,
                 ApplicationUpdateAssetKind.Delta,
@@ -231,34 +258,19 @@ public sealed partial class ApplicationUpdateService(
         }
 
         try {
-            if(ContainsReparsePoint( this._updatesDirectory )) {
-                return Result.Fail( ResultErrorFactory.Validation( "更新作業ルートに再解析ポイントを使用できません。", "UPDATE_CLEANUP_ROOT_INVALID" ) );
-            }
-
-            string? pendingWorkspace = null;
             var pendingResult = this.GetPendingUpdate();
-            if(pendingResult.IsSuccess && pendingResult.Value is not null) {
-                pendingWorkspace = Path.GetFullPath( pendingResult.Value.WorkspaceDirectory );
+            if(pendingResult.IsFailed) {
+                return pendingResult.ToResult();
             }
 
-            foreach(var workspace in Directory.GetDirectories( this._updatesDirectory, "*", SearchOption.TopDirectoryOnly )) {
-                if(pendingWorkspace is not null && PathsEqual( workspace, pendingWorkspace )) {
-                    continue;
-                }
+            this._workspaceLeaseService.CleanupCompletedWorkspaces( pendingResult.Value?.WorkspaceDirectory );
 
-                if(!WorkspaceDirectoryNameRegex().IsMatch( Path.GetFileName( workspace ) )) {
-                    continue;
-                }
-
-                if(ContainsReparsePointInTree( workspace )) {
-                    logger.Warn( $"再解析ポイントを含む更新作業領域を削除しない。Workspace={workspace}" );
-                    continue;
-                }
-
-                TryDeleteDirectory( workspace );
-            }
+            this._deltaAssetCacheService.Prune();
 
             return Result.Ok();
+        }
+        catch(InvalidDataException ex) {
+            return Result.Fail( ResultErrorFactory.Validation( ex.Message, "UPDATE_CLEANUP_ROOT_INVALID" ) );
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) {
             logger.Warn( "完了済み更新の作業領域をクリーンアップできなかった。", ex );
@@ -281,6 +293,11 @@ public sealed partial class ApplicationUpdateService(
 
             var currentManifest = currentManifestResult.Value;
             var currentVersion = Version.Parse( currentManifest.Version );
+            if(!string.Equals( currentVersion.ToString( 3 ), stageResult.BaseVersion.ToString( 3 ), StringComparison.Ordinal )) {
+                return Result.Fail( ResultErrorFactory.Conflict(
+                    "更新の準備後にアプリケーションのバージョンが変更されています。更新を再確認してください。",
+                    "UPDATE_APPLY_BASE_VERSION_MISMATCH" ) );
+            }
             var currentValidation = packageService.ValidateManifest(
                 this._applicationDirectory,
                 currentManifest,
@@ -311,7 +328,7 @@ public sealed partial class ApplicationUpdateService(
                 Path.Combine( stageResult.WorkspaceDirectory, "backup" ),
                 parentProcessId,
                 stageResult.RuntimeIdentifier,
-                currentVersion.ToString( 3 ),
+                stageResult.BaseVersion.ToString( 3 ),
                 stageResult.TargetVersion.ToString( 3 ) );
             var requestPath = Path.Combine( stageResult.WorkspaceDirectory, "apply-request.json" );
             File.WriteAllText( requestPath, JsonSerializer.Serialize( request, JsonOptions ) );
@@ -351,6 +368,7 @@ public sealed partial class ApplicationUpdateService(
         }
 
         try {
+            using var workspaceLease = this._workspaceLeaseService.AcquireWorkspaceLease( Path.GetDirectoryName( Path.GetFullPath( requestPath ) )! );
             await WaitForParentExitAsync( request.ParentProcessId, cancellationToken );
             EnsureDirectoryWritable( request.ApplicationDirectory );
 
@@ -472,6 +490,7 @@ public sealed partial class ApplicationUpdateService(
         ApplicationUpdateAsset asset,
         UpdateCheckResult update,
         string workspaceDirectory,
+        Version baseVersion,
         IProgress<ApplicationUpdateProgress>? progress,
         CancellationToken cancellationToken
     ) {
@@ -539,6 +558,7 @@ public sealed partial class ApplicationUpdateService(
             return Result.Ok( new ApplicationUpdateStageResult(
                 workspaceDirectory,
                 stagingDirectory,
+                baseVersion,
                 update.LatestVersion!,
                 update.RuntimeIdentifier!,
                 asset.Kind,
@@ -609,26 +629,23 @@ public sealed partial class ApplicationUpdateService(
         return Result.Ok();
     }
 
-    private Result<ApplicationUpdateStageResult> PersistPendingUpdate( ApplicationUpdateStageResult stageResult ) {
+    /// <inheritdoc />
+    public Result DiscardStagedUpdate( ApplicationUpdateStageResult stageResult ) {
+        ArgumentNullException.ThrowIfNull( stageResult );
+        if(!this.ValidateStageResultPaths( stageResult )) {
+            return Result.Fail( ResultErrorFactory.Validation( "ステージ済み更新のパスが不正です。", "UPDATE_STAGE_PATH_INVALID" ) );
+        }
+
         try {
-            Directory.CreateDirectory( this._updatesDirectory );
-            File.WriteAllText(
-                Path.Combine( this._updatesDirectory, PendingUpdateFileName ),
-                JsonSerializer.Serialize( stageResult, JsonOptions ) );
-            return Result.Ok( stageResult );
+            this._workspaceLeaseService.ReleaseWorkspaceLease( stageResult.WorkspaceDirectory );
+            TryDeleteFile( Path.Combine( this._updatesDirectory, PendingUpdateFileName ) );
+            Directory.Delete( stageResult.WorkspaceDirectory, true );
+            return Result.Ok();
         }
         catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
-            logger.Error( "保留中の更新情報を保存できなかった。", ex );
-            return Result.Fail( ResultErrorFactory.External( "更新の保留状態を保存できませんでした。", "UPDATE_PENDING_WRITE_FAILED", ex ) );
+            logger.Warn( $"ステージ済み更新の作業領域を破棄できなかった。Workspace={stageResult.WorkspaceDirectory}", ex );
+            return Result.Fail( ResultErrorFactory.External( "ステージ済み更新を破棄できませんでした。", "UPDATE_STAGE_DISCARD_FAILED", ex ) );
         }
-    }
-
-    private Result<ApplicationUpdateStageResult> PersistOrCleanup( ApplicationUpdateStageResult stageResult ) {
-        var result = PersistPendingUpdate( stageResult );
-        if(result.IsFailed) {
-            TryDeleteDirectory( stageResult.WorkspaceDirectory );
-        }
-        return result;
     }
 
     private static Result ValidateSidecar( string sidecarPath, string expectedAssetName, string assetPath ) {
@@ -641,6 +658,22 @@ public sealed partial class ApplicationUpdateService(
         }
 
         return Result.Ok();
+    }
+
+    private Result<ApplicationUpdateStageResult> PersistOrCleanup( ApplicationUpdateStageResult stageResult ) {
+        try {
+            Directory.CreateDirectory( this._updatesDirectory );
+            File.WriteAllText(
+                Path.Combine( this._updatesDirectory, PendingUpdateFileName ),
+                JsonSerializer.Serialize( stageResult, JsonOptions ) );
+            return Result.Ok( stageResult );
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
+            logger.Error( "保留中の更新情報を保存できなかった。", ex );
+            this._workspaceLeaseService.ReleaseWorkspaceLease( stageResult.WorkspaceDirectory );
+            TryDeleteDirectory( stageResult.WorkspaceDirectory );
+            return Result.Fail( ResultErrorFactory.External( "更新の保留状態を保存できませんでした。", "UPDATE_PENDING_WRITE_FAILED", ex ) );
+        }
     }
 
     private static bool TryParseDigest( string digest, out string hash ) {
@@ -708,11 +741,11 @@ public sealed partial class ApplicationUpdateService(
 
         var staging = Path.GetFullPath( request.StagingDirectory );
         var backup = Path.GetFullPath( request.BackupDirectory );
-        return this.IsOwnedWorkspace( workspace, targetVersion, request.RuntimeIdentifier ) &&
+        return this._workspaceLeaseService.IsOwnedWorkspace( workspace, targetVersion, request.RuntimeIdentifier ) &&
             PathsEqual( requestPath, Path.Combine( workspace, "apply-request.json" ) ) &&
             PathsEqual( staging, Path.Combine( workspace, "staging" ) ) &&
             PathsEqual( backup, Path.Combine( workspace, "backup" ) ) &&
-            !ContainsReparsePointInTree( workspace ) &&
+            !this._workspaceLeaseService.ContainsReparsePointInTree( workspace ) &&
             !IsPathWithinRoot( request.ApplicationDirectory, workspace ) &&
             !IsPathWithinRoot( workspace, request.ApplicationDirectory );
     }
@@ -729,10 +762,10 @@ public sealed partial class ApplicationUpdateService(
 
         var workspace = Path.GetFullPath( stageResult.WorkspaceDirectory );
         var staging = Path.GetFullPath( stageResult.StagingDirectory );
-        return this.IsOwnedWorkspace( workspace, stageResult.TargetVersion, stageResult.RuntimeIdentifier ) &&
+        return this._workspaceLeaseService.IsOwnedWorkspace( workspace, stageResult.TargetVersion, stageResult.RuntimeIdentifier ) &&
             PathsEqual( staging, Path.Combine( workspace, "staging" ) ) &&
             Directory.Exists( staging ) &&
-            !ContainsReparsePointInTree( workspace );
+            !this._workspaceLeaseService.ContainsReparsePointInTree( workspace );
     }
 
     /// <summary>
@@ -749,41 +782,6 @@ public sealed partial class ApplicationUpdateService(
         return releaseUri.Scheme == Uri.UriSchemeHttps;
     }
 
-    private bool IsOwnedWorkspace( string workspaceDirectory, Version targetVersion, string runtimeIdentifier ) {
-        var workspace = Path.GetFullPath( workspaceDirectory )
-            .TrimEnd( Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar );
-        var parent = Path.GetDirectoryName( workspace );
-        if(string.IsNullOrWhiteSpace( parent ) || !PathsEqual( parent, this._updatesDirectory )) {
-            return false;
-        }
-
-        var match = WorkspaceDirectoryNameRegex().Match( Path.GetFileName( workspace ) );
-        return match.Success &&
-            Version.TryParse( match.Groups["version"].Value, out var workspaceVersion ) &&
-            workspaceVersion.Major == targetVersion.Major &&
-            workspaceVersion.Minor == targetVersion.Minor &&
-            workspaceVersion.Build == targetVersion.Build &&
-            string.Equals( match.Groups["rid"].Value, runtimeIdentifier, StringComparison.OrdinalIgnoreCase );
-    }
-
-    private static bool ContainsReparsePoint( string path ) {
-        var fullPath = Path.GetFullPath( path );
-        if(!Directory.Exists( fullPath ) && !File.Exists( fullPath )) {
-            return false;
-        }
-
-        return File.GetAttributes( fullPath ).HasFlag( FileAttributes.ReparsePoint );
-    }
-
-    /// <summary>
-    /// 更新ワークスペース名を検証する正規表現を取得する。
-    /// </summary>
-    /// <returns>生成済みの正規表現を返す。</returns>
-    [GeneratedRegex(
-        "^(?<version>[0-9]+\\.[0-9]+\\.[0-9]+)-(?<rid>win-x64|win-x86)-[0-9a-f]{32}$",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase )]
-    private static partial Regex WorkspaceDirectoryNameRegex();
-
     /// <summary>
     /// SHA-256 sidecarの内容を解析する正規表現を取得する。
     /// </summary>
@@ -797,27 +795,6 @@ public sealed partial class ApplicationUpdateService(
     /// <returns>生成済みの正規表現を返す。</returns>
     [GeneratedRegex( "^[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant )]
     private static partial Regex Sha256Regex();
-
-    private static bool ContainsReparsePointInTree( string root ) {
-        if(ContainsReparsePoint( root )) {
-            return true;
-        }
-
-        var pendingDirectories = new Stack<string>();
-        pendingDirectories.Push( Path.GetFullPath( root ) );
-        while(pendingDirectories.TryPop( out var directory )) {
-            foreach(var path in Directory.GetFileSystemEntries( directory )) {
-                if(ContainsReparsePoint( path )) {
-                    return true;
-                }
-                if(Directory.Exists( path )) {
-                    pendingDirectories.Push( path );
-                }
-            }
-        }
-
-        return false;
-    }
 
     private void CleanupAppliedWorkspace( string workspaceDirectory ) {
         try {

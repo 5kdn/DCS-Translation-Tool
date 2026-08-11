@@ -285,7 +285,12 @@ public class ShellViewModel(
             SecondaryButtonText = GetResourceString( "ApplicationUpdateLaterButton" ),
             CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" )
         } );
+        if(restartResult == ConfirmationDialogResult.Secondary) {
+            return;
+        }
+
         if(restartResult != ConfirmationDialogResult.Confirm) {
+            this.DiscardStagedUpdate( stageResult );
             return;
         }
 
@@ -315,6 +320,16 @@ public class ShellViewModel(
             DispatcherPriority.ApplicationIdle );
     }
 
+    private Task ShowPendingUpdateNotificationAsync( ApplicationUpdateStageResult stageResult ) =>
+        Execute.OnUIThreadAsync( () => {
+            snackbarService.Show(
+                string.Format( GetResourceString( "ApplicationUpdatePendingMessageFormat" ), stageResult.TargetVersion.ToString( 3 ) ),
+                GetResourceString( "ApplicationUpdateRestartAction" ),
+                () => _ = ConfirmRestartAsync( stageResult ),
+                duration: TimeSpan.FromSeconds( 6 ) );
+            return Task.CompletedTask;
+        } );
+
     private async Task HandleUpdateFailureAsync( UpdateCheckResult update ) {
         if(dialogService is null || string.IsNullOrWhiteSpace( update.ReleaseUrl )) {
             return;
@@ -338,15 +353,20 @@ public class ShellViewModel(
         }
     }
 
-    private Task ShowPendingUpdateNotificationAsync( ApplicationUpdateStageResult stageResult ) =>
-        Execute.OnUIThreadAsync( () => {
-            snackbarService.Show(
-                string.Format( GetResourceString( "ApplicationUpdatePendingMessageFormat" ), stageResult.TargetVersion.ToString( 3 ) ),
-                GetResourceString( "ApplicationUpdateRestartAction" ),
-                () => _ = ConfirmRestartAsync( stageResult ),
-                duration: TimeSpan.FromSeconds( 6 ) );
-            return Task.CompletedTask;
-        } );
+    /// <summary>
+    /// ステージ済み更新を破棄し、失敗時は記録だけして更新操作を継続する。
+    /// </summary>
+    /// <param name="stageResult">破棄するステージ済み更新を受け取る。</param>
+    private void DiscardStagedUpdate( ApplicationUpdateStageResult stageResult ) {
+        if(applicationUpdateService is null) {
+            return;
+        }
+
+        var discardResult = applicationUpdateService.DiscardStagedUpdate( stageResult );
+        if(discardResult.IsFailed) {
+            logger.Warn( $"ステージ済み更新を破棄できなかった。Errors={string.Join( "; ", discardResult.Errors.Select( error => error.Message ) )}" );
+        }
+    }
 
     private static string FormatFileSize( long bytes ) => bytes switch
     {

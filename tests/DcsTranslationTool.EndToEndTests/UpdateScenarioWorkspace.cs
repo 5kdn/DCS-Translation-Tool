@@ -165,6 +165,16 @@ internal sealed class UpdateScenarioWorkspace : IDisposable {
     }
 
     /// <summary>
+    /// 次回起動へ持ち越すステージ済み更新が保存されていることを検証する。
+    /// </summary>
+    public void AssertStagedUpdate() {
+        Assert.True( File.Exists( Path.Combine( this.UpdatesDirectory, "pending-update.json" ) ) );
+        var workspaces = Directory.GetDirectories( this.UpdatesDirectory, "*", SearchOption.TopDirectoryOnly )
+            .Where( directory => !string.Equals( Path.GetFileName( directory ), "cache", StringComparison.OrdinalIgnoreCase ) );
+        Assert.Single( workspaces );
+    }
+
+    /// <summary>
     /// シナリオが成功したことを記録し、破棄時の診断領域削除を許可する。
     /// </summary>
     public void MarkSucceeded() => this._succeeded = true;

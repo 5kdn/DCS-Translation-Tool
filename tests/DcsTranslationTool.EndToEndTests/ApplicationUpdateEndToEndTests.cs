@@ -33,6 +33,13 @@ public sealed class ApplicationUpdateEndToEndTests {
         RunUpdateScenarioAsync( corruptDelta: true );
 
     /// <summary>
+    /// 後で再起動を選ぶとステージ済み更新を保持し、次回起動時に再確認することを確認する。
+    /// </summary>
+    [Fact]
+    public Task 後で再起動はステージ済み更新を次回起動時に再確認する() =>
+        RunLaterThenRestartScenarioAsync();
+
+    /// <summary>
     /// 指定した差分条件で更新の全利用者経路を実行する。
     /// </summary>
     /// <param name="corruptDelta">差分マニフェストを破損させる場合はtrue。</param>
@@ -129,6 +136,96 @@ public sealed class ApplicationUpdateEndToEndTests {
     }
 
     /// <summary>
+    /// ステージ済み更新を後で適用する操作の後、アプリを改めて起動する経路を実行する。
+    /// </summary>
+    private static async Task RunLaterThenRestartScenarioAsync() {
+        var configuration = EndToEndTestConfiguration.Load();
+        using var workspace = new UpdateScenarioWorkspace( configuration, "later-then-restart", corruptDelta: false );
+        await using var server = new LocalReleaseServer( configuration.RuntimeIdentifier, workspace.AssetsDirectory );
+        await server.StartAsync( TestContext.Current.CancellationToken );
+        workspace.WriteApplicationConfiguration( server.BaseUri );
+
+        FlaApplication? firstApplication = null;
+        FlaApplication? secondApplication = null;
+        FlaApplication? restartedApplication = null;
+        Window? currentWindow = null;
+        using var automation = new UIA3Automation();
+        try {
+            firstApplication = FlaApplication.Launch( CreateStartInfo( workspace ) );
+            var firstProcessId = firstApplication.ProcessId;
+            workspace.TrackProcess( firstProcessId, workspace.ApplicationExecutablePath );
+            currentWindow = await WaitForMainWindowAsync( firstApplication, automation, UiTimeout );
+            currentWindow.Focus();
+
+            var desktop = automation.GetDesktop();
+            var updateAction = await WaitForElementAsync( desktop, "UpdateSnackbarAction", UiTimeout );
+            updateAction.AsButton().Invoke();
+            var downloadDialog = await WaitForElementAsync( desktop, "ApplicationUpdateDownloadConfirmationDialog", UiTimeout );
+            (await WaitForElementAsync( downloadDialog, "ConfirmationDialogRightButton", UiTimeout )).AsButton().Invoke();
+
+            var restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
+            (await WaitForElementAsync( restartDialog, "ConfirmationDialogCenterButton", UiTimeout )).AsButton().Invoke();
+            await WaitForAsync<object>(
+                () => FindElement( desktop, "ApplicationUpdateRestartConfirmationDialog" ) is null ? new object() : null,
+                UiTimeout,
+                "The restart confirmation dialog did not close after selecting later." );
+            workspace.AssertStagedUpdate();
+
+            firstApplication.Dispose();
+            firstApplication = null;
+            workspace.TerminateOwnedProcesses();
+            await WaitForProcessExitAsync( firstProcessId, UiTimeout );
+
+            secondApplication = FlaApplication.Launch( CreateStartInfo( workspace ) );
+            workspace.TrackProcess( secondApplication.ProcessId, workspace.ApplicationExecutablePath );
+            currentWindow = await WaitForMainWindowAsync( secondApplication, automation, UiTimeout );
+            currentWindow.Focus();
+            await WaitForElementAsync( desktop, "UpdateSnackbarAction", UiTimeout );
+            Assert.Equal( 1, server.Requests.Count( path => path == "/repos/5kdn/DCS-Translation-Tool/releases" ) );
+            workspace.AssertStagedUpdate();
+
+            updateAction = await WaitForElementAsync( desktop, "UpdateSnackbarAction", UiTimeout );
+            updateAction.AsButton().Invoke();
+            restartDialog = await WaitForElementAsync( desktop, "ApplicationUpdateRestartConfirmationDialog", UpdateTimeout );
+            (await WaitForElementAsync( restartDialog, "ConfirmationDialogRightButton", UiTimeout )).AsButton().Invoke();
+
+            var secondProcessId = secondApplication.ProcessId;
+            await WaitForProcessExitAsync( secondProcessId, UiTimeout );
+            var restartedProcess = await WaitForRestartedProcessAsync(
+                workspace.ApplicationExecutablePath,
+                secondProcessId,
+                UpdateTimeout );
+            workspace.TrackProcess( restartedProcess.Id, workspace.ApplicationExecutablePath );
+            restartedApplication = FlaApplication.Attach( restartedProcess );
+            currentWindow = await WaitForMainWindowAsync( restartedApplication, automation, UiTimeout );
+            Assert.Equal( new Version( 1, 2, 0, 0 ), NormalizeVersion( FileVersionInfo.GetVersionInfo( workspace.ApplicationExecutablePath ).FileVersion ) );
+            workspace.AssertTargetManifest();
+            workspace.AssertPreservedFiles();
+
+            workspace.WriteRequestLog( server.Requests );
+            restartedApplication.Dispose();
+            restartedApplication = null;
+            secondApplication.Dispose();
+            secondApplication = null;
+            workspace.TerminateOwnedProcesses();
+            workspace.AssertNoOwnedProcesses();
+            workspace.MarkSucceeded();
+        }
+        catch {
+            var processId = restartedApplication?.ProcessId ?? secondApplication?.ProcessId ?? firstApplication?.ProcessId;
+            var automationRoot = currentWindow ?? TryFindProcessAutomationRoot( automation, processId );
+            CaptureDiagnostics( workspace.RootDirectory, automationRoot, processId );
+            workspace.WriteRequestLog( server.Requests );
+            throw;
+        }
+        finally {
+            restartedApplication?.Dispose();
+            secondApplication?.Dispose();
+            firstApplication?.Dispose();
+        }
+    }
+
+    /// <summary>
     /// E2E構成を継承させるアプリケーション起動情報を生成する。
     /// </summary>
     /// <param name="workspace">対象シナリオのワークスペース。</param>
@@ -183,16 +280,24 @@ public sealed class ApplicationUpdateEndToEndTests {
         string automationId,
         TimeSpan timeout
     ) => WaitForAsync(
-        () => {
-            try {
-                return root.FindFirstDescendant( condition => condition.ByAutomationId( automationId ) );
-            }
-            catch(Exception ex) when(ex is InvalidOperationException or COMException) {
-                return null;
-            }
-        },
+        () => FindElement( root, automationId ),
         timeout,
         $"Automation element was not available: {automationId}" );
+
+    /// <summary>
+    /// 指定AutomationIdの子孫要素を取得する。
+    /// </summary>
+    /// <param name="root">検索ルートを受け取る。</param>
+    /// <param name="automationId">検索するAutomationIdを受け取る。</param>
+    /// <returns>取得できた場合は要素、そうでない場合はnullを返す。</returns>
+    private static AutomationElement? FindElement( AutomationElement root, string automationId ) {
+        try {
+            return root.FindFirstDescendant( condition => condition.ByAutomationId( automationId ) );
+        }
+        catch(Exception ex) when(ex is InvalidOperationException or COMException) {
+            return null;
+        }
+    }
 
     /// <summary>
     /// 旧アプリケーションプロセスの終了を待機する。

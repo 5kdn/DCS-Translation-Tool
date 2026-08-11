@@ -56,7 +56,18 @@ public static class CompositionRegistration {
         c.Singleton<IUpdateCheckService, UpdateCheckService>();
         var updatePackageService = new ApplicationUpdatePackageService( loggingService );
         c.Instance( updatePackageService );
-        c.Instance<IApplicationUpdateService>( new ApplicationUpdateService( updatePackageService, loggingService, processLauncher ) );
+        var updatesDirectory = ResolveUpdatesDirectory();
+        var deltaAssetCacheService = new DeltaAssetCacheService( loggingService, updatesDirectory );
+        var workspaceLeaseService = new UpdateWorkspaceLeaseService( loggingService, updatesDirectory );
+        c.Instance( deltaAssetCacheService );
+        c.Instance( workspaceLeaseService );
+        c.Instance<IApplicationUpdateService>( new ApplicationUpdateService(
+            updatePackageService,
+            loggingService,
+            processLauncher,
+            updatesDirectory: updatesDirectory,
+            deltaAssetCacheService: deltaAssetCacheService,
+            workspaceLeaseService: workspaceLeaseService ) );
     }
 
     /// <summary>
@@ -120,5 +131,13 @@ public static class CompositionRegistration {
             : null;
         baseDir ??= AppContext.BaseDirectory;
         return Path.GetFullPath( Path.Combine( baseDir, "Logs" ) );
+    }
+
+    private static string ResolveUpdatesDirectory() {
+#if E2E_TESTING
+        return ApplicationUpdateE2eConfiguration.Load().UpdatesDirectory;
+#else
+        return Path.Combine( Environment.GetFolderPath( Environment.SpecialFolder.LocalApplicationData ), "DcsTranslationTool", "updates" );
+#endif
     }
 }
