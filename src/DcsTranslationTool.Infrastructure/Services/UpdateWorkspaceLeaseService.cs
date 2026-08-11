@@ -46,7 +46,7 @@ public sealed partial class UpdateWorkspaceLeaseService( ILoggingService logger,
     /// </summary>
     /// <param name="workspaceDirectory">更新作業領域を受け取る。</param>
     /// <returns>破棄時にリースを解放するハンドルを返す。</returns>
-    public IDisposable AcquireWorkspaceLease( string workspaceDirectory ) {
+    public static IDisposable AcquireWorkspaceLease( string workspaceDirectory ) {
         ArgumentException.ThrowIfNullOrWhiteSpace( workspaceDirectory );
         return OpenWorkspaceLease( Path.GetFullPath( workspaceDirectory ) );
     }
@@ -127,7 +127,7 @@ public sealed partial class UpdateWorkspaceLeaseService( ILoggingService logger,
     /// </summary>
     /// <param name="root">確認するルートを受け取る。</param>
     /// <returns>再解析ポイントが含まれる場合はtrueを返す。</returns>
-    public bool ContainsReparsePointInTree( string root ) => ContainsReparsePointInTreeCore( root );
+    public static bool ContainsReparsePointInTree( string root ) => ContainsReparsePointInTreeCore( root );
 
     /// <inheritdoc />
     public void Dispose() {

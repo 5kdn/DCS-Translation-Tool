@@ -51,7 +51,7 @@ public sealed class UpdateWorkspaceLeaseServiceTests {
         using var service = new UpdateWorkspaceLeaseService( Mock.Of<ILoggingService>(), updatesDirectory );
         var workspace = service.CreateWorkspaceDirectory( new Version( 1, 4, 0 ), "win-x64" );
 
-        using var runnerLease = service.AcquireWorkspaceLease( workspace );
+        using var runnerLease = UpdateWorkspaceLeaseService.AcquireWorkspaceLease( workspace );
         service.ReleaseWorkspaceLease( workspace );
         service.CleanupCompletedWorkspaces();
 

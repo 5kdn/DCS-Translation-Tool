@@ -94,7 +94,7 @@ public class DownloadViewModel(
     /// <summary>
     /// ダウンロード可能か
     /// </summary>
-    public bool CanDownload => !IsDownloading && GetDownloadableCheckedEntries().Count > 0;
+    public bool CanDownload => !IsDownloading && GetDownloadableCheckedEntries().Length > 0;
 
     /// <summary>
     /// 適用可能か
@@ -260,7 +260,7 @@ public class DownloadViewModel(
     /// 選択中タブのうちダウンロード可能なチェック済みファイル一覧を取得する。
     /// </summary>
     /// <returns>ダウンロード可能なチェック済みファイル一覧。</returns>
-    private IReadOnlyList<IFileEntryViewModel> GetDownloadableCheckedEntries() =>
+    private IFileEntryViewModel[] GetDownloadableCheckedEntries() =>
         GetSelectedTab()?.GetCheckedViewModels()
             .Where( entry => !entry.IsDirectory )
             .Where( entry => entry.ChangeType is FileChangeType.Modified or FileChangeType.RepoOnly )
@@ -272,7 +272,7 @@ public class DownloadViewModel(
     /// </summary>
     /// <param name="modifiedEntries">差分エントリ一覧。</param>
     /// <returns>サーバー同期対象。中止時は <see langword="null"/>。</returns>
-    private async Task<IReadOnlyList<IFileEntryViewModel>?> ResolveRepositorySyncTargetsAsync( IReadOnlyList<IFileEntryViewModel> modifiedEntries ) {
+    private async Task<IReadOnlyList<IFileEntryViewModel>?> ResolveRepositorySyncTargetsAsync( List<IFileEntryViewModel> modifiedEntries ) {
         var modeResult = await dialogService.DownloadModifiedApplyModeDialogShowAsync(
             new DownloadModifiedApplyModeDialogParameters
             {
@@ -302,7 +302,7 @@ public class DownloadViewModel(
     /// </summary>
     /// <param name="modifiedEntries">差分エントリ一覧。</param>
     /// <returns>サーバー同期対象。中止時は <see langword="null"/>。</returns>
-    private async Task<IReadOnlyList<IFileEntryViewModel>?> ResolveRepositoryTargetsFromSelectionDialogAsync( IReadOnlyList<IFileEntryViewModel> modifiedEntries ) {
+    private async Task<IReadOnlyList<IFileEntryViewModel>?> ResolveRepositoryTargetsFromSelectionDialogAsync( List<IFileEntryViewModel> modifiedEntries ) {
         var items = modifiedEntries
             .Select( entry => new DownloadModifiedApplySelectionItem( entry.Path ) )
             .ToArray();

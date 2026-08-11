@@ -721,7 +721,7 @@ public sealed class DownloadWorkflowServiceTests : IDisposable {
                         var buffer = Encoding.UTF8.GetBytes( content );
                         context.Response.ContentType = "text/plain; charset=utf-8";
                         context.Response.ContentLength64 = buffer.Length;
-                        await context.Response.OutputStream.WriteAsync( buffer, 0, buffer.Length, _cts.Token );
+                        await context.Response.OutputStream.WriteAsync( buffer.AsMemory(), _cts.Token );
                         context.Response.Close();
                     }
                     catch(HttpListenerException) when(_cts.IsCancellationRequested) {

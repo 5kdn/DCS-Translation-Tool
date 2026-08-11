@@ -368,7 +368,7 @@ public sealed partial class ApplicationUpdateService(
         }
 
         try {
-            using var workspaceLease = this._workspaceLeaseService.AcquireWorkspaceLease( Path.GetDirectoryName( Path.GetFullPath( requestPath ) )! );
+            using var workspaceLease = UpdateWorkspaceLeaseService.AcquireWorkspaceLease( Path.GetDirectoryName( Path.GetFullPath( requestPath ) )! );
             await WaitForParentExitAsync( request.ParentProcessId, cancellationToken );
             EnsureDirectoryWritable( request.ApplicationDirectory );
 
@@ -745,7 +745,7 @@ public sealed partial class ApplicationUpdateService(
             PathsEqual( requestPath, Path.Combine( workspace, "apply-request.json" ) ) &&
             PathsEqual( staging, Path.Combine( workspace, "staging" ) ) &&
             PathsEqual( backup, Path.Combine( workspace, "backup" ) ) &&
-            !this._workspaceLeaseService.ContainsReparsePointInTree( workspace ) &&
+            !UpdateWorkspaceLeaseService.ContainsReparsePointInTree( workspace ) &&
             !IsPathWithinRoot( request.ApplicationDirectory, workspace ) &&
             !IsPathWithinRoot( workspace, request.ApplicationDirectory );
     }
@@ -765,7 +765,7 @@ public sealed partial class ApplicationUpdateService(
         return this._workspaceLeaseService.IsOwnedWorkspace( workspace, stageResult.TargetVersion, stageResult.RuntimeIdentifier ) &&
             PathsEqual( staging, Path.Combine( workspace, "staging" ) ) &&
             Directory.Exists( staging ) &&
-            !this._workspaceLeaseService.ContainsReparsePointInTree( workspace );
+            !UpdateWorkspaceLeaseService.ContainsReparsePointInTree( workspace );
     }
 
     /// <summary>
