@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
@@ -45,6 +45,35 @@
             <Generator>MSBuild:Compile</Generator>
         </None>
     </ItemGroup>
+
+    <!-- self-contained publishのapphostからlib配下のアプリ本体を起動する。 -->
+    <Target Name="CreatePublishAppHostForLib"
+            BeforeTargets="ComputeResolvedFilesToPublishList"
+            DependsOnTargets="_CreateAppHost;_GetAppHostPaths;_GetAppHostCreationConfiguration"
+            Condition="'$(_IsPublishing)' == 'true' and '$(SelfContained)' == 'true' and '$(PublishSingleFile)' != 'true' and '$(UseAppHost)' == 'true' and Exists('$(AppHostSourcePath)')">
+        <CreateAppHost AppHostSourcePath="$(AppHostSourcePath)"
+                       AppHostDestinationPath="$(AppHostIntermediatePath)"
+                       AppBinaryName="lib\$(AssemblyName)$(TargetExt)"
+                       IntermediateAssembly="@(IntermediateAssembly->'%(FullPath)')"
+                       WindowsGraphicalUserInterface="$(_UseWindowsGraphicalUserInterface)"
+                       Retries="$(CopyRetryCount)"
+                       RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
+                       EnableMacOSCodeSign="$(_EnableMacOSCodeSign)"
+                       DisableCetCompat="$(_DisableCetCompat)" />
+    </Target>
+
+    <!-- apphost以外の実行用ファイルをlib配下へ集約する。 -->
+    <Target Name="MovePublishDependenciesToLib"
+            AfterTargets="ComputeFilesToPublish"
+            BeforeTargets="_ComputeResolvedFilesToPublishTypes"
+            Condition="'$(_IsPublishing)' == 'true' and '$(SelfContained)' == 'true' and '$(PublishSingleFile)' != 'true'">
+        <ItemGroup>
+            <ResolvedFileToPublish Update="@(ResolvedFileToPublish)"
+                                   Condition="'%(ResolvedFileToPublish.RelativePath)' != '$(AssemblyName)$(_NativeExecutableExtension)'">
+                <RelativePath>lib\%(ResolvedFileToPublish.RelativePath)</RelativePath>
+            </ResolvedFileToPublish>
+        </ItemGroup>
+    </Target>
 
     <Target Name="RenamePublishOutput" AfterTargets="Publish">
         <PropertyGroup>

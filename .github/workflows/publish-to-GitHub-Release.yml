@@ -134,7 +134,7 @@ jobs:
         dotnet-version: ["8.0.x"]
         rid: ["win-x64", "win-x86"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -163,12 +163,8 @@ jobs:
           -r ${{ matrix.rid }}
           -o publish/${{ matrix.rid }}
           --self-contained true
-          -p:PublishSingleFile=true
           -p:PublishTrimmed=false
           -p:PublishReadyToRun=false
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:IncludeAllContentForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
           -p:ContinuousIntegrationBuild=true
           -p:DebugType=none
           -p:DebugSymbols=false
@@ -189,12 +185,35 @@ jobs:
             -exclude-projects tests/* `
             -fo "$outDir/THIRD-PARTY-NOTICES.txt"
 
-      - name: Archive artifacts
+      - name: Download previous compatible full package
+        id: previous
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $previous = gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName'
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($previous)) {
+            Write-Host 'No previous stable release found.'
+            return
+          }
+          $directory = "previous/${{ matrix.rid }}"
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          gh release download $previous --dir $directory --pattern "DCS-Translation-Tool-*-${{ matrix.rid }}.zip"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Previous release '$previous' has no compatible full package."
+            return
+          }
+          $packages = @(Get-ChildItem -LiteralPath $directory -File -Filter '*.zip')
+          if ($packages.Count -eq 1) {
+            "package=$($packages[0].FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+      - name: Build full and delta assets
         shell: pwsh
         run: |
           $pubDir  = "publish/${{ matrix.rid }}"
-          $stage   = "package/${{ matrix.rid }}"   # ZIP 直前のステージング
-          $dest    = "${{ env.APP_NAME }}-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip"
+          $stage   = "package/${{ matrix.rid }}"
+          $output  = "assets/${{ matrix.rid }}"
 
           if (-not (Test-Path $pubDir)) {
             throw "publish directory not found: $pubDir"
@@ -228,24 +247,20 @@ jobs:
             throw "CHANGELOG.md not found at repo root"
           }
 
-          # ZIP 作成
-          if (Test-Path $dest) {
-            Remove-Item $dest -Force
-          }
-          Compress-Archive -Path "$stage/*" -DestinationPath $dest -CompressionLevel Optimal
-
-          # SHA256 生成
-          $hash = Get-FileHash -Path $dest -Algorithm SHA256
-          $shaFile = "$dest.sha256"
-          Set-Content -Path $shaFile -Value "$($hash.Hash)  $(Split-Path $dest -Leaf)"
+          & ./build/New-ApplicationUpdateAssets.ps1 `
+            -StageDirectory $stage `
+            -TargetVersion '${{ needs.prepare.outputs.version }}' `
+            -RuntimeIdentifier '${{ matrix.rid }}' `
+            -OutputDirectory $output `
+            -BasePackagePath '${{ steps.previous.outputs.package }}'
 
       - name: Store release assets
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-assets-${{ matrix.rid }}
           path: |
-            ${{ env.APP_NAME }}-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip
-            ${{ env.APP_NAME }}-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip.sha256
+            assets/${{ matrix.rid }}/*.zip
+            assets/${{ matrix.rid }}/*.zip.sha256
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
@@ -259,6 +274,12 @@ jobs:
       actions: read
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
+
       - name: Publish or verify immutable release
         shell: pwsh
         env:
@@ -290,7 +311,7 @@ jobs:
             }
           }
 
-          $expected = @(
+          $required = @(
             "${{ env.APP_NAME }}-$version-win-x64.zip",
             "${{ env.APP_NAME }}-$version-win-x64.zip.sha256",
             "${{ env.APP_NAME }}-$version-win-x86.zip",
@@ -301,14 +322,21 @@ jobs:
               ForEach-Object { $_.Name } |
               Sort-Object
           )
-          $differences = @(Compare-Object -ReferenceObject $expected -DifferenceObject $actual)
-          if ($differences.Count -ne 0) {
-            throw "release assets do not match the expected set. Actual: $($actual -join ', ')"
+          foreach ($name in $required) {
+            if ($name -notin $actual) { throw "required release asset is missing: $name" }
+          }
+          foreach ($name in $actual) {
+            if ($name -notmatch '^DCS-Translation-Tool-(?:[0-9]+\.[0-9]+\.[0-9]+-(?:win-x64|win-x86)|[0-9]+\.[0-9]+\.[0-9]+-to-[0-9]+\.[0-9]+\.[0-9]+-(?:win-x64|win-x86)\.delta)\.zip(?:\.sha256)?$') {
+              throw "unexpected release asset: $name"
+            }
+          }
+          foreach ($zip in @($actual | Where-Object { $_ -like '*.zip' })) {
+            if ("$zip.sha256" -notin $actual) { throw "SHA256 sidecar is missing for $zip" }
           }
 
           $assetPaths = @()
           $localDigests = @{}
-          foreach ($name in $expected) {
+          foreach ($name in $actual) {
             $path = Join-Path $assetDirectory $name
             $assetPaths += $path
             $localDigests[$name] = "sha256:$((Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLowerInvariant())"
@@ -332,6 +360,23 @@ jobs:
             if ($actualHash -cne $expectedHash) {
               throw "SHA256 mismatch for asset '${zipName}'."
             }
+
+            & ./build/Test-ApplicationUpdatePackage.ps1 `
+              -PackagePath $zipPath `
+              -ExpectedVersion $version `
+              -RuntimeIdentifier $rid
+          }
+
+          foreach ($zipName in @($actual | Where-Object { $_ -like '*.delta.zip' })) {
+            $zipPath = Join-Path $assetDirectory $zipName
+            $shaPath = "$zipPath.sha256"
+            $checksum = Get-Content -Raw -Path $shaPath
+            if ($checksum -notmatch '^(?<hash>[A-Fa-f0-9]{64})  (?<file>[^\r\n]+)\s*$' -or $Matches['file'] -cne $zipName) {
+              throw "invalid delta SHA256 file: $shaPath"
+            }
+            if ((Get-FileHash -Path $zipPath -Algorithm SHA256).Hash -cne $Matches['hash'].ToUpperInvariant()) {
+              throw "SHA256 mismatch for delta asset '${zipName}'."
+            }
           }
 
           if ($mode -eq 'publish') {
@@ -351,7 +396,7 @@ jobs:
           }
 
           $remoteNames = @($release.assets | ForEach-Object { $_.name } | Sort-Object)
-          $differences = @(Compare-Object -ReferenceObject $expected -DifferenceObject $remoteNames)
+          $differences = @(Compare-Object -ReferenceObject $actual -DifferenceObject $remoteNames)
           if ($differences.Count -ne 0) {
             throw "release assets do not match the expected set. Actual: $($remoteNames -join ', ')"
           }

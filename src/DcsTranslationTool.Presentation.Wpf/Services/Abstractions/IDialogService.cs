@@ -1,5 +1,8 @@
+using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
 using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
+
+using FluentResults;
 
 namespace DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
 
@@ -13,6 +16,13 @@ public interface IDialogService {
     /// <param name="parameters">表示に利用する引数。</param>
     /// <returns>選択結果。</returns>
     Task<ConfirmationDialogResult> ConfirmationDialogShowAsync( ConfirmationDialogParameters parameters );
+
+    /// <summary>
+    /// 更新取得の進捗とキャンセル操作を表示する。
+    /// </summary>
+    /// <param name="parameters">更新処理と表示内容を受け取る。</param>
+    /// <returns>ステージング結果を返す。</returns>
+    Task<Result<ApplicationUpdateStageResult>> ApplicationUpdateProgressDialogShowAsync( ApplicationUpdateProgressDialogParameters parameters );
 
     /// <summary>
     /// Download Page の差分適用モード選択ダイアログを表示して結果を取得する。

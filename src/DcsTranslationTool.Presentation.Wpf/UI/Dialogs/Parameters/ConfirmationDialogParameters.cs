@@ -14,6 +14,11 @@ public sealed record ConfirmationDialogParameters {
     ];
 
     /// <summary>
+    /// ダイアログコンテナのAutomationIdを取得する。
+    /// </summary>
+    public string AutomationId { get; init; } = "ConfirmationDialog";
+
+    /// <summary>
     /// タイトル文字列を取得する。
     /// </summary>
     public string Title { get; init; } = string.Empty;

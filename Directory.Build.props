@@ -1,2 +1,9 @@
 <Project>
+  <PropertyGroup>
+    <SatelliteResourceLanguages>ja</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(E2ETesting)' == 'true'">
+    <DefineConstants>$(DefineConstants);E2E_TESTING</DefineConstants>
+  </PropertyGroup>
 </Project>

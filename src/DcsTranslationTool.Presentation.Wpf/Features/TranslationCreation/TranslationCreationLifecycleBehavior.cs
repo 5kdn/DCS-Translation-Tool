@@ -17,6 +17,11 @@ public sealed class TranslationCreationLifecycleBehavior : Behavior<Window> {
     private ITranslationCreationViewModel? _subscribedViewModel;
 
     /// <summary>
+    /// 外部で終了確認済みとして、次の終了処理では再確認を行わないようにする。
+    /// </summary>
+    internal void ApproveClose() => _bypassCloseConfirmation = true;
+
+    /// <summary>
     /// 関連ウィンドウへイベント購読を接続する。
     /// </summary>
     protected override void OnAttached() {

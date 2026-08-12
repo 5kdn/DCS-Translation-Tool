@@ -1,6 +1,8 @@
 using DcsTranslationTool.Application.Interfaces;
 using DcsTranslationTool.Infrastructure.Services;
 
+using Microsoft.Data.Sqlite;
+
 using Moq;
 
 namespace DcsTranslationTool.IntegrationTests.Infrastructure.Services;
@@ -45,8 +47,61 @@ public sealed class FileEntryHashCacheServiceTests : IDisposable {
 
         Assert.True( hit );
         Assert.Equal( sha, actualSha );
-        var expectedDbPath = Path.Combine( _preferredBaseDir, ".dcs-translation-cache", "hashcache.db" );
+        var expectedDbPath = Path.Combine( _fallbackBaseDir, "cache", "hashcache.db" );
         Assert.True( File.Exists( expectedDbPath ) );
+    }
+
+    [Fact]
+    public void 旧キャッシュは新DBを開いた後に移行して旧フォルダーを削除する() {
+        var seedBaseDir = Path.Combine( _tempDir, "seed" );
+        var lastWriteUtc = DateTime.UtcNow.AddMinutes( -1 );
+        const string relativePath = "DCSWorld/Mods/aircraft/A10C/L10N/Migrated.lua";
+        const string sha = "dddddddddddddddddddddddddddddddddddddddd";
+        using(var seedService = new FileEntryHashCacheService( _logger.Object, _preferredBaseDir, seedBaseDir )) {
+            seedService.ConfigureRoot( _tempDir );
+            seedService.Upsert( relativePath, 42, lastWriteUtc, sha );
+        }
+
+        var legacyDirectory = Path.Combine( _preferredBaseDir, ".dcs-translation-cache" );
+        Directory.CreateDirectory( legacyDirectory );
+        File.Copy( Path.Combine( seedBaseDir, "cache", "hashcache.db" ), Path.Combine( legacyDirectory, "hashcache.db" ) );
+        Directory.Delete( seedBaseDir, true );
+
+        using var service = CreateService();
+        service.ConfigureRoot( _tempDir );
+
+        Assert.True( service.TryGetSha( relativePath, 42, lastWriteUtc, out var actualSha ) );
+        Assert.Equal( sha, actualSha );
+        Assert.True( File.Exists( Path.Combine( _fallbackBaseDir, "cache", "hashcache.db" ) ) );
+        Assert.False( Directory.Exists( legacyDirectory ) );
+    }
+
+    [Fact]
+    public void 旧キャッシュの読込失敗時は旧データを保持して新DBを再構築する() {
+        var legacyDirectory = Path.Combine( _preferredBaseDir, ".dcs-translation-cache" );
+        var legacyDbPath = Path.Combine( legacyDirectory, "hashcache.db" );
+        Directory.CreateDirectory( legacyDirectory );
+        using(var connection = new SqliteConnection( $"Data Source={legacyDbPath};Pooling=False" )) {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                                  CREATE TABLE file_hash_cache (
+                                      root_path TEXT NOT NULL,
+                                      path TEXT NOT NULL,
+                                      updated_at_utc_ticks INTEGER NOT NULL,
+                                      PRIMARY KEY(root_path, path)
+                                  );
+                                  """;
+            command.ExecuteNonQuery();
+        }
+
+        using var service = CreateService();
+        var exception = Record.Exception( () => service.ConfigureRoot( _tempDir ) );
+        service.Upsert( "DCSWorld/Test.lua", 1, DateTime.UtcNow, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" );
+
+        Assert.Null( exception );
+        Assert.True( File.Exists( legacyDbPath ) );
+        Assert.True( File.Exists( Path.Combine( _fallbackBaseDir, "cache", "hashcache.db" ) ) );
     }
 
     [Fact]

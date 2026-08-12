@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+             AutomationProperties.AutomationId="{Binding AutomationId}"
              mc:Ignorable="d"
              d:DesignHeight="200"
              d:DesignWidth="360">
@@ -14,23 +15,28 @@
 
         <StackPanel>
             <TextBlock Text="{Binding Title}"
+                       AutomationProperties.AutomationId="ConfirmationDialogTitle"
                        Style="{StaticResource MaterialDesignHeadlineSmallTextBlock}"
                        Margin="{StaticResource XSmallBottomMargin}" />
             <TextBlock Text="{Binding Message}"
+                       AutomationProperties.AutomationId="ConfirmationDialogMessage"
                        Style="{StaticResource MaterialDesignBodyMediumTextBlock}"
                        TextWrapping="Wrap"
                        Margin="{StaticResource SmallBottomMargin}" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="LeftButton"
+                        AutomationProperties.AutomationId="ConfirmationDialogLeftButton"
                         Command="{x:Static md:DialogHost.CloseDialogCommand}"
                         Margin="{StaticResource XSmallRightMargin}" />
 
                 <Button x:Name="CenterButton"
+                        AutomationProperties.AutomationId="ConfirmationDialogCenterButton"
                         Command="{x:Static md:DialogHost.CloseDialogCommand}"
                         Margin="{StaticResource XSmallRightMargin}" />
                 
                 <Button x:Name="RightButton"
+                        AutomationProperties.AutomationId="ConfirmationDialogRightButton"
                         Command="{x:Static md:DialogHost.CloseDialogCommand}" />
             </StackPanel>
         </StackPanel>

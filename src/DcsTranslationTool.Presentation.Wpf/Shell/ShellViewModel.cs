@@ -1,11 +1,15 @@
 using System.Windows.Navigation;
+using System.Windows.Threading;
 
 using Caliburn.Micro;
 
 using DcsTranslationTool.Application.Interfaces;
+using DcsTranslationTool.Application.Models;
 using DcsTranslationTool.Presentation.Wpf.Features.Main;
 using DcsTranslationTool.Presentation.Wpf.Features.Settings;
 using DcsTranslationTool.Presentation.Wpf.Services.Abstractions;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Parameters;
+using DcsTranslationTool.Presentation.Wpf.UI.Dialogs.Results;
 using DcsTranslationTool.Resources;
 using DcsTranslationTool.Shared.Constants;
 
@@ -20,13 +24,17 @@ public class ShellViewModel(
     INavigationService navigationService,
     ISnackbarService snackbarService,
     ISystemService systemService,
-    IUpdateCheckService updateCheckService
+    IUpdateCheckService updateCheckService,
+    IApplicationUpdateService? applicationUpdateService = null,
+    IDialogService? dialogService = null,
+    IApplicationRestartCoordinator? applicationRestartCoordinator = null
 ) : Conductor<IScreen>.Collection.OneActive, IHandle<string>, IActivate {
 
     #region Fields
 
     private bool _initialized = false;
     private bool _startupUpdateCheckStarted = false;
+    private bool _applicationUpdateInProgress = false;
     private double _shellWidth = appSettingsService.Settings.ShellWidth;
     private double _shellHeight = appSettingsService.Settings.ShellHeight;
 
@@ -189,6 +197,14 @@ public class ShellViewModel(
         this._startupUpdateCheckStarted = true;
 
         try {
+            if(applicationUpdateService is not null) {
+                var pendingResult = applicationUpdateService.GetPendingUpdate();
+                if(pendingResult.IsSuccess && pendingResult.Value is not null) {
+                    await ShowPendingUpdateNotificationAsync( pendingResult.Value ).ConfigureAwait( false );
+                    return;
+                }
+            }
+
             var updateCheckResult = await updateCheckService.CheckForUpdateAsync( cancellationToken ).ConfigureAwait( false );
             if(!updateCheckResult.IsUpdateAvailable ||
                 string.IsNullOrWhiteSpace( updateCheckResult.LatestVersionLabel ) ||
@@ -199,8 +215,10 @@ public class ShellViewModel(
             await Execute.OnUIThreadAsync( () => {
                 snackbarService.Show(
                     string.Format( Strings_Shared.UpdateAvailableMessageFormat, updateCheckResult.LatestVersionLabel ),
-                    Strings_Shared.UpdateActionOpenRelease,
-                    () => systemService.OpenInWebBrowser( updateCheckResult.ReleaseUrl ),
+                    applicationUpdateService is null || dialogService is null ? Strings_Shared.UpdateActionOpenRelease : GetResourceString( "ApplicationUpdateAction" ),
+                    applicationUpdateService is null || dialogService is null
+                        ? () => systemService.OpenInWebBrowser( updateCheckResult.ReleaseUrl )
+                        : () => _ = ExecuteApplicationUpdateAsync( updateCheckResult ),
                     duration: TimeSpan.FromSeconds( 4 ) );
                 return Task.CompletedTask;
             } ).ConfigureAwait( false );
@@ -209,4 +227,166 @@ public class ShellViewModel(
             logger.Warn( "起動時更新確認でエラーが発生したため通知を行わない。", ex );
         }
     }
+
+    private async Task ExecuteApplicationUpdateAsync( UpdateCheckResult update ) {
+        if(this._applicationUpdateInProgress || applicationUpdateService is null || dialogService is null || update.PreferredAssets.Count == 0) {
+            return;
+        }
+
+        this._applicationUpdateInProgress = true;
+        try {
+            var confirmResult = await dialogService.ConfirmationDialogShowAsync( new ConfirmationDialogParameters
+            {
+                AutomationId = "ApplicationUpdateDownloadConfirmationDialog",
+                Title = GetResourceString( "ApplicationUpdateDialogTitle" ),
+                Message = string.Format( GetResourceString( "ApplicationUpdateDownloadMessageFormat" ), update.LatestVersionLabel, FormatFileSize( update.PreferredDownloadSize ) ),
+                ConfirmButtonText = GetResourceString( "ApplicationUpdateDownloadButton" ),
+                ConfirmButtonStyleKey = "MaterialDesignRaisedButton",
+                CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" )
+            } );
+            if(confirmResult != ConfirmationDialogResult.Confirm) {
+                return;
+            }
+
+            var stageResult = await dialogService.ApplicationUpdateProgressDialogShowAsync(
+                new ApplicationUpdateProgressDialogParameters(
+                    GetResourceString( "ApplicationUpdateProgressTitle" ),
+                    (progress, cancellationToken) => applicationUpdateService.DownloadAndStageAsync( update, progress, cancellationToken ),
+                    logger ) );
+            if(stageResult.IsFailed) {
+                await HandleUpdateFailureAsync( update );
+                return;
+            }
+
+            await ConfirmRestartAsync( stageResult.Value );
+        }
+        catch(Exception ex) {
+            logger.Error( "アプリケーション更新の操作に失敗した。", ex );
+            snackbarService.Show( GetResourceString( "ApplicationUpdatePrepareFailureMessage" ) );
+        }
+        finally {
+            this._applicationUpdateInProgress = false;
+        }
+    }
+
+    private async Task ConfirmRestartAsync( ApplicationUpdateStageResult stageResult ) {
+        if(applicationUpdateService is null || dialogService is null) {
+            return;
+        }
+
+        var restartResult = await dialogService.ConfirmationDialogShowAsync( new ConfirmationDialogParameters
+        {
+            AutomationId = "ApplicationUpdateRestartConfirmationDialog",
+            Title = GetResourceString( "ApplicationUpdateReadyTitle" ),
+            Message = string.Format( GetResourceString( "ApplicationUpdateRestartMessageFormat" ), stageResult.TargetVersion.ToString( 3 ) ),
+            ConfirmButtonText = GetResourceString( "ApplicationUpdateRestartNowButton" ),
+            SecondaryButtonText = GetResourceString( "ApplicationUpdateLaterButton" ),
+            CancelButtonText = GetResourceString( "ApplicationUpdateCancelButton" ),
+            ConfirmButtonStyleKey = "MaterialDesignRaisedButton",
+            SecondaryButtonStyleKey = "MaterialDesignRaisedButton",
+            ButtonOrder = [
+                ConfirmationDialogResult.Confirm,
+                ConfirmationDialogResult.Secondary,
+                ConfirmationDialogResult.Cancel
+            ]
+        } );
+        if(restartResult == ConfirmationDialogResult.Secondary) {
+            return;
+        }
+
+        if(restartResult != ConfirmationDialogResult.Confirm) {
+            this.DiscardStagedUpdate( stageResult );
+            return;
+        }
+
+        if(!await ((IGuardClose)this).CanCloseAsync( CancellationToken.None )) {
+            logger.Warn( "シェルの終了確認により更新再起動を中止した。" );
+            snackbarService.Show( GetResourceString( "ApplicationUpdateUnsavedMessage" ) );
+            return;
+        }
+
+        if(applicationRestartCoordinator is not null &&
+            !await applicationRestartCoordinator.PrepareForRestartAsync( CancellationToken.None )) {
+            logger.Warn( "編集中ウィンドウの終了確認により更新再起動を中止した。" );
+            snackbarService.Show( GetResourceString( "ApplicationUpdateUnsavedMessage" ) );
+            return;
+        }
+
+        var launchResult = applicationUpdateService.LaunchApplyProcess( stageResult, Environment.ProcessId );
+        if(launchResult.IsFailed) {
+            logger.Error( $"更新適用プロセスを開始できなかった。Errors={string.Join( "; ", launchResult.Errors.Select( error => error.Message ) )}" );
+            snackbarService.Show( GetResourceString( "ApplicationUpdateRestartFailureMessage" ) );
+            return;
+        }
+
+        logger.Info( "更新適用プロセスを開始したためアプリケーションを終了する。" );
+        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            System.Windows.Application.Current.Shutdown,
+            DispatcherPriority.ApplicationIdle );
+    }
+
+    private Task ShowPendingUpdateNotificationAsync( ApplicationUpdateStageResult stageResult ) =>
+        Execute.OnUIThreadAsync( () => {
+            snackbarService.Show(
+                string.Format( GetResourceString( "ApplicationUpdatePendingMessageFormat" ), stageResult.TargetVersion.ToString( 3 ) ),
+                GetResourceString( "ApplicationUpdateRestartAction" ),
+                () => _ = ConfirmRestartAsync( stageResult ),
+                duration: TimeSpan.FromSeconds( 6 ) );
+            return Task.CompletedTask;
+        } );
+
+    private async Task HandleUpdateFailureAsync( UpdateCheckResult update ) {
+        if(dialogService is null || string.IsNullOrWhiteSpace( update.ReleaseUrl )) {
+            return;
+        }
+
+        var failureResult = await dialogService.ConfirmationDialogShowAsync( new ConfirmationDialogParameters
+        {
+            AutomationId = "ApplicationUpdateFailureConfirmationDialog",
+            Title = GetResourceString( "ApplicationUpdateFailureTitle" ),
+            Message = GetResourceString( "ApplicationUpdateFailureMessage" ),
+            ConfirmButtonText = GetResourceString( "ApplicationUpdateRetryButton" ),
+            ConfirmButtonStyleKey = "MaterialDesignRaisedButton",
+            SecondaryButtonText = GetResourceString( "ApplicationUpdateReleasePageButton" ),
+            SecondaryButtonStyleKey = "MaterialDesignRaisedButton",
+            CancelButtonText = GetResourceString( "ApplicationUpdateCloseButton" ),
+            ButtonOrder = [
+                ConfirmationDialogResult.Confirm,
+                ConfirmationDialogResult.Secondary,
+                ConfirmationDialogResult.Cancel
+            ]
+        } );
+        if(failureResult == ConfirmationDialogResult.Confirm) {
+            this._applicationUpdateInProgress = false;
+            await ExecuteApplicationUpdateAsync( update );
+        }
+        else if(failureResult == ConfirmationDialogResult.Secondary) {
+            systemService.OpenInWebBrowser( update.ReleaseUrl );
+        }
+    }
+
+    /// <summary>
+    /// ステージ済み更新を破棄し、失敗時は記録だけして更新操作を継続する。
+    /// </summary>
+    /// <param name="stageResult">破棄するステージ済み更新を受け取る。</param>
+    private void DiscardStagedUpdate( ApplicationUpdateStageResult stageResult ) {
+        if(applicationUpdateService is null) {
+            return;
+        }
+
+        var discardResult = applicationUpdateService.DiscardStagedUpdate( stageResult );
+        if(discardResult.IsFailed) {
+            logger.Warn( $"ステージ済み更新を破棄できなかった。Errors={string.Join( "; ", discardResult.Errors.Select( error => error.Message ) )}" );
+        }
+    }
+
+    private static string FormatFileSize( long bytes ) => bytes switch
+    {
+        >= 1024 * 1024 => $"{bytes / 1024d / 1024d:N1} MB",
+        >= 1024 => $"{bytes / 1024d:N1} KB",
+        _ => $"{bytes:N0} bytes"
+    };
+
+    private static string GetResourceString( string name ) =>
+        Strings_Shared.ResourceManager.GetString( name ) ?? name;
 }

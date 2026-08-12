@@ -126,4 +126,30 @@
   <data name="UpdateAvailableMessageFormat" xml:space="preserve">
     <value>新しいバージョン {0} が利用可能です</value>
   </data>
+  <data name="ApplicationUpdateAction" xml:space="preserve"><value>更新</value></data>
+  <data name="ApplicationUpdateDialogTitle" xml:space="preserve"><value>アプリケーションの更新</value></data>
+  <data name="ApplicationUpdateDownloadMessageFormat" xml:space="preserve"><value>バージョン {0} をダウンロードします。&#xD;&#xA;サイズ: {1}</value></data>
+  <data name="ApplicationUpdateDownloadButton" xml:space="preserve"><value>ダウンロード</value></data>
+  <data name="ApplicationUpdateCancelButton" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="ApplicationUpdateProgressTitle" xml:space="preserve"><value>更新をダウンロードしています</value></data>
+  <data name="ApplicationUpdateProgressDownloading" xml:space="preserve"><value>更新ファイルをダウンロードしています</value></data>
+  <data name="ApplicationUpdateProgressVerifying" xml:space="preserve"><value>更新ファイルを検証しています</value></data>
+  <data name="ApplicationUpdateProgressStaging" xml:space="preserve"><value>更新をインストールする準備をしています</value></data>
+  <data name="ApplicationUpdateReadyTitle" xml:space="preserve"><value>更新の準備が完了しました</value></data>
+  <data name="ApplicationUpdateRestartMessageFormat" xml:space="preserve"><value>バージョン {0} を適用するにはアプリケーションを再起動します。</value></data>
+  <data name="ApplicationUpdateRestartNowButton" xml:space="preserve"><value>今すぐ再起動</value></data>
+  <data name="ApplicationUpdateLaterButton" xml:space="preserve"><value>後で</value></data>
+  <data name="ApplicationUpdatePendingMessageFormat" xml:space="preserve"><value>バージョン {0} の更新準備が完了しています</value></data>
+  <data name="ApplicationUpdateRestartAction" xml:space="preserve"><value>再起動</value></data>
+  <data name="ApplicationUpdateFailureTitle" xml:space="preserve"><value>自動更新に失敗しました</value></data>
+  <data name="ApplicationUpdateFailureMessage" xml:space="preserve"><value>再試行または、リリースページから最新版を入手し手動で更新してください。</value></data>
+  <data name="ApplicationUpdateRetryButton" xml:space="preserve"><value>再試行</value></data>
+  <data name="ApplicationUpdateReleasePageButton" xml:space="preserve"><value>リリースページ</value></data>
+  <data name="ApplicationUpdateCloseButton" xml:space="preserve"><value>閉じる</value></data>
+  <data name="ApplicationUpdateUnsavedMessage" xml:space="preserve"><value>未保存の編集があるため更新の適用を開始しませんでした。</value></data>
+  <data name="ApplicationUpdateRestartFailureMessage" xml:space="preserve"><value>更新の再起動を開始できませんでした。現行版を継続します。</value></data>
+  <data name="ApplicationUpdatePrepareFailureMessage" xml:space="preserve"><value>更新を準備できませんでした。現行版を継続します。</value></data>
+  <data name="ApplicationUpdateCanceledMessage" xml:space="preserve"><value>更新のダウンロードをキャンセルしました。</value></data>
+  <data name="ApplicationUpdateApplyFailureTitle" xml:space="preserve"><value>更新を適用できませんでした</value></data>
+  <data name="ApplicationUpdateApplyFailureMessageFormat" xml:space="preserve"><value>現行版を維持するか、可能な場合は以前のバージョンへ復元しました。&#xD;&#xA;&#xD;&#xA;{0}&#xD;&#xA;&#xD;&#xA;更新作業フォルダー内の Logs と backup を確認し、必要に応じてリリースページから手動更新してください。</value></data>
 </root>

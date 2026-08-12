@@ -8,9 +8,19 @@
         xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:cal="http://www.caliburnproject.org"
         mc:Ignorable="d"
+        AutomationProperties.AutomationId="MainWindow"
         Width="{Binding ShellWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
         Height="{Binding ShellHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
         d:Height="450" d:Width="800">
+
+    <Window.Resources>
+        <Style x:Key="UpdateSnackbarActionButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource MaterialDesignFlatButton}">
+            <Setter Property="AutomationProperties.AutomationId" Value="UpdateSnackbarAction" />
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Secondary}" />
+        </Style>
+    </Window.Resources>
 
     <WindowChrome.WindowChrome>
         <WindowChrome
@@ -21,8 +31,10 @@
             UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
-        <md:DialogHost Identifier="RootDialogHost">
-        <Grid x:Name="RootLayout">
+        <md:DialogHost Identifier="RootDialogHost"
+                       AutomationProperties.AutomationId="RootDialogHost">
+        <Grid x:Name="RootLayout"
+              AutomationProperties.AutomationId="MainWindowRoot">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -84,7 +96,10 @@
                    Navigated="RootFrame_Navigated" />
 
             <!-- Snackbar -->
-            <md:Snackbar Grid.RowSpan="2"
+            <md:Snackbar x:Name="UpdateSnackbar"
+                         Grid.RowSpan="2"
+                         AutomationProperties.AutomationId="UpdateSnackbar"
+                         ActionButtonStyle="{StaticResource UpdateSnackbarActionButtonStyle}"
                          MessageQueue="{Binding MessageQueue}"
                          Style="{DynamicResource SnackbarStyle}" />
         </Grid>

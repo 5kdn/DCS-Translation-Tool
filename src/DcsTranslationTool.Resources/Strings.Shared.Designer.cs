@@ -70,6 +70,245 @@ namespace DcsTranslationTool.Resources {
         }
         
         /// <summary>
+        ///   更新 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateAction {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateAction", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   現行版を維持するか、可能な場合は以前のバージョンへ復元しました。
+        ///
+        ///{0}
+        ///
+        ///更新作業フォルダー内の Logs と backup を確認し、必要に応じてリリースページから手動更新してください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateApplyFailureMessageFormat {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateApplyFailureMessageFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新を適用できませんでした に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateApplyFailureTitle {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateApplyFailureTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   キャンセル に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateCancelButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateCancelButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新のダウンロードをキャンセルしました。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateCanceledMessage {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateCanceledMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   閉じる に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateCloseButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateCloseButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   アプリケーションの更新 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateDialogTitle {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateDialogTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   ダウンロード に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateDownloadButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateDownloadButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   バージョン {0} をダウンロードします。
+        ///サイズ: {1} に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateDownloadMessageFormat {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateDownloadMessageFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   再試行または、リリースページから最新版を入手し手動で更新してください。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateFailureMessage {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateFailureMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   自動更新に失敗しました に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateFailureTitle {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateFailureTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   後で に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateLaterButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateLaterButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   バージョン {0} の更新準備が完了しています に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdatePendingMessageFormat {
+            get {
+                return ResourceManager.GetString("ApplicationUpdatePendingMessageFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新を準備できませんでした。現行版を継続します。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdatePrepareFailureMessage {
+            get {
+                return ResourceManager.GetString("ApplicationUpdatePrepareFailureMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新ファイルをダウンロードしています に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateProgressDownloading {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateProgressDownloading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新をインストールする準備をしています に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateProgressStaging {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateProgressStaging", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新をダウンロードしています に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateProgressTitle {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateProgressTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新ファイルを検証しています に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateProgressVerifying {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateProgressVerifying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新の準備が完了しました に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateReadyTitle {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateReadyTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   リリースページ に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateReleasePageButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateReleasePageButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   再起動 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateRestartAction {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateRestartAction", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   更新の再起動を開始できませんでした。現行版を継続します。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateRestartFailureMessage {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateRestartFailureMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   バージョン {0} を適用するにはアプリケーションを再起動します。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateRestartMessageFormat {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateRestartMessageFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   今すぐ再起動 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateRestartNowButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateRestartNowButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   再試行 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateRetryButton {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateRetryButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   未保存の編集があるため更新の適用を開始しませんでした。 に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        public static string ApplicationUpdateUnsavedMessage {
+            get {
+                return ResourceManager.GetString("ApplicationUpdateUnsavedMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   DLページ に類似しているローカライズされた文字列を検索します。
         /// </summary>
         public static string UpdateActionOpenRelease {

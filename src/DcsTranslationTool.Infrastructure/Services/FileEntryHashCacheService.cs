@@ -1,5 +1,3 @@
-using System.Reflection;
-
 using DcsTranslationTool.Application.Interfaces;
 
 using Microsoft.Data.Sqlite;
@@ -14,8 +12,8 @@ public sealed class FileEntryHashCacheService(
     string? preferredBaseDirectory = null,
     string? fallbackBaseDirectory = null
 ) : IFileEntryHashCacheService, IDisposable {
-    private const string PreferredCacheDirectoryName = ".dcs-translation-cache";
-    private const string FallbackCacheDirectoryName = "cache";
+    private const string LegacyCacheDirectoryName = ".dcs-translation-cache";
+    private const string CacheDirectoryName = "cache";
     private const string CacheFileName = "hashcache.db";
 
     private readonly object _gate = new();
@@ -39,23 +37,36 @@ public sealed class FileEntryHashCacheService(
             DisposeConnection();
             _index.Clear();
 
-            var preferredDbPath = Path.Combine( _preferredBaseDirectory, PreferredCacheDirectoryName, CacheFileName );
-            if(!TryOpenConnection( preferredDbPath, out var connection, out var exception )) {
-                logger.Warn( $"キャッシュDBの同階層初期化に失敗したためフォールバックする。Path={preferredDbPath}", exception );
-                var fallbackDbPath = Path.Combine( _fallbackBaseDirectory, FallbackCacheDirectoryName, CacheFileName );
-                if(!TryOpenConnection( fallbackDbPath, out connection, out var fallbackException )) {
-                    throw new InvalidOperationException( $"キャッシュDBの初期化に失敗した。FallbackPath={fallbackDbPath}", fallbackException );
-                }
-
-                logger.Info( $"ハッシュキャッシュ保存先にフォールバックを適用した。Path={fallbackDbPath}" );
+            var legacyDbPath = Path.Combine( _preferredBaseDirectory, LegacyCacheDirectoryName, CacheFileName );
+            var cacheDbPath = Path.Combine( _fallbackBaseDirectory, CacheDirectoryName, CacheFileName );
+            var migrationCopied = TryCopyLegacyCache( legacyDbPath, cacheDbPath, out var migrationException );
+            if(migrationException is not null) {
+                logger.Warn( $"旧ハッシュキャッシュの移行準備に失敗したため新保存先で再構築する。LegacyPath={legacyDbPath}", migrationException );
             }
-            else {
-                logger.Info( $"ハッシュキャッシュ保存先を実行ファイル同階層に設定した。Path={preferredDbPath}" );
+
+            if(!TryInitializeCache( cacheDbPath, normalizedRoot, out var connection, out var exception )) {
+                if(migrationCopied) {
+                    DeleteCacheFamily( cacheDbPath );
+                    if(!TryInitializeCache( cacheDbPath, normalizedRoot, out connection, out var rebuildException )) {
+                        throw new InvalidOperationException( $"キャッシュDBの再構築に失敗した。Path={cacheDbPath}", rebuildException );
+                    }
+                    logger.Warn( $"移行済みキャッシュを初期化できなかったため新保存先で再構築した。Path={cacheDbPath}", exception );
+                    migrationCopied = false;
+                }
+                else {
+                    throw new InvalidOperationException( $"キャッシュDBの初期化に失敗した。Path={cacheDbPath}", exception );
+                }
             }
 
             _connection = connection!;
-            InitializeSchema( _connection );
-            LoadIndex( _connection, normalizedRoot );
+            if(migrationCopied) {
+                DeleteCacheFamily( legacyDbPath );
+                TryDeleteEmptyDirectory( Path.GetDirectoryName( legacyDbPath ) );
+                logger.Info( $"旧ハッシュキャッシュを新保存先へ移行した。Path={cacheDbPath}" );
+            }
+            else {
+                logger.Info( $"ハッシュキャッシュ保存先をローカルアプリデータに設定した。Path={cacheDbPath}" );
+            }
 
             _currentRootPath = normalizedRoot;
             logger.Info( $"ハッシュキャッシュを初期化した。Root={_currentRootPath}, Count={_index.Count}" );
@@ -240,6 +251,33 @@ public sealed class FileEntryHashCacheService(
     }
 
     /// <summary>
+    /// DBの接続、スキーマ初期化、インデックス読込を一体として試行する。
+    /// </summary>
+    /// <param name="dbPath">DBファイルパス。</param>
+    /// <param name="rootPath">読み込むルートパス。</param>
+    /// <param name="connection">初期化済み接続。</param>
+    /// <param name="exception">失敗時の例外。</param>
+    /// <returns>利用可能な状態まで初期化できた場合は <see langword="true"/> を返す。</returns>
+    private bool TryInitializeCache( string dbPath, string rootPath, out SqliteConnection? connection, out Exception? exception ) {
+        if(!TryOpenConnection( dbPath, out connection, out exception )) {
+            return false;
+        }
+
+        try {
+            InitializeSchema( connection! );
+            LoadIndex( connection!, rootPath );
+            return true;
+        }
+        catch(Exception ex) when(ex is SqliteException or IOException or UnauthorizedAccessException or InvalidOperationException or InvalidCastException or FormatException or OverflowException) {
+            connection?.Dispose();
+            connection = null;
+            exception = ex;
+            _index.Clear();
+            return false;
+        }
+    }
+
+    /// <summary>
     /// テーブルとインデックスを初期化する。
     /// </summary>
     /// <param name="connection">初期化対象接続。</param>
@@ -373,11 +411,67 @@ public sealed class FileEntryHashCacheService(
             return Path.GetFullPath( fallbackBaseDirectory );
         }
 
-        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        var title = assembly.GetCustomAttribute<AssemblyTitleAttribute>()?.Title;
-        title = string.IsNullOrWhiteSpace( title ) ? "DcsTranslationTool" : title;
-        var appData = Environment.GetFolderPath( Environment.SpecialFolder.ApplicationData );
-        return Path.Combine( appData, title );
+#if E2E_TESTING
+        return ApplicationUpdateE2eConfiguration.Load().CacheDirectory;
+#else
+        var localAppData = Environment.GetFolderPath( Environment.SpecialFolder.LocalApplicationData );
+        return Path.Combine( localAppData, "DcsTranslationTool" );
+#endif
+    }
+
+    /// <summary>
+    /// 旧キャッシュ一式を新保存先へ複製する。
+    /// </summary>
+    private static bool TryCopyLegacyCache( string legacyDbPath, string cacheDbPath, out Exception? exception ) {
+        exception = null;
+        if(File.Exists( cacheDbPath ) || !File.Exists( legacyDbPath )) {
+            return false;
+        }
+
+        try {
+            Directory.CreateDirectory( Path.GetDirectoryName( cacheDbPath )! );
+            foreach(var suffix in new[] { string.Empty, "-wal", "-shm" }) {
+                var source = legacyDbPath + suffix;
+                if(File.Exists( source )) {
+                    File.Copy( source, cacheDbPath + suffix, false );
+                }
+            }
+            return true;
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {
+            DeleteCacheFamily( cacheDbPath );
+            exception = ex;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// DB、WAL、SHM ファイルを削除する。
+    /// </summary>
+    private static void DeleteCacheFamily( string dbPath ) {
+        foreach(var suffix in new[] { string.Empty, "-wal", "-shm" }) {
+            try {
+                var path = dbPath + suffix;
+                if(File.Exists( path )) {
+                    File.Delete( path );
+                }
+            }
+            catch(IOException) { }
+            catch(UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>
+    /// 空の旧キャッシュフォルダーを削除する。
+    /// </summary>
+    private static void TryDeleteEmptyDirectory( string? directory ) {
+        try {
+            if(!string.IsNullOrWhiteSpace( directory ) && Directory.Exists( directory ) && !Directory.EnumerateFileSystemEntries( directory ).Any()) {
+                Directory.Delete( directory );
+            }
+        }
+        catch(IOException) { }
+        catch(UnauthorizedAccessException) { }
     }
 
     /// <summary>
