@@ -24,9 +24,9 @@
       },
       "Microsoft.Xaml.Behaviors.Wpf": {
         "type": "Direct",
-        "requested": "[1.1.135, )",
-        "resolved": "1.1.135",
-        "contentHash": "r8qBEXmQfORso2+MVHnt8PSH4761zJ0SIxgQTSEDVLU97EN2FZdG6/ZCYUPhQy+OrPKgnpYBCAs3PS6Bs7wRsg=="
+        "requested": "[1.1.161, )",
+        "resolved": "1.1.161",
+        "contentHash": "V20pH5zYDm6RPjqASdDiidUckWreGntPwDx1YUEMXiRqMVSHvypAiwSeET3ZwoJbFLMTsXXxqsoyhkNOB3Vp4Q=="
       },
       "MoonSharp": {
         "type": "Direct",
@@ -215,7 +215,8 @@
         "dependencies": {
           "Caliburn.Micro": "[5.0.258, )",
           "DcsTranslationTool.Application": "[1.0.0, )",
-          "DcsTranslationTool.Infrastructure": "[1.0.0, )"
+          "DcsTranslationTool.Infrastructure": "[1.0.0, )",
+          "Microsoft.Xaml.Behaviors.Wpf": "[1.1.161, )"
         }
       },
       "dcstranslationtool.domain": {
