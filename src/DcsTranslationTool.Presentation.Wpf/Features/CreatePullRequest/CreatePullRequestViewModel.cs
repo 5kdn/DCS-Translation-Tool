@@ -420,7 +420,7 @@ public class CreatePullRequestViewModel(
     }
 
     /// <summary>
-    /// 5kdn/DCS-Translation-Japaneseリポジトリの流通ポリシーをブラウザで表示する。
+    /// dcs-translation-japanese/translationsリポジトリの流通ポリシーをブラウザで表示する。
     /// </summary>
     public void BrowseToDistributionControlPolicyPage() {
         logger.Info( $"ライセンスページを開く。Url={TargetRepository.DistributionControlPolicyUrl}" );

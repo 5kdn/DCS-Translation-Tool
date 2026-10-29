@@ -117,7 +117,7 @@ public sealed class ShellViewModelTests {
             new Version( 1, 4, 0 ),
             "win-x64",
             ApplicationUpdateAssetKind.Full,
-            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0" );
+            "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.4.0" );
         var method = typeof( ShellViewModel ).GetMethod( "ConfirmRestartAsync", BindingFlags.Instance | BindingFlags.NonPublic );
 
         await (Task)method!.Invoke( viewModel, [stageResult] )!;
@@ -156,7 +156,7 @@ public sealed class ShellViewModelTests {
             new Version( 1, 4, 0 ),
             "win-x64",
             ApplicationUpdateAssetKind.Full,
-            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0" );
+            "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.4.0" );
         var method = typeof( ShellViewModel ).GetMethod( "ConfirmRestartAsync", BindingFlags.Instance | BindingFlags.NonPublic );
 
         await (Task)method!.Invoke( viewModel, [stageResult] )!;
@@ -435,7 +435,7 @@ public sealed class ShellViewModelTests {
         var updateCheckServiceMock = new Mock<IUpdateCheckService>();
         updateCheckServiceMock
             .Setup( service => service.CheckForUpdateAsync( It.IsAny<CancellationToken>() ) )
-            .ReturnsAsync( new UpdateCheckResult( true, "v1.3.2", "https://github.com/5kdn/DCS-Translation-Japanese/releases/tag/v1.3.2" ) );
+            .ReturnsAsync( new UpdateCheckResult( true, "v1.3.2", "https://github.com/dcs-translation-japanese/translations/releases/tag/v1.3.2" ) );
 
         var viewModel = new ShellViewModel(
             appSettingsServiceMock.Object,
@@ -454,7 +454,7 @@ public sealed class ShellViewModelTests {
         Assert.NotNull( capturedAction );
         capturedAction!.Invoke();
         systemServiceMock.Verify(
-            service => service.OpenInWebBrowser( "https://github.com/5kdn/DCS-Translation-Japanese/releases/tag/v1.3.2" ),
+            service => service.OpenInWebBrowser( "https://github.com/dcs-translation-japanese/translations/releases/tag/v1.3.2" ),
             Times.Once );
     }
 
@@ -608,7 +608,7 @@ public sealed class ShellViewModelTests {
             new Version( 1, 0, 0 ),
             new Version( 1, 2, 0 ),
             "v1.2.0",
-            "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.2.0",
+            "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.2.0",
             "win-x64",
             true,
             asset,

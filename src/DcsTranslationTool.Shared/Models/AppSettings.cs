@@ -41,7 +41,7 @@ public class AppSettings : INotifyPropertyChanged {
     private DateTimeOffset? _apiRouteLastVerifiedAtUtc;
     private DateTimeOffset? _apiRouteVerificationRetryAfterUtc;
     ///<summary>このアプリのリポジトリーURL。</summary>
-    private const string _repositoryUrl = "https://github.com/5kdn/DCS-Translation-Tool/";
+    private const string _repositoryUrl = "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/";
 
     #endregion
 

@@ -6,7 +6,7 @@ DCS: World の日本語化を支援する **非公式** Windows用デスクト�
 
 ## 主な機能
 
-- [翻訳ファイルのリポジトリ](https://github.com/5kdn/DCS-Translation-Japanese) から翻訳ファイルを取得する。
+- [翻訳ファイルのリポジトリ](https://github.com/dcs-translation-japanese/translations) から翻訳ファイルを取得する。
 - 翻訳ファイルをミッションファイルに追加する。
 - ローカルで変更した翻訳ファイルをリポジトリへアップロードする。
 - 既存のミッションファイルから翻訳を作成する。
@@ -18,7 +18,7 @@ DCS: World の日本語化を支援する **非公式** Windows用デスクト�
 
 ## 使い方
 
-詳しい使用方法は[こちら](https://github.com/5kdn/DCS-Translation-Tool/wiki)を確認してください。
+詳しい使用方法は[こちら](https://github.com/dcs-translation-japanese/DCS-Translation-Tool/wiki)を確認してください。
 
 ### 1. 初期設定
 
@@ -100,9 +100,9 @@ dotnet run --project src/DcsTranslationTool.Presentation.Wpf/DcsTranslationTool.
 
 ## 関連リポジトリ
 
-- [DCS-Translation-Japanese](https://github.com/5kdn/DCS-Translation-Japanese)
-- [DCS-Translation-Japanese-Downloader](https://github.com/5kdn/DCS-Translation-Japanese-Downloader)
-- [DCS-Translation-Japanese-Cloudflare-Worker](https://github.com/5kdn/DCS-Translation-Japanese-Cloudflare-Worker)
+- [DCS-Translation-Japanese](https://github.com/dcs-translation-japanese/translations)
+- [DCS-Translation-Japanese-Downloader](https://github.com/dcs-translation-japanese/WebUI)
+- [DCS-Translation-Japanese-Cloudflare-Worker](https://github.com/dcs-translation-japanese/api)
 
 ## 注意事項
 
