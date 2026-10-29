@@ -101,7 +101,7 @@ dotnet run --project src/DcsTranslationTool.Presentation.Wpf/DcsTranslationTool.
 ## 関連リポジトリ
 
 - [DCS-Translation-Japanese](https://github.com/dcs-translation-japanese/translations)
-- [DCS-Translation-Japanese-Downloader](https://github.com/dcs-translation-japanese/WebUI)
+- [DCS-Translation-Japanese-Downloader](https://github.com/5kdn/DCS-Translation-Japanese-Downloader)
 - [DCS-Translation-Japanese-Cloudflare-Worker](https://github.com/dcs-translation-japanese/api)
 
 ## 注意事項
