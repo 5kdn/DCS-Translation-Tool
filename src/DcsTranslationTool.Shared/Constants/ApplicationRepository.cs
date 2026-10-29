@@ -4,7 +4,7 @@ namespace DcsTranslationTool.Shared.Constants;
 /// アプリ本体リポジトリに関する固定情報を保持する。
 /// </summary>
 public static class ApplicationRepository {
-    private const string _owner = "5kdn";
+    private const string _owner = "dcs-translation-japanese";
     private const string _repo = "DCS-Translation-Tool";
 
     /// <summary>

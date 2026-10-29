@@ -120,7 +120,7 @@ public sealed class UpdateCheckResultTests {
         currentVersion,
         latestVersion,
         $"v{latestVersion.ToString( 3 )}",
-        $"https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v{latestVersion.ToString( 3 )}",
+        $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v{latestVersion.ToString( 3 )}",
         "win-x64",
         true,
         fullAsset,
@@ -138,7 +138,7 @@ public sealed class UpdateCheckResultTests {
             : $"DCS-Translation-Tool-{baseVersion!.ToString( 3 )}-to-{targetVersion.ToString( 3 )}-win-x64.delta.zip";
         return new ApplicationUpdateAsset(
             name,
-            $"https://github.com/5kdn/DCS-Translation-Tool/releases/download/v{targetVersion.ToString( 3 )}/{name}",
+            $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v{targetVersion.ToString( 3 )}/{name}",
             size,
             $"sha256:{new string( 'a', 64 )}",
             kind,
@@ -146,7 +146,7 @@ public sealed class UpdateCheckResultTests {
             targetVersion,
             new ApplicationUpdateChecksumAsset(
                 $"{name}.sha256",
-                $"https://github.com/5kdn/DCS-Translation-Tool/releases/download/v{targetVersion.ToString( 3 )}/{name}.sha256",
+                $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v{targetVersion.ToString( 3 )}/{name}.sha256",
                 checksumSize,
                 $"sha256:{new string( 'b', 64 )}" ) );
     }

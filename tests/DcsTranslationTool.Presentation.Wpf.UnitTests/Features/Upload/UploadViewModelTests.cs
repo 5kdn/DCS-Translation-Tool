@@ -90,7 +90,7 @@ public sealed class UploadViewModelTests : IDisposable {
     //        .Setup( api => api.GetTreeAsync( It.IsAny<CancellationToken>() ) )
     //        .ReturnsAsync( Result.Ok<IReadOnlyList<FileEntry>>( repoEntries ) );
 
-    //    var prUrl = new Uri( "https://github.com/5kdn/DCS-Translation-Japanese/pull/123", UriKind.Absolute );
+    //    var prUrl = new Uri( "https://github.com/dcs-translation-japanese/translations/pull/123", UriKind.Absolute );
     //    context.ApiServiceMock
     //        .Setup( api => api.CreatePullRequestAsync(
     //            It.IsAny<ApiCreatePullRequestRequest>(),
@@ -948,7 +948,7 @@ public sealed class UploadViewModelTests : IDisposable {
             CreateAircraftRepoEntries(),
             [new LocalFileEntry( "Example.lua", AircraftExamplePath, false, "local-sha" )] );
 
-        const string prUrl = "https://github.com/5kdn/DCS-Translation-Japanese/pull/1";
+        const string prUrl = "https://github.com/dcs-translation-japanese/translations/pull/1";
         context.DialogServiceMock
             .Setup( service => service.CreatePullRequestDialogShowAsync(
                 It.IsAny<CreatePullRequestDialogParameters>(),

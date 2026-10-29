@@ -184,7 +184,7 @@ public sealed class ApplicationUpdateEndToEndTests {
             currentWindow = await WaitForMainWindowAsync( secondApplication, automation, UiTimeout );
             currentWindow.Focus();
             await WaitForElementAsync( desktop, "UpdateSnackbarAction", UiTimeout );
-            Assert.Equal( 1, server.Requests.Count( path => path == "/repos/5kdn/DCS-Translation-Tool/releases" ) );
+            Assert.Equal( 1, server.Requests.Count( path => path == "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases" ) );
             workspace.AssertStagedUpdate();
 
             updateAction = await WaitForElementAsync( desktop, "UpdateSnackbarAction", UiTimeout );
@@ -414,7 +414,7 @@ public sealed class ApplicationUpdateEndToEndTests {
         var secondDeltaSidecarPath = $"{secondDeltaPath}.sha256";
         var fullSidecarPath = $"{fullPath}.sha256";
         var orderedRequests = requests.ToArray();
-        Assert.Equal( 1, orderedRequests.Count( path => path == "/repos/5kdn/DCS-Translation-Tool/releases" ) );
+        Assert.Equal( 1, orderedRequests.Count( path => path == "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases" ) );
         Assert.Equal( 1, orderedRequests.Count( path => path == firstDeltaPath ) );
         Assert.Equal( 1, orderedRequests.Count( path => path == firstDeltaSidecarPath ) );
         Assert.Equal( 1, orderedRequests.Count( path => path == secondDeltaPath ) );
