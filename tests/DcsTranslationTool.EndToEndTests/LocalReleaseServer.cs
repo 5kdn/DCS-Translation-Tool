@@ -45,10 +45,10 @@ internal sealed class LocalReleaseServer( string runtimeIdentifier, string asset
             await next( context );
         } );
         application.MapGet(
-            "/repos/5kdn/DCS-Translation-Tool/releases/latest",
+            "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases/latest",
             () => Results.Json( this.CreateReleasePayload( "1.2.0", "1.1.0" ) ) );
         application.MapGet(
-            "/repos/5kdn/DCS-Translation-Tool/releases",
+            "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases",
             () => Results.Json( new[]
             {
                 this.CreateReleasePayload( "1.2.0", "1.1.0" ),

@@ -29,39 +29,39 @@ public sealed class UpdateCheckServiceTests {
                 } ) ) );
             }
 
-            Assert.Equal( "/repos/5kdn/DCS-Translation-Tool/releases/latest", request.RequestUri?.AbsolutePath );
+            Assert.Equal( "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases/latest", request.RequestUri?.AbsolutePath );
             return Task.FromResult( new HttpResponseMessage( HttpStatusCode.OK )
             {
                 Content = new StringContent(
                 """
                 {
                   "tag_name": "v1.4.0",
-                  "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
+                  "html_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.4.0",
                   "draft": false,
                   "prerelease": false,
                   "immutable": true,
                   "assets": [
                     {
                       "name": "DCS-Translation-Tool-1.4.0-win-x64.zip",
-                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip",
+                      "browser_download_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip",
                       "size": 120000000,
                       "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                     },
                     {
                       "name": "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
-                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
+                      "browser_download_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
                       "size": 120,
                       "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
                     },
                     {
                       "name": "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip",
-                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip",
+                      "browser_download_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip",
                       "size": 20000000,
                       "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                     },
                     {
                       "name": "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip.sha256",
-                      "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip.sha256",
+                      "browser_download_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip.sha256",
                       "size": 120,
                       "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
                     }
@@ -79,14 +79,14 @@ public sealed class UpdateCheckServiceTests {
 
         Assert.True( result.IsUpdateAvailable );
         Assert.Equal( "v1.4.0", result.LatestVersionLabel );
-        Assert.Equal( "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0", result.ReleaseUrl );
+        Assert.Equal( "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.4.0", result.ReleaseUrl );
         Assert.True( result.IsImmutable );
         Assert.Equal( "win-x64", result.RuntimeIdentifier );
         Assert.Equal( "DCS-Translation-Tool-1.4.0-win-x64.zip", result.FullAsset?.Name );
         Assert.Equal( "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256", result.FullAsset?.Checksum.Name );
         Assert.Equal( "DCS-Translation-Tool-1.3.1-to-1.4.0-win-x64.delta.zip", Assert.Single( result.DeltaAssets ).Name );
         Assert.Equal( ApplicationUpdateAssetKind.Delta, result.PreferredAssetKind );
-        Assert.Contains( "/repos/5kdn/DCS-Translation-Tool/releases?per_page=100&page=1", requestedPaths );
+        Assert.Contains( "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases?per_page=100&page=1", requestedPaths );
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ public sealed class UpdateCheckServiceTests {
         Assert.Equal( "2.1.0", result.DeltaAssets[0].TargetVersion.ToString( 3 ) );
         Assert.Equal( "2.2.0", result.DeltaAssets[1].TargetVersion.ToString( 3 ) );
         Assert.True( result.IsDeltaPreferred );
-        Assert.Contains( "/repos/5kdn/DCS-Translation-Tool/releases?per_page=100&page=1", requestedPaths );
+        Assert.Contains( "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases?per_page=100&page=1", requestedPaths );
     }
 
     /// <summary>
@@ -324,7 +324,7 @@ public sealed class UpdateCheckServiceTests {
                 """
                 {
                   "tag_name": "v1.3.1",
-                  "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.3.1",
+                  "html_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.3.1",
                   "draft": false,
                   "prerelease": false
                 }
@@ -350,7 +350,7 @@ public sealed class UpdateCheckServiceTests {
                 """
                 {
                   "tag_name": "1.3.1",
-                  "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.3.1",
+                  "html_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.3.1",
                   "draft": false,
                   "prerelease": false
                 }
@@ -417,7 +417,7 @@ public sealed class UpdateCheckServiceTests {
                 """
                 {
                   "tag_name": "not-a-version",
-                  "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/not-a-version",
+                  "html_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/not-a-version",
                   "draft": false,
                   "prerelease": false
                 }
@@ -450,7 +450,7 @@ public sealed class UpdateCheckServiceTests {
 
     private static object CreateReleasePayload( string version, params object[][] assetGroups ) => new {
         tag_name = $"v{version}",
-        html_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v{version}",
+        html_url = $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v{version}",
         draft = false,
         prerelease = false,
         immutable = true,
@@ -465,7 +465,7 @@ public sealed class UpdateCheckServiceTests {
         params object[][] assetGroups
     ) => new {
         tag_name = $"v{version}",
-        html_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v{version}",
+        html_url = $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v{version}",
         draft,
         prerelease,
         immutable,
@@ -493,14 +493,14 @@ public sealed class UpdateCheckServiceTests {
         new
         {
             name,
-            browser_download_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/download/v{version}/{name}",
+            browser_download_url = $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v{version}/{name}",
             size,
             digest = digest ?? $"sha256:{new string( 'a', 64 )}"
         },
         new
         {
             name = $"{name}.sha256",
-            browser_download_url = $"https://github.com/5kdn/DCS-Translation-Tool/releases/download/v{version}/{name}.sha256",
+            browser_download_url = $"https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v{version}/{name}.sha256",
             size = checksumSize,
             digest = $"sha256:{new string( 'b', 64 )}"
         }

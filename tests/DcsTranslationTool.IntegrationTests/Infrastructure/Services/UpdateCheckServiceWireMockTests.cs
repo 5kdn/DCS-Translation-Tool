@@ -25,7 +25,7 @@ public sealed class UpdateCheckServiceWireMockTests {
             .Returns( new Version( 1, 3, 1, 0 ) );
 
         server.Server
-            .Given( Request.Create().WithPath( "/repos/5kdn/DCS-Translation-Tool/releases/latest" ).UsingGet() )
+            .Given( Request.Create().WithPath( "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases/latest" ).UsingGet() )
             .RespondWith(
                 Response.Create()
                     .WithStatusCode( 200 )
@@ -34,20 +34,20 @@ public sealed class UpdateCheckServiceWireMockTests {
                         """
                         {
                           "tag_name": "v1.4.0",
-                          "html_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0",
+                          "html_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.4.0",
                           "draft": false,
                           "prerelease": false,
                           "immutable": true,
                           "assets": [
                             {
                               "name": "DCS-Translation-Tool-1.4.0-win-x64.zip",
-                              "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip",
+                              "browser_download_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip",
                               "size": 1024,
                               "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                             },
                             {
                               "name": "DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
-                              "browser_download_url": "https://github.com/5kdn/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
+                              "browser_download_url": "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/download/v1.4.0/DCS-Translation-Tool-1.4.0-win-x64.zip.sha256",
                               "size": 128,
                               "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                             }
@@ -65,16 +65,16 @@ public sealed class UpdateCheckServiceWireMockTests {
 
         Assert.True( result.IsUpdateAvailable );
         Assert.Equal( "v1.4.0", result.LatestVersionLabel );
-        Assert.Equal( "https://github.com/5kdn/DCS-Translation-Tool/releases/tag/v1.4.0", result.ReleaseUrl );
+        Assert.Equal( "https://github.com/dcs-translation-japanese/DCS-Translation-Tool/releases/tag/v1.4.0", result.ReleaseUrl );
 
         Assert.Contains(
             server.Server.LogEntries,
-            entry => string.Equals( entry.RequestMessage?.Path, "/repos/5kdn/DCS-Translation-Tool/releases/latest", StringComparison.Ordinal ) );
+            entry => string.Equals( entry.RequestMessage?.Path, "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases/latest", StringComparison.Ordinal ) );
         var request = server.Server.LogEntries
-            .Last( entry => string.Equals( entry.RequestMessage?.Path, "/repos/5kdn/DCS-Translation-Tool/releases/latest", StringComparison.Ordinal ) )
+            .Last( entry => string.Equals( entry.RequestMessage?.Path, "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases/latest", StringComparison.Ordinal ) )
             .RequestMessage!;
         Assert.Equal( "GET", request.Method );
-        Assert.Equal( "/repos/5kdn/DCS-Translation-Tool/releases/latest", request.Path );
+        Assert.Equal( "/repos/dcs-translation-japanese/DCS-Translation-Tool/releases/latest", request.Path );
         Assert.NotNull( request.Headers );
         Assert.Contains(
             request.Headers!["Accept"].Select( value => value?.ToString() ?? string.Empty ),
